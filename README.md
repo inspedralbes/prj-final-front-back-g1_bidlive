@@ -1,6 +1,6 @@
 📱 BidLife
 
-    La evolución de las subastas: eBay se encuentra con Twitch.
+La evolución de las subastas: eBay se encuentra con Twitch.
 
 📌 Descripción del Proyecto
 
