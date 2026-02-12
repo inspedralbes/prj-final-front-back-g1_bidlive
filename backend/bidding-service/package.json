@@ -1,0 +1,17 @@
+{
+    "name": "bidding-service",
+    "version": "1.0.0",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "dev": "nodemon index.js"
+    },
+    "dependencies": {
+        "ws": "^8.13.0",
+        "mysql2": "^3.0.0",
+        "dotenv": "^16.3.1"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.1"
+    }
+}
