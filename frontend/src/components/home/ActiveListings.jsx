@@ -2,48 +2,29 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 
 const ActiveListings = () => {
-    const listings = [
-        {
-            id: 101,
-            name: "Nike Air Max Rare Edition",
-            img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAt0mDk70WKknE6Bf5N1_Lvhn02awTKV4OKMPO_SjAKLouI0-ImoqYwHnU7VpnDBu2qPE8ICeindVfgkRFOBg9miRLKFP1YLTECETw3NkuJ96SnBp-s_7QJo0FdLjURtH3ETfRT3SifQBE2W2A1gTpCc53wXqOxit3j6x5BOwp1qdGuEBPPVd6TRBh3bjI0wj6DNDJJJ_tmFkSo2Cbbb5DpZ35wFderLDRr853Rm5fVZPlJ_CHn3-E6RT_E20g1YNE1ShKNgXoMJ2nw",
-            bid: "$145.00",
-            bids: 12,
-            timeLeft: "04:21"
-        },
-        {
-            id: 102,
-            name: "Designer Tee Pack (3)",
-            img: "https://lh3.googleusercontent.com/aida-public/AB6AXuAxFGjvn9SOUQjATXH-U_P4v7PQee5ugix73yfl0ifWPDUyZALiCoNqkOhDzyNNHo8B3rQ2ZvuIFM-uw54Zqfft9Gbma36qNhOOsNBE4tTo6qKoh47ZCV1MY_zVGgSshbBpQM4Iq-_OgdkxiBr0GzGp-jAFj3Dm1DvrO0PSLNZRLNx2imZDBP9W060eNFeJb-e3rev7jJMwmswd5x2K6m_1WvlIIoL7CeCovROGztffa6P8Hvyprc_LKA8UJHAYaP_Gl3sfWqyUvETy",
-            bid: "$65.00",
-            bids: 4,
-            timeLeft: "12:45"
-        },
-        {
-            id: 103,
-            name: "Vintage Parker Fountain Pen",
-            img: "https://lh3.googleusercontent.com/aida-public/AB6AXuC4FwVkf5qgzoDV_uaqXax_G5YE66tK8suRkWlRS_pBi4Lp0coYDaSD008IS9ArR_0Ua6Qjrpp1PFkcpfsLd7duxOyfQGUBY8LYOctyBE7jOTOtqhITfibzh49frcCT3iIBQiVSr-D2geIwF3-Q_AEYXf-dm-2YGDrgKmNd3SsP_LStlk4sUDDKmsF57Byd_Wg_E6R2tGWfw42WtjUYiAdSKSgHI28xo5m2F9s5McScpR14mGmL9grj6IsngSXqtuk3HZzmUu1Plisz",
-            bid: "$210.00",
-            bids: 22,
-            timeLeft: "02:10"
-        },
-        {
-            id: 104,
-            name: "Leica 35mm f/1.4 Lens",
-            img: "https://lh3.googleusercontent.com/aida-public/AB6AXuB2KsuHJYeRbSxXlll1bTDphqVhfjZ2UU3lMNxZlxECYyHb4mf9I4zgHsKoZi-XCaBDblkAGQ1SLdbJrg5D-HkwcLIQIOQwdwBds7iwpIA6Zmfv0gEitbFQ9eEDQ7I0d-I4PtfAz__qU-p219SIuY2_USzh3LrR4TrHcr_PBSUGPw3sxRaqMcAf0KxT2m8sMcGUXCP8HLUKTLYU9HSR69EHXQbCA8cOn1cNxBAXvMOxFaPKlDzq3qW_LZqpFjQZw-DHYgi2W5szf40K",
-            bid: "$1,850.00",
-            bids: 15,
-            timeLeft: "08:33"
-        },
-        {
-            id: 105,
-            name: "2023 Creator Laptop Pro",
-            img: "https://lh3.googleusercontent.com/aida-public/AB6AXuDqX77QOAw5hxLowU_9vfI3ytPQC_NpjpYcPMT7mzxz868bXBxSHozCSd0VrmSKSmlcHv7GZoyQo30YCn1nCMknC5O2YTkUR5XOL7ZAFRGL9wUIgsxL2waFz_ugWmvvZHp2Q6LkC9ODWChnJh--1_ukOVU3GfS8Bo_BzpKv_aRvP0i3956IUt0pluQKQfF_LAqx4bpckiOUKtuLbunv9DoUgsjegJ7vHBNkd5ZalgR6LCA6_SlE_1jBxA0xu4Uv7qKj3kLzVpOq16Uu",
-            bid: "$920.00",
-            bids: 31,
-            timeLeft: "01:45"
-        }
-    ];
+    const [listings, setListings] = React.useState([]);
+    const [loading, setLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        fetch('/api/auction/active')
+            .then(res => res.json())
+            .then(data => {
+                setListings(data);
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error("Failed to fetch active listings:", err);
+                setLoading(false);
+            });
+    }, []);
+
+    if (loading) {
+        return (
+            <section className="h-48 flex items-center justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+            </section>
+        );
+    }
 
     return (
         <section>

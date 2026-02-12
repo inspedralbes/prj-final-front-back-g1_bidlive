@@ -1,29 +1,23 @@
 import React from 'react';
 
 const UpcomingRail = () => {
-    const drops = [
-        {
-            title: "The 'Grail' Sneaker Collection Vol. 2",
-            desc: "150+ Rare items from the 90s era.",
-            img: "https://lh3.googleusercontent.com/aida-public/AB6AXuD-tGT6-QDtGejMpaehKbUHa8PfikFsfvQmyGHi0I0HQ1L_5Qtc7ogOmeTXuGWI0xVVBr_GPZVkm2GqAFgi6lEZLd6gnDyxeWpd2v-ecMY_6uNYWSmQV6rvMMwDxuudyxGu5-LhSGhbAlswhDG7mjOyvTb-0iYoqsyvnbIg6zv39Lmr_I2Qg0iridZB0GHzugOKkDeGcMnzqnZu1VwG7dY8KloEty7lBHYdoWRxrebd6QTD4t2yaYNn0sYwm3f9OQrLxErqPYAz1aDP",
-            startsIn: "02d 14h 55m",
-            reminders: "2.4k"
-        },
-        {
-            title: "Tech Legends: Sealed Apple Heritage",
-            desc: "Exclusive first-gen iPhone & iPods.",
-            img: "https://lh3.googleusercontent.com/aida-public/AB6AXuCYK5JJt3pdsrlEJ_WjUHZf3SXXwpUbqbZ0c4-XP2Tujy-ZAI3kleHc-FJP0fmVrJKp4qd8jV7HmcpWFlZBIZOZvYcKPhVnBs0kxm3lX2khMKhTD1akLPANFSp0jjv398aZ9Td5d4cL802Yoo0h6yNa7a0Roc3H5CYAsm8hSsKcFumSvwBRdMSHsiybH0S1CYxmQGxfULieQR6fjO4AHFQL94KzC5VNuQ-iwSNB-c3Wgc7HoGJTdBZcPwy0ftVMHEgFJ7fyrhMFGDui",
-            startsIn: "05d 06h 12m",
-            reminders: "8.1k"
-        },
-        {
-            title: "Modernism: Digital Art & NFTs Drop",
-            desc: "Featuring works from top 5 digital artists.",
-            img: "https://lh3.googleusercontent.com/aida-public/AB6AXuD9d4T3GsEGwAlematb4O8dWIGzbWltt-x9ZwUljJ4YrKYGzSBMdstU0wYVHSGPH6aWjwJNRu9fBv1Ns35OT-3YpaUS_SJuriibdDNtSAJWIg8YYzGBCHjzyIttuAWYua6qITSy2J-B_VWFS7Z7OQeZqc24mvg1ni-2C5VqJba43v5o-DTqQja8qvWVJt2CTMZuT3ql2tFVX_eIYJun8qUp3SMut43oltAMXynmOhlib1SH8VsYV2Y1goFgCgR5Pp4NuVh9uZxysJp_",
-            startsIn: "01d 02h 30m",
-            reminders: "1.2k"
-        }
-    ];
+    const [drops, setDrops] = React.useState([]);
+    const [loading, setLoading] = React.useState(true);
+
+    React.useEffect(() => {
+        fetch('/api/drops')
+            .then(res => res.json())
+            .then(data => {
+                setDrops(data);
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error("Failed to fetch upcoming drops:", err);
+                setLoading(false);
+            });
+    }, []);
+
+    if (loading) return null;
 
     return (
         <section className="pb-20">
