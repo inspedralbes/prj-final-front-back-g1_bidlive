@@ -85,8 +85,9 @@ Backend (Arquitectura Prevista)
 
     Hugo Córdoba
 
-    Roberto Lotrenau
+    Roberto Lotreanu
 
 📄 Licencia
+
 
 Este proyecto se distribuye bajo la licencia MIT.
