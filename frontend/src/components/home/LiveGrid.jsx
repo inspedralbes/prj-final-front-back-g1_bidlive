@@ -6,7 +6,7 @@ const LiveGrid = () => {
     const [loading, setLoading] = React.useState(true);
 
     React.useEffect(() => {
-        fetch('/api/auction/live')
+        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auction/pujas/live`)
             .then(res => res.json())
             .then(data => {
                 setLiveItems(data);

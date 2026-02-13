@@ -1,35 +1,45 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const { login } = useAuth();
+    const navigate = useNavigate();
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        try {
+            await login(email, password);
+            navigate('/');
+        } catch (err) {
+            setError(err.message || 'Failed to login');
+        }
+    };
+
     return (
         <div className="bg-background-light dark:bg-background-dark text-white min-h-screen font-display">
             <div className="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden">
                 <div className="layout-container flex h-full grow flex-col">
                     {/* Top Navigation Bar */}
-                    <div className="px-4 flex justify-center py-5">
-                        <div className="layout-content-container flex flex-col max-w-[960px] flex-1">
-                            <header className="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-primary/20 px-4 md:px-10 py-3">
-                                <Link to="/" className="flex items-center gap-4 text-white">
-                                    <div className="size-6 text-primary">
-                                        <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-                                            <path d="M6 6H42L36 24L42 42H6L12 24L6 6Z" fill="currentColor"></path>
-                                        </svg>
-                                    </div>
-                                    <h2 className="text-white text-lg font-bold leading-tight tracking-[-0.015em]">Auction Live</h2>
-                                </Link>
-                                <div className="flex flex-1 justify-end gap-8">
-                                    <div className="hidden md:flex items-center gap-9">
-                                        <Link to="/explore" className="text-white text-sm font-medium leading-normal hover:text-primary transition-colors">Live Auctions</Link>
-                                        <Link to="/explore" className="text-white text-sm font-medium leading-normal hover:text-primary transition-colors">Upcoming</Link>
-                                    </div>
-                                    <Link to="/register" className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] hover:bg-primary/90 transition-colors">
-                                        <span className="truncate">Sign Up</span>
-                                    </Link>
-                                </div>
-                            </header>
+                    <header className="flex items-center justify-between border-b border-solid border-[#39282b] px-10 py-3 bg-background-light dark:bg-background-dark">
+                        <Link to="/" className="flex items-center gap-4 text-white">
+                            <div className="size-6 text-primary">
+                                <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z" fill="currentColor"></path>
+                                </svg>
+                            </div>
+                            <h2 className="text-white text-xl font-bold leading-tight tracking-[-0.015em]">BidLive</h2>
+                        </Link>
+                        <div className="flex flex-1 justify-end gap-8">
+                            <Link to="/register" className="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal hover:bg-primary/90 transition-colors">
+                                <span>Sign Up</span>
+                            </Link>
                         </div>
-                    </div>
+                    </header>
 
                     {/* Login Content Area */}
                     <div className="flex flex-1 justify-center items-center py-10 px-4">
@@ -40,13 +50,22 @@ const Login = () => {
                                 <p className="text-white/70 text-base font-normal leading-normal pt-2 text-center">Login to start bidding in real-time auctions</p>
                             </div>
 
+                            {error && <div className="text-red-500 text-center mt-4">{error}</div>}
+
                             {/* Form Section */}
-                            <form className="flex flex-col gap-2 mt-6">
+                            <form className="flex flex-col gap-2 mt-6" onSubmit={handleSubmit}>
                                 {/* Email Field */}
                                 <div className="flex flex-col w-full py-2">
                                     <label className="flex flex-col w-full">
                                         <p className="text-white text-sm font-medium leading-normal pb-2">Email</p>
-                                        <input className="form-input flex w-full min-w-0 resize-none overflow-hidden rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-14 placeholder:text-[#ba9ca1] p-[15px] text-base font-normal" placeholder="Enter your email" type="email" />
+                                        <input
+                                            className="form-input flex w-full min-w-0 resize-none overflow-hidden rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-14 placeholder:text-[#ba9ca1] p-[15px] text-base font-normal"
+                                            placeholder="Enter your email"
+                                            type="email"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            required
+                                        />
                                     </label>
                                 </div>
 
@@ -58,7 +77,14 @@ const Login = () => {
                                             <Link to="/forgot-password" className="text-primary text-xs font-medium hover:underline">Forgot Password?</Link>
                                         </div>
                                         <div className="flex w-full flex-1 items-stretch rounded-lg">
-                                            <input className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-14 placeholder:text-[#ba9ca1] p-[15px] rounded-r-none border-r-0 pr-2 text-base font-normal" placeholder="Enter your password" type="password" />
+                                            <input
+                                                className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-14 placeholder:text-[#ba9ca1] p-[15px] rounded-r-none border-r-0 pr-2 text-base font-normal"
+                                                placeholder="Enter your password"
+                                                type="password"
+                                                value={password}
+                                                onChange={(e) => setPassword(e.target.value)}
+                                                required
+                                            />
                                             <div className="text-[#ba9ca1] flex border border-[#543b3f] bg-[#271b1d] items-center justify-center px-4 rounded-r-lg border-l-0 cursor-pointer hover:text-white transition-colors">
                                                 <span className="material-symbols-outlined text-[24px]">visibility</span>
                                             </div>
@@ -113,6 +139,9 @@ const Login = () => {
                     {/* Footer Decorative Element */}
                     <div className="h-1 bg-gradient-to-r from-transparent via-primary/50 to-transparent opacity-20 w-full mt-auto"></div>
                 </div>
+                {/* Background Decoration */}
+                <div className="fixed top-0 right-0 -z-10 w-[500px] h-[500px] bg-primary/10 blur-[120px] rounded-full opacity-50"></div>
+                <div className="fixed bottom-0 left-0 -z-10 w-[400px] h-[400px] bg-primary/5 blur-[100px] rounded-full opacity-30"></div>
             </div>
         </div>
     );

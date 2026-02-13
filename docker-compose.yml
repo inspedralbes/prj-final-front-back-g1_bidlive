@@ -4,7 +4,7 @@ services:
     build:
       context: ./frontend
     ports:
-      - "5173:5173"
+      - "${PORT_FRONTEND}:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
@@ -19,7 +19,7 @@ services:
     volumes:
       - ./backend/gateway/nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
-      - "8080:80"
+      - "${PORT_GATEWAY}:80"
     depends_on:
       - auth-service
       - auction-service
@@ -29,23 +29,34 @@ services:
   db:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: bidlive
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_DATABASE}
     ports:
-      - "3306:3306"
+      - "${PORT_DB}:3306"
     volumes:
       - db_data:/var/lib/mysql
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    restart: always
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+    ports:
+      - "${PORT_PHPMYADMIN}:80"
+    depends_on:
+      - db
 
   # Microservices
   auth-service:
     build:
       context: ./backend/auth-service
     environment:
-      - DB_HOST=db
-      - DB_USER=root
-      - DB_PASS=rootpassword
-      - DB_NAME=bidlive
-      - PORT=3000
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=${DB_DATABASE}
+      - PORT=${PORT_AUTH_SERVICE}
     depends_on:
       - db
 
@@ -53,11 +64,11 @@ services:
     build:
       context: ./backend/auction-service
     environment:
-      - DB_HOST=db
-      - DB_USER=root
-      - DB_PASS=rootpassword
-      - DB_NAME=bidlive
-      - PORT=3001
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=${DB_DATABASE}
+      - PORT=${PORT_AUCTION_SERVICE}
     depends_on:
       - db
 
@@ -65,7 +76,7 @@ services:
     build:
       context: ./backend/bidding-service
     environment:
-      - PORT=3002
+      - PORT=${PORT_BIDDING_SERVICE}
     depends_on:
       - db
 

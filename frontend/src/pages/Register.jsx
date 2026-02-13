@@ -1,7 +1,38 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const Register = () => {
+    const [formData, setFormData] = useState({
+        username: '',
+        email: '',
+        password: '',
+        confirmPassword: ''
+    });
+    const [error, setError] = useState('');
+    const { register } = useAuth();
+    const navigate = useNavigate();
+
+    const handleChange = (e) => {
+        setFormData({ ...formData, [e.target.name]: e.target.value });
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+
+        if (formData.password !== formData.confirmPassword) {
+            return setError('Passwords do not match');
+        }
+
+        try {
+            await register(formData.username, formData.email, formData.password);
+            navigate('/login');
+        } catch (err) {
+            setError(err.message || 'Failed to register');
+        }
+    };
+
     return (
         <div className="bg-background-light dark:bg-background-dark font-display text-white min-h-screen">
             <div className="layout-container flex h-full grow flex-col">
@@ -13,33 +44,38 @@ const Register = () => {
                                 <path d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z" fill="currentColor"></path>
                             </svg>
                         </div>
-                        <h2 className="text-white text-xl font-bold leading-tight tracking-[-0.015em]">LiveAuction</h2>
+                        <h2 className="text-white text-xl font-bold leading-tight tracking-[-0.015em]">BidLive</h2>
                     </Link>
                     <div className="flex flex-1 justify-end gap-8">
-                        <div className="flex items-center gap-9">
-                            <Link to="/" className="text-white/80 hover:text-white text-sm font-medium leading-normal">Home</Link>
-                            <Link to="/explore" className="text-white/80 hover:text-white text-sm font-medium leading-normal">Browse</Link>
-                            <Link to="/explore" className="text-white/80 hover:text-white text-sm font-medium leading-normal">Live</Link>
-                        </div>
-                        <Link to="/login" className="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal">
+                        <Link to="/login" className="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal hover:bg-primary/90 transition-colors">
                             <span>Login</span>
                         </Link>
                     </div>
                 </header>
 
                 <main className="flex-1 flex flex-col items-center justify-center py-12 px-4">
-                    <div className="max-w-[480px] w-full flex flex-col gap-2">
+                    <div className="layout-content-container flex flex-col w-full max-w-[480px] bg-[#271b1d]/40 p-8 rounded-xl border border-[#39282b] relative z-10">
                         {/* Headline */}
                         <h1 className="text-white tracking-light text-[32px] font-bold leading-tight text-center pb-2 pt-6">Join the Auction</h1>
                         <p className="text-[#ba9ca1] text-center mb-6">Create an account to start bidding and streaming.</p>
 
+                        {error && <div className="text-red-500 text-center mb-4">{error}</div>}
+
                         {/* Registration Form */}
-                        <form className="flex flex-col gap-4">
+                        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
                             {/* Full Name */}
                             <div className="flex flex-col gap-2">
                                 <label className="flex flex-col w-full">
                                     <p className="text-white text-sm font-medium leading-normal pb-1">Full Name</p>
-                                    <input className="form-input flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-12 placeholder:text-[#ba9ca1] px-4 text-base font-normal leading-normal" placeholder="Enter your full name" type="text" />
+                                    <input
+                                        name="username"
+                                        value={formData.username}
+                                        onChange={handleChange}
+                                        required
+                                        className="form-input flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-12 placeholder:text-[#ba9ca1] px-4 text-base font-normal leading-normal"
+                                        placeholder="Enter your full name"
+                                        type="text"
+                                    />
                                 </label>
                             </div>
 
@@ -47,7 +83,15 @@ const Register = () => {
                             <div className="flex flex-col gap-2">
                                 <label className="flex flex-col w-full">
                                     <p className="text-white text-sm font-medium leading-normal pb-1">Email Address</p>
-                                    <input className="form-input flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-12 placeholder:text-[#ba9ca1] px-4 text-base font-normal leading-normal" placeholder="name@example.com" type="email" />
+                                    <input
+                                        name="email"
+                                        value={formData.email}
+                                        onChange={handleChange}
+                                        required
+                                        className="form-input flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-12 placeholder:text-[#ba9ca1] px-4 text-base font-normal leading-normal"
+                                        placeholder="name@example.com"
+                                        type="email"
+                                    />
                                 </label>
                             </div>
 
@@ -56,7 +100,15 @@ const Register = () => {
                                 <label className="flex flex-col w-full">
                                     <p className="text-white text-sm font-medium leading-normal pb-1">Password</p>
                                     <div className="relative flex items-center">
-                                        <input className="form-input flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-12 placeholder:text-[#ba9ca1] px-4 pr-12 text-base font-normal leading-normal" placeholder="Create a password" type="password" />
+                                        <input
+                                            name="password"
+                                            value={formData.password}
+                                            onChange={handleChange}
+                                            required
+                                            className="form-input flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-12 placeholder:text-[#ba9ca1] px-4 pr-12 text-base font-normal leading-normal"
+                                            placeholder="Create a password"
+                                            type="password"
+                                        />
                                         <span className="material-symbols-outlined absolute right-4 text-[#ba9ca1] cursor-pointer">visibility</span>
                                     </div>
                                 </label>
@@ -67,7 +119,15 @@ const Register = () => {
                                 <label className="flex flex-col w-full">
                                     <p className="text-white text-sm font-medium leading-normal pb-1">Confirm Password</p>
                                     <div className="relative flex items-center">
-                                        <input className="form-input flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-12 placeholder:text-[#ba9ca1] px-4 pr-12 text-base font-normal leading-normal" placeholder="Repeat your password" type="password" />
+                                        <input
+                                            name="confirmPassword"
+                                            value={formData.confirmPassword}
+                                            onChange={handleChange}
+                                            required
+                                            className="form-input flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-12 placeholder:text-[#ba9ca1] px-4 pr-12 text-base font-normal leading-normal"
+                                            placeholder="Repeat your password"
+                                            type="password"
+                                        />
                                         <span className="material-symbols-outlined absolute right-4 text-[#ba9ca1] cursor-pointer">visibility</span>
                                     </div>
                                 </label>
@@ -75,7 +135,7 @@ const Register = () => {
 
                             {/* Terms and Conditions */}
                             <div className="flex items-center gap-3 py-2">
-                                <input className="w-5 h-5 rounded border-[#543b3f] bg-[#271b1d] text-primary focus:ring-primary focus:ring-offset-background-dark" id="terms" type="checkbox" />
+                                <input className="w-5 h-5 rounded border-[#543b3f] bg-[#271b1d] text-primary focus:ring-primary focus:ring-offset-background-dark" id="terms" type="checkbox" required />
                                 <label className="text-sm text-[#ba9ca1] leading-tight" htmlFor="terms">
                                     I agree to the <a className="text-primary hover:underline" href="#">Terms of Service</a> and <a className="text-primary hover:underline" href="#">Privacy Policy</a>
                                 </label>

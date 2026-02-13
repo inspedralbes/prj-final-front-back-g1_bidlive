@@ -1,7 +1,18 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 const Header = () => {
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const { user, logout } = useAuth();
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        logout();
+        setIsMenuOpen(false);
+        navigate('/login');
+    };
+
     return (
         <header className="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-gray-200 dark:border-border-dark px-6 md:px-10 lg:px-20 py-3">
             <div className="max-w-[1440px] mx-auto flex items-center justify-between gap-8">
@@ -29,7 +40,7 @@ const Header = () => {
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <Link to="/create-auction" className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-transform active:scale-95">
+                    <Link to="/create-puja" className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-transform active:scale-95">
                         <span className="material-symbols-outlined text-sm">videocam</span>
                         <span className="hidden sm:inline">Go Live</span>
                     </Link>
@@ -37,9 +48,38 @@ const Header = () => {
                         <span className="material-symbols-outlined">notifications</span>
                         <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-background-dark"></span>
                     </button>
-                    <div
-                        className="h-8 w-8 rounded-full bg-gradient-to-tr from-primary to-orange-400 border-2 border-white dark:border-border-dark cursor-pointer shadow-lg"
-                    ></div>
+
+                    {/* User Menu */}
+                    <div className="relative">
+                        <div
+                            onClick={() => setIsMenuOpen(!isMenuOpen)}
+                            className="h-8 w-8 rounded-full bg-gradient-to-tr from-primary to-orange-400 border-2 border-white dark:border-border-dark cursor-pointer shadow-lg hover:scale-105 transition-transform"
+                        ></div>
+
+                        {isMenuOpen && (
+                            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-[#271b1d] rounded-xl shadow-xl border border-gray-100 dark:border-[#39282b] overflow-hidden z-50">
+                                <div className="px-4 py-3 border-b border-gray-100 dark:border-[#39282b]">
+                                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{user?.username || 'User'}</p>
+                                    <p className="text-xs text-gray-500 dark:text-[#ba9ca1] truncate">{user?.email || 'email@example.com'}</p>
+                                </div>
+                                <div className="py-1">
+                                    <Link
+                                        to="/profile"
+                                        className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-[#39282b]"
+                                        onClick={() => setIsMenuOpen(false)}
+                                    >
+                                        My Profile
+                                    </Link>
+                                    <button
+                                        onClick={handleLogout}
+                                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-[#39282b]/50"
+                                    >
+                                        Logout
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </header>
