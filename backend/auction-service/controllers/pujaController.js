@@ -3,7 +3,15 @@ const Puja = require('../models/Puja');
 const pujaController = {
     createPuja: async (req, res) => {
         try {
-            const { title, description, startingPrice, imageUrl, sellerId } = req.body;
+            const { title, description, startingPrice, sellerId } = req.body;
+            let imageUrl = req.body.imageUrl; // Fallback if URL is provided manually (though form will likely use file)
+
+            if (req.file) {
+                // Generate URL for the uploaded file
+                const protocol = req.protocol;
+                const host = req.get('host');
+                imageUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+            }
 
             if (!title || !startingPrice || !sellerId) {
                 return res.status(400).json({ message: 'Title, starting price, and seller ID are required' });
