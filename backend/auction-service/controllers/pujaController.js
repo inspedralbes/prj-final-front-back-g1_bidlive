@@ -10,7 +10,8 @@ const pujaController = {
                 // Generate URL for the uploaded file
                 const protocol = req.protocol;
                 const host = req.get('host');
-                imageUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+                const servicePrefix = process.env.SERVICE_PREFIX || '';
+                imageUrl = `${protocol}://${host}${servicePrefix}/uploads/${req.file.filename}`;
             }
 
             if (!title || !startingPrice || !sellerId) {

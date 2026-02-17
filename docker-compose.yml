@@ -73,6 +73,7 @@ services:
       - DB_PASS=${DB_PASSWORD}
       - DB_NAME=${DB_DATABASE}
       - PORT=${PORT_AUCTION_SERVICE}
+      - SERVICE_PREFIX=/auction
     volumes:
       - ./backend/auction-service:/app
       - /app/node_modules
