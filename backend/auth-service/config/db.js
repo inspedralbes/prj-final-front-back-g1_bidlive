@@ -3,12 +3,13 @@ const util = require('util');
 require('dotenv').config();
 
 const pool = mysql.createPool({
-    connectionLimit: 10,
-    host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASS || 'rootpassword',
-    database: process.env.DB_NAME || 'bidlive'
+  connectionLimit: 10,
+  host: process.env.DB_HOST,     
+  user: process.env.DB_USER,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
 });
+
 
 // Ping database to check connection
 pool.getConnection((err, connection) => {

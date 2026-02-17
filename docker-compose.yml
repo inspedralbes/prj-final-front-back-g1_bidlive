@@ -52,7 +52,7 @@ services:
     build:
       context: ./backend/auth-service
     environment:
-      - DB_HOST=${DB_HOST}
+      - DB_HOST=db
       - DB_USER=${DB_USER}
       - DB_PASS=${DB_PASSWORD}
       - DB_NAME=${DB_DATABASE}
