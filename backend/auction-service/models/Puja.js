@@ -27,21 +27,45 @@ const Puja = {
         return { id: result.insertId, title, description, startingPrice, currentPrice: startingPrice, imageUrl, sellerId, status };
     },
 
-    findAll: async (status = null) => {
-        let sql = 'SELECT * FROM pujas';
+    findAll: async (status = null, search = null) => {
+        let query = 'SELECT * FROM pujas';
         const params = [];
+        const conditions = [];
+
         if (status) {
-            sql += ' WHERE status = ?';
+            conditions.push('status = ?');
             params.push(status);
         }
-        sql += ' ORDER BY created_at DESC';
-        return db.query(sql, params);
+
+        if (search) {
+            conditions.push('(title LIKE ? OR description LIKE ?)');
+            params.push(`%${search}%`, `%${search}%`);
+        }
+
+        if (conditions.length > 0) {
+            query += ' WHERE ' + conditions.join(' AND ');
+        }
+
+        query += ' ORDER BY created_at DESC';
+
+        try {
+            const rows = await db.query(query, params);
+            return rows;
+        } catch (error) {
+            console.error('Database query error:', error);
+            throw error;
+        }
     },
 
     findById: async (id) => {
         const sql = 'SELECT * FROM pujas WHERE id = ?';
         const rows = await db.query(sql, [id]);
         return rows[0];
+    },
+
+    findBySellerId: async (sellerId) => {
+        const sql = 'SELECT * FROM pujas WHERE seller_id = ? ORDER BY created_at DESC';
+        return await db.query(sql, [sellerId]);
     }
 };
 

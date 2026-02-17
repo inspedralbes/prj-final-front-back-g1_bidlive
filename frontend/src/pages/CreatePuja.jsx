@@ -28,6 +28,12 @@ const CreatePuja = () => {
         setLoading(true);
         setError('');
 
+        if (!user || !user.id) {
+            setError('You must be logged in to create an auction.');
+            setLoading(false);
+            return;
+        }
+
         try {
             const data = new FormData();
             data.append('title', formData.title);
@@ -41,7 +47,7 @@ const CreatePuja = () => {
             const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auction/pujas`, {
                 method: 'POST',
                 headers: {
-                    // 'Content-Type': 'multipart/form-data', // Do NOT set this manually, let the browser set it with the boundary
+                    'Content-Type': 'application/json',
                     // 'Authorization': `Bearer ${localStorage.getItem('token')}` 
                 },
                 body: data
@@ -52,7 +58,7 @@ const CreatePuja = () => {
                 throw new Error(data.message || 'Failed to create puja');
             }
 
-            navigate('/');
+            navigate('/profile');
         } catch (err) {
             console.error(err);
             setError(err.message);
