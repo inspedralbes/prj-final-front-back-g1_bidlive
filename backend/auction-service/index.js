@@ -38,6 +38,7 @@ app.get('/', (req, res) => {
 // Real Endpoints
 app.post('/pujas', pujaController.createPuja);
 app.get('/pujas', pujaController.getPujas);
+app.get('/pujas/user/:userId', pujaController.getPujasByUser);
 app.get('/pujas/live', pujaController.getPujas); // Reusing getPujas for now, effectively getting all
 
 app.listen(port, () => {
