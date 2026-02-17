@@ -10,13 +10,17 @@ const CreatePuja = () => {
         title: '',
         description: '',
         startingPrice: '',
-        imageUrl: ''
+        imageFile: null
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
     const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        if (e.target.name === 'imageFile') {
+            setFormData({ ...formData, imageFile: e.target.files[0] });
+        } else {
+            setFormData({ ...formData, [e.target.name]: e.target.value });
+        }
     };
 
     const handleSubmit = async (e) => {
@@ -25,16 +29,22 @@ const CreatePuja = () => {
         setError('');
 
         try {
+            const data = new FormData();
+            data.append('title', formData.title);
+            data.append('description', formData.description);
+            data.append('startingPrice', formData.startingPrice);
+            data.append('sellerId', user.id);
+            if (formData.imageFile) {
+                data.append('image', formData.imageFile);
+            }
+
             const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auction/pujas`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    // 'Authorization': `Bearer ${localStorage.getItem('token')}` // Uncomment when backend verifies token
+                    // 'Content-Type': 'multipart/form-data', // Do NOT set this manually, let the browser set it with the boundary
+                    // 'Authorization': `Bearer ${localStorage.getItem('token')}` 
                 },
-                body: JSON.stringify({
-                    ...formData,
-                    sellerId: user.id
-                })
+                body: data
             });
 
             if (!response.ok) {
@@ -102,14 +112,13 @@ const CreatePuja = () => {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium mb-2">Image URL</label>
+                            <label className="block text-sm font-medium mb-2">Image</label>
                             <input
-                                type="url"
-                                name="imageUrl"
-                                value={formData.imageUrl}
+                                type="file"
+                                name="imageFile"
                                 onChange={handleChange}
-                                className="w-full bg-[#39282b]/50 border border-[#543b3f] rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary/50 outline-none transition-all"
-                                placeholder="https://example.com/image.jpg"
+                                accept="image/*"
+                                className="w-full bg-[#39282b]/50 border border-[#543b3f] rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary/50 outline-none transition-all file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90"
                             />
                         </div>
 

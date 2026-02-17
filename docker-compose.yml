@@ -57,6 +57,10 @@ services:
       - DB_PASS=${DB_PASSWORD}
       - DB_NAME=${DB_DATABASE}
       - PORT=${PORT_AUTH_SERVICE}
+    volumes:
+      - ./backend/auth-service:/app
+      - /app/node_modules
+    command: npm run dev
     depends_on:
       - db
 
@@ -69,6 +73,12 @@ services:
       - DB_PASS=${DB_PASSWORD}
       - DB_NAME=${DB_DATABASE}
       - PORT=${PORT_AUCTION_SERVICE}
+      - SERVICE_PREFIX=/auction
+    volumes:
+      - ./backend/auction-service:/app
+      - /app/node_modules
+      - ./backend/auction-service/uploads:/app/uploads # Persist uploads
+    command: npm run dev
     depends_on:
       - db
 
@@ -77,6 +87,10 @@ services:
       context: ./backend/bidding-service
     environment:
       - PORT=${PORT_BIDDING_SERVICE}
+    volumes:
+      - ./backend/bidding-service:/app
+      - /app/node_modules
+    command: npm run dev
     depends_on:
       - db
 
