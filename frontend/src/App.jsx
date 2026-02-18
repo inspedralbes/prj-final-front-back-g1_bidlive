@@ -22,12 +22,13 @@ import { AuthProvider } from "./context/AuthContext";
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/verify-2fa" element={<TwoFactorAuth />} />
+      <LanguageProvider>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/verify-2fa" element={<TwoFactorAuth />} />
 
           <Route element={<ProtectedRoute />}>
             <Route path="/" element={<Home />} />

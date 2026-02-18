@@ -18,7 +18,11 @@ const CreatePuja = () => {
   const [error, setError] = useState("");
 
   const handleChange = (e) => {
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+        if (e.target.name === 'imageFile') {
+            setFormData({ ...formData, imageFile: e.target.files[0] });
+        } else {
+        setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+        }
   };
 
   const handleSubmit = async (e) => {
