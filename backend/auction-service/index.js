@@ -77,6 +77,21 @@ app.get('/pujas', pujaController.getPujas);
 app.get('/pujas/user/:userId', pujaController.getPujasByUser);
 app.get('/pujas/live', pujaController.getPujas); // Reusing getPujas for now, effectively getting all
 
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error('Unhandled Error:', err);
+
+    if (err instanceof multer.MulterError) {
+        return res.status(400).json({ message: `Upload error: ${err.message}` });
+    }
+
+    if (err.message === 'Only images are allowed') {
+        return res.status(400).json({ message: err.message });
+    }
+
+    res.status(500).json({ message: 'Internal Server Error', error: err.message });
+});
+
 app.listen(port, () => {
     console.log(`Auction Service listening on port ${port}`);
 });

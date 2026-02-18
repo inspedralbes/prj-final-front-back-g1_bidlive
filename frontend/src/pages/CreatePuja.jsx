@@ -46,16 +46,15 @@ const CreatePuja = () => {
 
             const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auction/pujas`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    // 'Authorization': `Bearer ${localStorage.getItem('token')}` 
-                },
+                // headers: {
+                //     'Authorization': `Bearer ${localStorage.getItem('token')}` 
+                // },
                 body: data
             });
 
             if (!response.ok) {
                 const data = await response.json();
-                throw new Error(data.message || 'Failed to create puja');
+                throw new Error(data.error || data.message || 'Failed to create puja');
             }
 
             navigate('/profile');
