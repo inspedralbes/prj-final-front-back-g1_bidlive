@@ -79,11 +79,25 @@ app.get('/pujas/live', pujaController.getPujas); // Reusing getPujas for now, ef
 
 // Global Error Handler
 app.use((err, req, res, next) => {
+<<<<<<< HEAD
     console.error('Global error handler:', err);
     if (err instanceof multer.MulterError) {
         return res.status(400).json({ message: `Upload error: ${err.message}` });
     }
     res.status(500).json({ message: err.message || 'Internal Server Error' });
+=======
+    console.error('Unhandled Error:', err);
+
+    if (err instanceof multer.MulterError) {
+        return res.status(400).json({ message: `Upload error: ${err.message}` });
+    }
+
+    if (err.message === 'Only images are allowed') {
+        return res.status(400).json({ message: err.message });
+    }
+
+    res.status(500).json({ message: 'Internal Server Error', error: err.message });
+>>>>>>> e44d3056ec1c4aee9b05ed5fbb24dfdfe284c915
 });
 
 app.listen(port, () => {

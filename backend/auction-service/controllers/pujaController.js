@@ -22,7 +22,11 @@ const pujaController = {
             res.status(201).json({ message: 'Puja created successfully', puja: newPuja });
         } catch (error) {
             console.error('Error creating puja:', error);
-            res.status(500).json({ message: 'Internal server error' });
+            res.status(500).json({
+                message: 'Internal server error',
+                error: error.message,
+                stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            });
         }
     },
 
