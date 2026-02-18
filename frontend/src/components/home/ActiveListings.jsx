@@ -6,7 +6,7 @@ const ActiveListings = () => {
     const [loading, setLoading] = React.useState(true);
 
     React.useEffect(() => {
-        fetch('/api/auction/active')
+        fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auction/pujas/live`)
             .then(res => res.json())
             .then(data => {
                 setListings(data);
@@ -34,37 +34,41 @@ const ActiveListings = () => {
                 </h2>
                 <Link to="/explore" className="text-sm font-semibold text-primary hover:underline">View All</Link>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {listings.map(item => (
-                    <Link to={`/auction/photo/${item.id}`} key={item.id} className="bg-white dark:bg-surface-dark rounded-xl overflow-hidden border border-gray-200 dark:border-border-dark flex flex-col group cursor-pointer shadow-lg hover:shadow-primary/10 transition-shadow">
-                        <div className="relative aspect-square">
-                            <div
-                                className="absolute inset-0 bg-cover bg-center"
-                                style={{ backgroundImage: `url('${item.img}')` }}
-                            ></div>
-                            <div className="absolute top-2 left-2">
-                                <span className="bg-primary text-[8px] font-black px-1.5 py-0.5 rounded text-white tracking-tighter">BIDDING</span>
-                            </div>
-                            <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm px-2 py-1 rounded text-[10px] font-bold text-white flex items-center gap-1">
-                                <span className="material-symbols-outlined text-[12px] text-primary">timer</span> {item.timeLeft}
-                            </div>
-                        </div>
-                        <div className="p-3">
-                            <h4 className="text-xs font-bold line-clamp-1 mb-1">{item.name}</h4>
-                            <div className="flex items-end justify-between">
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] text-gray-500 font-bold uppercase">Current Bid</span>
-                                    <span className="text-sm font-black text-slate-900 dark:text-white">{item.bid}</span>
+            {listings.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    {listings.map(item => (
+                        <Link to={`/auction/photo/${item.id}`} key={item.id} className="bg-white dark:bg-surface-dark rounded-xl overflow-hidden border border-gray-200 dark:border-border-dark flex flex-col group cursor-pointer shadow-lg hover:shadow-primary/10 transition-shadow">
+                            <div className="relative aspect-square">
+                                <div
+                                    className="absolute inset-0 bg-cover bg-center"
+                                    style={{ backgroundImage: `url('${item.image_url}')` }}
+                                ></div>
+                                <div className="absolute top-2 left-2">
+                                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-black tracking-tighter text-white ${item.status === 'live' ? 'bg-primary' : 'bg-slate-500'}`}>
+                                        {item.status?.toUpperCase() || 'BIDDING'}
+                                    </span>
                                 </div>
-                                <span className="text-[10px] text-gray-400">{item.bids} bids</span>
                             </div>
-                        </div>
-                        <button className="w-full bg-primary/10 group-hover:bg-primary py-2 text-[10px] font-black tracking-widest text-primary group-hover:text-white uppercase transition-colors">
-                            Quick Bid
-                        </button>
-                    </Link>
-                ))}
-            </div>
+                            <div className="p-3">
+                                <h4 className="text-xs font-bold line-clamp-1 mb-1">{item.title}</h4>
+                                <div className="flex items-end justify-between">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-gray-500 font-bold uppercase">Current Price</span>
+                                        <span className="text-sm font-black text-slate-900 dark:text-white">${item.current_price || item.starting_price}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button className="w-full bg-primary/10 group-hover:bg-primary py-2 text-[10px] font-black tracking-widest text-primary group-hover:text-white uppercase transition-colors">
+                                View Auction
+                            </button>
+                        </Link>
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-12 bg-white dark:bg-surface-dark rounded-xl border border-dashed border-slate-200 dark:border-border-dark">
+                    <p className="text-slate-500">No active auctions at the moment.</p>
+                </div>
+            )}
         </section>
     );
 };

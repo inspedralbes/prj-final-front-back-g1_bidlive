@@ -77,6 +77,15 @@ app.get('/pujas', pujaController.getPujas);
 app.get('/pujas/user/:userId', pujaController.getPujasByUser);
 app.get('/pujas/live', pujaController.getPujas); // Reusing getPujas for now, effectively getting all
 
+// Global Error Handler
+app.use((err, req, res, next) => {
+    console.error('Global error handler:', err);
+    if (err instanceof multer.MulterError) {
+        return res.status(400).json({ message: `Upload error: ${err.message}` });
+    }
+    res.status(500).json({ message: err.message || 'Internal Server Error' });
+});
+
 app.listen(port, () => {
     console.log(`Auction Service listening on port ${port}`);
 });

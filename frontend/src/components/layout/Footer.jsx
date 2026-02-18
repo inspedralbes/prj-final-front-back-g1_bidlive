@@ -1,12 +1,13 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 const Footer = () => {
     return (
         <footer className="bg-background-light dark:bg-background-dark border-t border-slate-200 dark:border-[#39282b] px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-display">
             <div className="flex items-center gap-6 text-slate-500 dark:text-[#ba9ca1]">
                 <p>© 2024 LiveAuction Inc.</p>
-                <a href="#" className="hover:text-primary transition-colors">Terms of Service</a>
-                <a href="#" className="hover:text-primary transition-colors">Privacy Policy</a>
+                <Link to="/terms" className="hover:text-primary transition-colors">Terms of Service</Link>
+                <Link to="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link>
                 <a href="#" className="hover:text-primary transition-colors">Help Center</a>
             </div>
             <div className="flex items-center gap-4">

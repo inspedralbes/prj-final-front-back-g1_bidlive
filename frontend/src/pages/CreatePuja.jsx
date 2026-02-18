@@ -47,14 +47,21 @@ const CreatePuja = () => {
             const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auction/pujas`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    // 'Content-Type': 'multipart/form-data', // Do NOT set this manually, let fetch handle the boundary
                     // 'Authorization': `Bearer ${localStorage.getItem('token')}` 
                 },
                 body: data
             });
 
             if (!response.ok) {
-                const data = await response.json();
+                const text = await response.text();
+                console.error('Server error response:', text);
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    throw new Error(`Server Error: ${text.substring(0, 100)}...`);
+                }
                 throw new Error(data.message || 'Failed to create puja');
             }
 

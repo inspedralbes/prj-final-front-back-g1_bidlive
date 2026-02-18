@@ -13,6 +13,8 @@ import TwoFactorAuth from './pages/TwoFactorAuth';
 import CreatePuja from './pages/CreatePuja';
 import Profile from './pages/Profile';
 import Auctioneers from './pages/Auctioneers';
+import Terms from './pages/Terms';
+import Privacy from './pages/Privacy';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
 import { LanguageProvider } from './context/LanguageContext';
@@ -27,6 +29,9 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/verify-2fa" element={<TwoFactorAuth />} />
+
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
 
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<Home />} />
