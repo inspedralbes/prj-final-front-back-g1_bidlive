@@ -39,7 +39,10 @@ function App() {
               <Route path="/auction/photo/:id" element={<LiveAuctionPhoto />} />
 
               <Route path="/seller" element={<SellerDashboard />} />
-              <Route path="/seller/live/video/:id" element={<SellerLiveVideo />} />
+              <Route
+                path="/seller/live/video/:id"
+                element={<SellerLiveVideo />}
+              />
 
               <Route path="/create-auction" element={<CreateAuction />} />
               <Route path="/create-puja" element={<CreatePuja />} />
