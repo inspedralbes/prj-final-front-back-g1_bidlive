@@ -18,6 +18,7 @@ import SellerLiveVideo from "./pages/SellerLiveVideo";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
+import { LanguageProvider } from "./context/LanguageContext";
 
 function App() {
   return (
@@ -30,21 +31,25 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/verify-2fa" element={<TwoFactorAuth />} />
 
-          <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<Home />} />
-            <Route path="/explore" element={<Search />} />
+            <Route element={<ProtectedRoute />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/explore" element={<Search />} />
 
-            <Route path="/auction/video/:id" element={<LiveAuctionVideo />} />
-            <Route path="/auction/photo/:id" element={<LiveAuctionPhoto />} />
+              <Route path="/auction/video/:id" element={<LiveAuctionVideo />} />
+              <Route path="/auction/photo/:id" element={<LiveAuctionPhoto />} />
 
-            <Route path="/seller" element={<SellerDashboard />} />
-            <Route path="/seller/live/video/:id" element={<SellerLiveVideo />} />
+              <Route path="/seller" element={<SellerDashboard />} />
+              <Route
+                path="/seller/live/video/:id"
+                element={<SellerLiveVideo />}
+              />
 
-            <Route path="/create-auction" element={<CreateAuction />} />
-            <Route path="/create-puja" element={<CreatePuja />} />
-          </Route>
-        </Routes>
-      </AuthProvider>
+              <Route path="/create-auction" element={<CreateAuction />} />
+              <Route path="/create-puja" element={<CreatePuja />} />
+            </Route>
+          </Routes>
+        </AuthProvider>
+      </LanguageProvider>
     </Router>
   );
 }
