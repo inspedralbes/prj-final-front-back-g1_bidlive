@@ -1,93 +1,71 @@
-📱 BidLife
+📱 BidLife: The Real-Time Auction Revolution
 
-La evolución de las subastas: eBay se encuentra con Twitch.
+    Donde la adrenalina de la subasta se encuentra con la interacción del streaming.
 
-📌 Descripción del Proyecto
+BidLife es una plataforma mobile-first que transforma el e-commerce tradicional en una experiencia de entretenimiento en vivo. Los usuarios no solo compran; participan en un evento social donde la inmediatez y la competitividad son los protagonistas.
 
-BidLife es una aplicación móvil de subastas en directo que fusiona la mecánica de compra-venda tradicional con el entretenimiento del streaming en tiempo real.
+✨ Características Destacadas
 
-La aplicación permite a los vendedores subastar productos en vivo, mientras que los usuarios pueden pujar en tiempo real, interactuar mediante un chat y seguir la evolución de la subasta de manera inmediata. El proyecto pone el foco principal en la experiencia live, la rapidez de las pujas y la sensación de evento en tiempo real ("FOMO").
-🎯 Objetivo
+    ⚡ Ultra-Low Latency Streaming: Implementación de WebRTC para asegurar que el vídeo y las pujas estén sincronizados al milisegundo. Sin retardo, sin injusticias.
 
-Crear una plataforma que:
+    💸 Pagos Seguros e Instantáneos: Integración con Stripe para la gestión de depósitos de garantía, pagos finales y transferencias automáticas a vendedores (Connect).
 
-    Centralice subastas en tiempo real.
+    🔨 One-Tap Bidding: Interfaz optimizada para pujar con un solo toque, permitiendo reaccionar al instante ante la competencia.
 
-    Permita la interacción directa entre compradores y vendedores.
+    💬 Live Interaction: Chat dinámico con WebSockets, alertas visuales de "Puja Superada" y sistema de reacciones en vivo.
 
-    Priorice la inmediatez y la competitividad.
-
-    Ofrezca una experiencia visual moderna y fluida.
-
-🔴 Tipos de Subasta en Directo
-
-La aplicación admite dos modalidades:
-
-1. Subasta Live (Con cámara)
-
-   El vendedor transmite el producto mediante streaming de vídeo.
-
-   Los usuarios ven el producto en tiempo real, ideal para resolver dudas al instante.
-
-   Incluye chat en directo, historial de pujas y cuenta atrás.
-
-   Indicador visual: “EN DIRECTO 🔴”.
-
-2. Subasta Rápida (Sin cámara)
-
-   No hay transmisión de vídeo.
-
-   Se muestra una imagen estática o carrusel del producto.
-
-   Mantiene el sistema de pujas en tiempo real, chat y contador.
-
-   Pensada para subastas ágiles de productos ya conocidos.
-
-Ambos tipos comparten la misma lógica de "motor de subastas", adaptando únicamente el componente visual.
-🧭 Navegació y Pantallas Principales
-
-La aplicación utiliza una navegación moderna (Bottom Tab Bar) con cinco secciones:
-
-    🏠 Home: Feed de subastas activas, próximas y destacadas. Categorías y subastadores populares.
-
-    🔍 Buscar: Buscador con filtros por categoría, precio, tiempo restante y tipo de subasta.
-
-    🔴 Directo (Bid Room): El núcleo de la app. Incluye vídeo/foto, precio actual, botón de "PUJAR" (One-tap bidding), chat y alertas de "Te han superado".
-
-    ❤️ Favoritos: Subastas guardadas y notificaciones de inicio.
-
-    👤 Perfil: Gestión de usuario, historial de pujas, compras, métodos de pago y reputación.
+    🛡️ Sistema de Confianza: Algoritmo de reputación basado en transacciones completadas y valoraciones de la comunidad.
 
 🛠️ Stack Tecnológico
 
-El proyecto sigue una arquitectura modular centrada en el bajo tiempo de latencia.
-Frontend
+El proyecto se basa en una arquitectura de microservicios y comunicación en tiempo real.
+Frontend (Mobile)
 
-    Framework: React / React Native
+    React Native: UI fluida y cross-platform.
 
-    Diseño: Componentes reutilizables, estilo minimalista y moderno.
+    WebRTC Client: Para la ingesta y visualización de vídeo en tiempo real.
 
-    Gestión de Estado: Optimizado para actualizaciones frecuentes (pujas).
+    Stripe SDK: Procesamiento de pagos seguro cumpliendo normativas PCI.
 
-Backend (Arquitectura Prevista)
+Backend (Infraestructura)
 
-    Servidor: Node.js
+    Node.js & Express: Core de la lógica de negocio.
 
-    Base de Datos: Estructura relacional para usuarios/ventas y NoSQL/Redis para el tiempo real.
+    Socket.io: Sincronización del "Auction Engine" (pujas y chat).
 
-    Tiempo Real: WebSockets (Socket.io) para sincronizar pujas y chat al milisegundo.
+    Redis: Cache de alta velocidad para gestionar el estado de las subastas activas.
+
+    PostgreSQL: Base de datos relacional para usuarios, inventario y auditoría financiera.
+
+🔄 Flujo de la Subasta (Workflow)
+
+    Registro y Validación: El usuario vincula su método de pago mediante Stripe.
+
+    Live Session: El vendedor inicia el streaming via WebRTC. Los interesados se unen a la "Bid Room".
+
+    Bidding War: Cada puja actualiza el estado global en Redis y se comunica a todos los clientes via WebSockets.
+
+    Cierre y Pago: Al terminar el contador, Stripe procesa el pago automáticamente del ganador y genera la orden de envío.
+
+🧭 Navegación Principal
+
+Pantalla	                    Descripción	                                        Tecnología
+🏠 Home	                    Feed de subastas "Trending" y categorías.	        Algoritmo de relevancia.
+🔍 Buscar	                Filtros avanzados por proximidad y tiempo.	        Full-text search.
+🔴 Bid Room	                Vídeo en vivo, puja rápida y chat.	                WebRTC + Socket.io.
+❤️ Favoritos	            Lista de deseos y alertas de inicio.	            Push Notifications.
+👤 Perfil	                Wallet, historial y reputación.	                    Stripe API Integration.
 
 👥 Equipo del Proyecto
 
-    Eduard Vilaseca
+    Eduard Vilaseca – [Tu Rol]
 
-    Jordi Rocha
+    Jordi Rocha – [Tu Rol]
 
-    Hugo Córdoba
+    Hugo Córdoba – [Tu Rol]
 
-    Roberto Lotreanu
+    Roberto Lotreanu – [Tu Rol]
 
 📄 Licencia
-
 
 Este proyecto se distribuye bajo la licencia MIT.
