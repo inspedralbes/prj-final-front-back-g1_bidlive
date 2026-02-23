@@ -1,127 +1,169 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState, useRef, useEffect } from 'react';
 import { useWebSocket } from '../../hooks/useWebSocket';
+import { useAuth } from '../../context/AuthContext';
 
-const ChatSidebar = () => {
-    const { id: auctionId } = useParams();
+const formatTime = (iso) => {
+    try {
+        return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch { return ''; }
+};
+
+const MessageItem = ({ msg }) => {
+    const isBid = msg.type === 'BID_PLACED';
+    return (
+        <div
+            className={`flex flex-col gap-0.5 px-4 py-2.5 group animate-slide-right ${isBid ? 'animate-bid-flash rounded-lg' : ''}`}
+            style={isBid ? { background: 'rgba(245,158,11,0.07)' } : {}}
+        >
+            <div className="flex items-center gap-2">
+                {isBid ? (
+                    <span className="badge-amber text-[11px]">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+                        BID
+                    </span>
+                ) : (
+                    <span className="text-xs font-bold text-amber-400">{msg.payload?.username || 'Anonymous'}</span>
+                )}
+                <span className="text-[11px] text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {formatTime(msg.payload?.timestamp)}
+                </span>
+            </div>
+            {isBid ? (
+                <p className="text-amber-300 font-black text-base">
+                    ${Number(msg.payload?.amount).toLocaleString()}
+                    <span className="text-gray-500 text-xs font-normal ml-2">by {msg.payload?.username}</span>
+                </p>
+            ) : (
+                <p className="text-gray-300 text-sm leading-snug break-words">{msg.payload?.message}</p>
+            )}
+        </div>
+    );
+};
+
+/**
+ * ChatSidebar — full-height chat panel.
+ * When used standalone (e.g. in LiveAuctionVideo) it manages its own WS.
+ * Props:
+ *  auctionId string
+ *  role      'seller' | 'viewer'
+ *  externalMessages  – pass messages array from parent if WS is shared
+ *  externalSend      – pass sendMessage fn from parent if WS is shared
+ *  externalStatus    – connection status from parent
+ */
+export default function ChatSidebar({
+    auctionId,
+    role = 'viewer',
+    externalMessages,
+    externalSend,
+    externalStatus,
+}) {
     const { user } = useAuth();
-    const [inputMessage, setInputMessage] = useState('');
-    const scrollRef = useRef(null);
+    const username = user?.username || user?.email || 'Anonymous';
 
-    // Use a default username if not logged in (or handle as guest)
-    const username = user ? user.username || user.email.split('@')[0] : `Guest_${Math.floor(Math.random() * 1000)}`;
+    const internal = useWebSocket(
+        externalMessages ? null : auctionId,
+        externalMessages ? null : username,
+        role
+    );
 
-    // Connect to WebSocket
-    // Note: In production, the WS URL should be an env variable
-    const wsUrl = 'ws://localhost:8080/bidding/';
-    const { messages, sendMessage, placeBid } = useWebSocket(wsUrl, auctionId, username);
+    const messages = externalMessages ?? internal.messages;
+    const sendMessage = externalSend ?? internal.sendMessage;
+    const status = externalStatus ?? internal.status;
 
-    // Auto-scroll to bottom
+    const [input, setInput] = useState('');
+    const bottomRef = useRef(null);
+    const inputRef = useRef(null);
+
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
     const handleSend = (e) => {
         e.preventDefault();
-        if (inputMessage.trim()) {
-            sendMessage(inputMessage);
-            setInputMessage('');
-        }
+        const text = input.trim();
+        if (!text || status !== 'connected') return;
+        sendMessage(text);
+        setInput('');
+        inputRef.current?.focus();
     };
 
-    const handleBid = (amount) => {
-        placeBid(amount);
-    };
+    const statusDot = {
+        connected: { color: '#22c55e', label: 'Live' },
+        connecting: { color: '#f59e0b', label: 'Connecting' },
+        disconnected: { color: '#6b7280', label: 'Offline' },
+        error: { color: '#ef4444', label: 'Error' },
+    }[status] || { color: '#6b7280', label: status };
 
     return (
-        <aside className="lg:col-span-4 flex flex-col h-full border-l border-[#39282b] bg-[#1a0d0f] text-white overflow-hidden">
-            {/* Tabs */}
-            <div className="flex border-b border-[#39282b]">
-                <button className="flex-1 py-4 text-xs font-bold uppercase tracking-widest text-primary border-b-2 border-primary">Live Chat</button>
-                <button className="flex-1 py-4 text-xs font-bold uppercase tracking-widest text-[#ba9ca1] hover:text-white transition-colors">Bid History</button>
+        <div
+            className="flex flex-col h-full"
+            style={{
+                background: 'var(--bg-surface)',
+                borderLeft: '1px solid var(--border)',
+            }}
+        >
+            {/* Header */}
+            <div className="px-4 py-3.5 flex items-center justify-between shrink-0"
+                style={{ borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+                <div className="flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-gray-400">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                    </svg>
+                    <span className="text-white font-bold text-sm">Live Chat</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full" style={{ background: statusDot.color, boxShadow: `0 0 6px ${statusDot.color}` }} />
+                    <span className="text-xs font-medium" style={{ color: statusDot.color }}>{statusDot.label}</span>
+                </div>
             </div>
 
-            {/* Scrollable Feed */}
-            <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-4 custom-scrollbar" ref={scrollRef}>
-                {/* System Message */}
-                <div className="flex flex-col items-center py-2">
-                    <div className="text-[10px] bg-white/5 px-3 py-1 rounded-full text-[#ba9ca1]">Welcome to the Live Auction</div>
-                </div>
-
-                {/* Map over real messages */}
-                {messages.map((msg, index) => {
-                    const isSystem = msg.type === 'SYSTEM' || msg.type === 'BID_PLACED';
-
-                    if (isSystem) {
-                        return (
-                            <div key={index} className="flex flex-col items-center py-1">
-                                <div className="text-[10px] bg-primary/20 text-primary px-3 py-1 rounded-full border border-primary/20">
-                                    {msg.type === 'BID_PLACED'
-                                        ? `${msg.payload.username} bid €${msg.payload.amount}`
-                                        : msg.payload.message}
-                                </div>
-                            </div>
-                        );
-                    }
-
-                    return (
-                        <div key={index} className="flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                            <div className={`h-8 w-8 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold ${msg.payload.username === username ? 'bg-primary text-white' : 'bg-gray-700 text-gray-300'}`}>
-                                {msg.payload.username.substring(0, 2).toUpperCase()}
-                            </div>
-                            <div className="flex flex-col">
-                                <span className={`text-xs font-bold ${msg.payload.username === username ? 'text-primary' : 'text-gray-400'}`}>
-                                    {msg.payload.username}
-                                </span>
-                                <p className="text-sm text-white/90 break-words">{msg.payload.message}</p>
-                            </div>
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto scroll-area py-2">
+                {messages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full gap-3 px-6 text-center">
+                        <div className="w-12 h-12 rounded-full flex items-center justify-center"
+                            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)' }}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="1.5">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                            </svg>
                         </div>
-                    );
-                })}
+                        <p className="text-gray-600 text-sm">No messages yet.<br />Start the conversation!</p>
+                    </div>
+                ) : (
+                    messages.map((msg, i) => <MessageItem key={i} msg={msg} />)
+                )}
+                <div ref={bottomRef} />
             </div>
 
-            {/* Sticky Bid Controls */}
-            <div className="p-4 bg-[#221013] border-t border-[#39282b] space-y-4 shadow-[0_-10px_20px_rgba(0,0,0,0.3)]">
-                <form onSubmit={handleSend} className="flex gap-2">
-                    <div className="flex-1 relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-white/40 text-lg">chat_bubble</span>
-                        <input
-                            type="text"
-                            value={inputMessage}
-                            onChange={(e) => setInputMessage(e.target.value)}
-                            placeholder="Send a message..."
-                            className="w-full bg-[#39282b] border-none rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-1 focus:ring-primary/50 text-white placeholder:text-white/30"
-                        />
-                    </div>
-                    <button type="button" className="bg-[#39282b] w-10 h-10 rounded-lg flex items-center justify-center text-white/60 hover:text-white hover:bg-[#4a3539]">
-                        <span className="material-symbols-outlined">emoji_emotions</span>
-                    </button>
-                </form>
-
-                <div className="flex flex-col gap-3 pt-2">
-                    <div className="flex justify-between items-center px-1">
-                        <span className="text-[11px] font-bold text-white/50 uppercase tracking-widest">Next minimum bid: €1,460</span>
-                        <span className="text-[11px] text-primary font-bold">TOP BIDDER</span>
-                    </div>
+            {/* Input */}
+            <form
+                onSubmit={handleSend}
+                className="shrink-0 p-3"
+                style={{ borderTop: '1px solid var(--border)', background: 'rgba(0,0,0,0.2)' }}
+            >
+                <div className="flex gap-2 items-end">
+                    <input
+                        ref={inputRef}
+                        className="input-field text-sm py-2.5 px-3 flex-1"
+                        placeholder={status === 'connected' ? 'Say something...' : 'Connecting...'}
+                        value={input}
+                        onChange={e => setInput(e.target.value)}
+                        disabled={status !== 'connected'}
+                        maxLength={300}
+                    />
                     <button
-                        onClick={() => handleBid(10)}
-                        className="w-full bg-primary hover:bg-primary/90 text-white font-black py-4 rounded-xl shadow-lg shadow-primary/20 transform active:scale-[0.98] transition-all flex flex-col items-center justify-center gap-0.5"
+                        type="submit"
+                        disabled={!input.trim() || status !== 'connected'}
+                        className="shrink-0 w-9 h-9 rounded-xl flex items-center justify-center transition-all disabled:opacity-30"
+                        style={{ background: 'var(--accent)', color: '#08080f' }}
                     >
-                        <span className="text-xl tracking-tight">BID +€10</span>
-                        <span className="text-[10px] opacity-80 uppercase tracking-widest font-bold">Place bid now</span>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                            <line x1="22" y1="2" x2="11" y2="13" />
+                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg>
                     </button>
-                    <div className="flex gap-2">
-                        <button onClick={() => handleBid(50)} className="flex-1 py-2 bg-[#39282b] rounded-lg text-xs font-bold hover:bg-[#4a3539] transition-colors border border-white/5 text-white">+€50</button>
-                        <button onClick={() => handleBid(100)} className="flex-1 py-2 bg-[#39282b] rounded-lg text-xs font-bold hover:bg-[#4a3539] transition-colors border border-white/5 text-white">+€100</button>
-                        <button className="flex-1 py-2 bg-[#39282b] rounded-lg text-xs font-bold hover:bg-[#4a3539] transition-colors border border-white/5 text-white">Custom</button>
-                    </div>
                 </div>
-            </div>
-        </aside>
+            </form>
+        </div>
     );
-};
-
-export default ChatSidebar;
+}

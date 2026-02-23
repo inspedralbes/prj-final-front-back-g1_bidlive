@@ -1,264 +1,160 @@
-import React, { useEffect, useRef, useState } from "react";
-import { io } from "socket.io-client";
+import React, { useEffect, useRef, useCallback } from 'react';
+import { useWebSocket } from '../../hooks/useWebSocket';
+import { useAuth } from '../../context/AuthContext';
 
-const SIGNALING_URL = import.meta.env.VITE_SIGNALING_URL || "http://localhost:8080";
+/**
+ * VideoPlayer — handles WebRTC as either "seller" (broadcaster) or "viewer" (receiver).
+ * Signaling via WebSocket using OFFER / ANSWER / ICE_CANDIDATE messages.
+ *
+ * Props:
+ *  auctionId  string  – room id
+ *  role       'seller' | 'viewer'
+ *  autoStart  bool    – seller: auto-request camera on mount
+ *  viewerCount number – optional override (passed from parent)
+ */
+export default function VideoPlayer({ auctionId, role = 'viewer', autoStart = false, viewerCount }) {
+  const { user } = useAuth();
+  const username = user?.username || user?.email || 'Anonymous';
 
-const RTC_CONFIG = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-};
+  const { status, sendSignal, viewerCount: wsViewerCount } = useWebSocket(auctionId, username, role);
 
-const VideoPlayer = ({ auctionId = "demo", role = "viewer", autoStart = false }) => {
-  const localVideoRef = useRef(null);
-  const remoteVideoRef = useRef(null);
-  const socketRef = useRef(null);
-  
-  // Per al venedor: un PeerConnection per cada espectador { viewerId: RTCPeerConnection }
-  const pcsRef = useRef({}); 
-  // Per a l'espectador: el PeerConnection únic amb el venedor
+  const localRef = useRef(null);
+  const remoteRef = useRef(null);
   const pcRef = useRef(null);
-  
-  const localStreamRef = useRef(null);
+  const streamRef = useRef(null);
 
-  const [started, setStarted] = useState(false);
-  const [status, setStatus] = useState("idle");
-  const [viewers, setViewers] = useState(0);
-  const [mediaError, setMediaError] = useState("");
+  const displayedViewers = viewerCount ?? wsViewerCount;
+  const isLive = status === 'connected';
 
-  useEffect(() => {
-    if (!started) return;
+  // ─── Seller: start webcam + create RTCPeerConnection ──────────────────────
+  const startBroadcast = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      streamRef.current = stream;
+      if (localRef.current) localRef.current.srcObject = stream;
 
-    const socket = io(SIGNALING_URL, { transports: ["websocket"] });
-    socketRef.current = socket;
+      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+      pcRef.current = pc;
 
-    socket.on("connect", async () => {
-      console.log("Connected to signaling server");
-      setStatus("socket-connected");
-      socket.emit("join-room", { auctionId, role });
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-      if (role === "seller") {
-        try {
-          await getLocalStream();
-          setStatus("local-ready");
-        } catch (e) {
-          console.error("getUserMedia failed:", e);
-          setMediaError("No s'ha pogut accedir a la càmera/micro.");
-          setStatus("media-error");
-        }
-      }
-    });
-
-    socket.on("viewer-count", ({ count }) => setViewers(count));
-
-    socket.on("viewer-joined", async ({ viewerId }) => {
-      if (role !== "seller") return;
-      console.log("New viewer joined:", viewerId);
-
-      // Crea un nou RTCPeerConnection per a aquest viewer
-      const pc = createPeerConnection(viewerId);
-      pcsRef.current[viewerId] = pc;
-
-      // Afegeix el stream local al nou peer
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => {
-          pc.addTrack(track, localStreamRef.current);
-        });
-      }
+      pc.onicecandidate = e => {
+        if (e.candidate) sendSignal('ICE_CANDIDATE', { candidate: e.candidate });
+      };
 
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
+      sendSignal('OFFER', { sdp: offer });
+    } catch (err) {
+      console.error('[VideoPlayer] startBroadcast error:', err);
+    }
+  }, [sendSignal]);
 
-      socket.emit("offer", { auctionId, to: viewerId, sdp: offer });
-    });
+  // ─── Viewer: create RTCPeerConnection ready to receive ────────────────────
+  const initViewerPc = useCallback(() => {
+    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+    pcRef.current = pc;
 
-    socket.on("offer", async ({ from, sdp }) => {
-      if (role !== "viewer") return;
-      console.log("Received offer from:", from);
-
-      const pc = createPeerConnection(from);
-      pcRef.current = pc;
-
-      await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-
-      socket.emit("answer", { auctionId, to: from, sdp: answer });
-      setStatus("connected");
-    });
-
-    socket.on("answer", async ({ from, sdp }) => {
-      if (role !== "seller") return;
-      console.log("Received answer from:", from);
-
-      const pc = pcsRef.current[from];
-      if (pc) {
-        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-      }
-    });
-
-    socket.on("ice-candidate", async ({ from, candidate }) => {
-      const pc = role === "seller" ? pcsRef.current[from] : pcRef.current;
-      if (pc && candidate) {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) {
-          console.error("Error adding ice candidate:", e);
-        }
-      }
-    });
-
-    socket.on("disconnect", () => setStatus("socket-disconnected"));
-
-    return () => {
-      cleanup();
-      socket.disconnect();
-    };
-  }, [started, auctionId, role]);
-
-  const getLocalStream = async () => {
-    if (localStreamRef.current) return localStreamRef.current;
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    localStreamRef.current = stream;
-    if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-    return stream;
-  };
-
-  const createPeerConnection = (remoteId) => {
-    const pc = new RTCPeerConnection(RTC_CONFIG);
-
-    pc.onicecandidate = (e) => {
-      if (e.candidate) {
-        socketRef.current?.emit("ice-candidate", { 
-          auctionId, 
-          candidate: e.candidate, 
-          to: remoteId 
-        });
-      }
+    pc.ontrack = e => {
+      if (remoteRef.current && e.streams[0]) remoteRef.current.srcObject = e.streams[0];
     };
 
-    pc.ontrack = (e) => {
-      if (role === "viewer" && remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = e.streams[0];
-      }
+    pc.onicecandidate = e => {
+      if (e.candidate) sendSignal('ICE_CANDIDATE', { candidate: e.candidate });
     };
 
     return pc;
-  };
+  }, [sendSignal]);
 
-  const cleanup = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getTracks().forEach((t) => t.stop());
-      localStreamRef.current = null;
+  useEffect(() => {
+    if (role === 'seller' && autoStart && status === 'connected') {
+      startBroadcast();
     }
-    Object.values(pcsRef.current).forEach(pc => pc.close());
-    pcsRef.current = {};
-    if (pcRef.current) {
-      pcRef.current.close();
-      pcRef.current = null;
+    if (role === 'viewer' && status === 'connected') {
+      initViewerPc();
     }
-  };
+  }, [role, autoStart, status, startBroadcast, initViewerPc]);
 
-  const handleStart = async () => {
-    try {
-      setStatus("starting");
-      if (role === "seller") await getLocalStream();
-      setStarted(true);
-    } catch (e) {
-      console.error(e);
-      setStatus("error");
-    }
-  };
-
-useEffect(() => {
-  if (autoStart && !started) {
-    handleStart();
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [autoStart]);
-
+  // Cleanup
+  useEffect(() => {
+    return () => {
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      pcRef.current?.close();
+    };
+  }, []);
 
   return (
-    <div className="relative w-full aspect-video bg-black group overflow-hidden rounded-none">
-      {/* VIDEO LAYER */}
-      {started ? (
-        role === "seller" ? (
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        ) : (
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            className="absolute inset-0 w-full h-full object-cover"
-          />
-        )
+    <div className="relative w-full rounded-2xl overflow-hidden" style={{ background: '#000', border: '1px solid var(--border)' }}>
+      {/* Video elements */}
+      {role === 'seller' ? (
+        <video
+          ref={localRef}
+          autoPlay
+          playsInline
+          muted
+          className="w-full aspect-video object-cover"
+          style={{ display: 'block', background: '#000' }}
+        />
       ) : (
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{
-            backgroundImage:
-              "url('https://lh3.googleusercontent.com/aida-public/AB6AXuDEQEUWajgGhDVyR4kjPBRQqb-Wuf2_8KFPzzt2Q0AVzCNS5pRpbLeNTiNdQZwXmiNWs2ElKy_yFdw8aciwZOLzQQH1lRh1H372T27wJqT9LoyvRMIYPLDg9o0CZI0E5rgc9ABeYP7QRyIEAT4oCcY5AZ2W22yc6XJ6Zqf8uJgzl0TPH8FoxXmWWyKc2eKZf9LEGWiLvcXLvyDcvEyKcX-_plgmJ2uLQUeeMty6i4K_wEc4aeymCnfe0JNNqxnou_WcBWatnB0pTu09')",
-          }}
+        <video
+          ref={remoteRef}
+          autoPlay
+          playsInline
+          className="w-full aspect-video object-cover"
+          style={{ display: 'block', background: '#000' }}
         />
       )}
 
-      {/* MEDIA ERROR OVERLAY */}
-      {mediaError && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 p-6 text-center text-white">
-          <div>
-            <div className="font-bold mb-2">Error de càmera/micro</div>
-            <div className="text-sm opacity-90">{mediaError}</div>
-          </div>
+      {/* Placeholder when no stream */}
+      {role === 'viewer' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
+          style={{ opacity: 0.5 }}>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5">
+            <path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" />
+          </svg>
+          <p className="text-white/40 text-sm mt-3 font-medium">
+            {status === 'connecting' ? 'Connecting...' : status === 'connected' ? 'Waiting for stream...' : 'Not connected'}
+          </p>
         </div>
       )}
 
-      {/* TOP LEFT BADGES */}
-      <div className="absolute top-4 left-4 flex gap-2 z-10">
-        <div className="flex items-center gap-1.5 bg-primary px-3 py-1 rounded text-xs font-bold uppercase tracking-wider text-white">
-          <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-          LIVE
-        </div>
-        <div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded text-xs font-medium flex items-center gap-1.5 text-white">
-          <span className="material-symbols-outlined text-sm">visibility</span>
-          {viewers || 0}
-        </div>
+      {/* Top overlays */}
+      <div className="absolute top-4 left-4 flex items-center gap-2 z-10">
+        {isLive ? (
+          <span className="badge-live">
+            <span className="live-dot" /> LIVE
+          </span>
+        ) : (
+          <span className="text-xs px-2.5 py-1 rounded-full font-semibold"
+            style={{ background: 'rgba(0,0,0,0.6)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.1)' }}>
+            {status === 'connecting' ? 'Connecting...' : 'Offline'}
+          </span>
+        )}
       </div>
 
-      {/* CENTER PLAY */}
-      {!started && (
-        <div className="absolute inset-0 flex items-center justify-center opacity-100 transition-opacity z-10">
+      {/* Viewers */}
+      {isLive && (
+        <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5 text-xs font-medium text-white px-2.5 py-1.5 rounded-full"
+          style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" opacity="0.8">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+          </svg>
+          {displayedViewers} watching
+        </div>
+      )}
+
+      {/* Seller: start button overlay */}
+      {role === 'seller' && !autoStart && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-20">
           <button
-            onClick={handleStart}
-            className="flex shrink-0 items-center justify-center rounded-full size-20 bg-black/40 backdrop-blur-sm text-white border border-white/20 hover:scale-110 transition-transform"
-            title={role === "seller" ? "Començar emissió" : "Veure en directe"}
+            onClick={startBroadcast}
+            className="btn-primary text-base px-8 py-3.5 gap-2"
           >
-            <span className="material-symbols-outlined text-4xl leading-none">
-              play_arrow
-            </span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+            Go Live
           </button>
         </div>
       )}
-
-      {/* BOTTOM RIGHT CONTROLS (mock) */}
-      <div className="absolute bottom-4 right-4 flex gap-2 z-10">
-        <button className="bg-black/60 backdrop-blur-md p-2 rounded-lg hover:bg-black/80 text-white">
-          <span className="material-symbols-outlined text-sm">volume_up</span>
-        </button>
-        <button className="bg-black/60 backdrop-blur-md p-2 rounded-lg hover:bg-black/80 text-white">
-          <span className="material-symbols-outlined text-sm">fullscreen</span>
-        </button>
-      </div>
-
-      {/* DEBUG STATUS */}
-      <div className="absolute bottom-4 left-4 z-10 bg-black/60 backdrop-blur-md px-3 py-1 rounded text-xs text-white">
-        {role} • {status}
-      </div>
     </div>
   );
-};
-
-export default VideoPlayer;
+}

@@ -1,51 +1,64 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
-const HeroSection = () => {
+export default function HeroSection() {
     return (
-        <section className="w-full">
-            <div className="relative overflow-hidden rounded-xl bg-surface-dark group cursor-pointer aspect-[21/9] min-h-[360px]">
-                {/* Background Image */}
-                <div
-                    className="absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-105"
-                    style={{
-                        backgroundImage: "linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.3) 50%, rgba(0,0,0,0.1) 100%), url('https://lh3.googleusercontent.com/aida-public/AB6AXuAqKfrwfIyO3faaFvtZKSJcQ5dTY3WOZ6EUMRkIbxTd00tjiJXkVOe_oyiAfHDBN9E1F6wiXbXScRIcXBelfnGyk49PnWFUbNALO0lidp_91RpnXZDx9wM7d9ryUzx3Pl6Sp9HfUTjIHHr-gC9LyJsjQFVBnCdriionIudkLYoQQQ1TlCHo8EzAreQrNEal2OE7mGEUJeiwksUsPapYXu5Oivgytqf-jZYtNglxmJuQ-6cUDR32rbmmt9p6emt6DPiZwNFmJ9lAfoJz')"
-                    }}
-                ></div>
+        <section className="relative py-16 md:py-24 overflow-hidden">
+            {/* Background glows */}
+            <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute top-0 left-1/4 w-96 h-96 rounded-full blur-3xl opacity-15"
+                    style={{ background: 'radial-gradient(circle, #f59e0b 0%, transparent 70%)' }} />
+                <div className="absolute bottom-0 right-1/4 w-80 h-80 rounded-full blur-3xl opacity-10"
+                    style={{ background: 'radial-gradient(circle, #8b5cf6 0%, transparent 70%)' }} />
+            </div>
 
-                {/* Content Overlay */}
-                <div className="absolute inset-0 flex flex-col justify-end p-8 md:p-12">
-                    <div className="flex flex-col gap-4 max-w-2xl">
-                        <div className="flex items-center gap-3">
-                            <span className="bg-primary text-[10px] font-bold px-2 py-1 rounded text-white flex items-center gap-1 live-pulse uppercase tracking-widest">
-                                <span className="w-1.5 h-1.5 bg-white rounded-full"></span> Live
-                            </span>
-                            <span className="text-white/80 text-sm font-medium flex items-center gap-1 bg-black/40 backdrop-blur-sm px-2 py-1 rounded">
-                                <span className="material-symbols-outlined text-sm">visibility</span> 4.5k viewers
-                            </span>
+            <div className="relative z-10 text-center max-w-4xl mx-auto">
+                <div className="badge-live inline-flex mx-auto mb-6">
+                    <span className="live-dot" />
+                    Live auctions happening right now
+                </div>
+
+                <h1 className="text-5xl md:text-7xl font-black leading-tight tracking-tight text-white mb-6">
+                    Bid smarter,{' '}
+                    <span className="relative inline-block">
+                        <span className="text-amber-400">win live.</span>
+                        <svg className="absolute -bottom-2 left-0 w-full" height="6" viewBox="0 0 200 6" preserveAspectRatio="none">
+                            <path d="M0 5 Q50 0 100 5 Q150 10 200 5" stroke="#f59e0b" strokeWidth="2" fill="none" opacity="0.5" />
+                        </svg>
+                    </span>
+                </h1>
+
+                <p className="text-gray-400 text-lg md:text-xl max-w-xl mx-auto mb-10 leading-relaxed">
+                    Watch sellers showcase their items live and place real-time bids. The most thrilling auction experience on the web.
+                </p>
+
+                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+                    <Link to="/explore" className="btn-primary text-base px-8 py-3.5">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
+                        Explore auctions
+                    </Link>
+                    <Link to="/create-puja"
+                        className="btn-ghost text-base px-8 py-3.5">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg>
+                        Sell something
+                    </Link>
+                </div>
+
+                {/* Stats bar */}
+                <div className="flex justify-center gap-8 sm:gap-16 mt-14 pt-10 border-t border-white/5">
+                    {[
+                        { val: '12K+', label: 'Total auctions' },
+                        { val: '500+', label: 'Live right now' },
+                        { val: '$2.4M', label: 'Traded this week' },
+                        { val: '98%', label: 'Seller satisfaction' },
+                    ].map(({ val, label }) => (
+                        <div key={label} className="text-center">
+                            <p className="text-2xl font-black text-white">{val}</p>
+                            <p className="text-xs text-gray-500 mt-1">{label}</p>
                         </div>
-
-                        <h1 className="text-3xl md:text-5xl font-black text-white leading-tight tracking-tight">
-                            Exclusive Sneaker Drop: <span className="text-primary">Air Jordan 1 'Chicago'</span>
-                        </h1>
-
-                        <p className="text-white/70 text-base md:text-lg">
-                            Hosted by <span className="text-white font-semibold">@SneakerHead_OG</span> • Current Bid: <span className="text-white font-bold">$1,250</span>
-                        </p>
-
-                        <div className="flex gap-4 pt-2">
-                            <Link to="/auction/video/1" className="bg-primary text-white px-8 py-3 rounded-lg font-bold hover:bg-primary/90 transition-all flex items-center gap-2">
-                                <span className="material-symbols-outlined">play_arrow</span> Join Stream
-                            </Link>
-                            <button className="bg-white/10 backdrop-blur-md text-white px-6 py-3 rounded-lg font-bold border border-white/20 hover:bg-white/20 transition-all">
-                                View Details
-                            </button>
-                        </div>
-                    </div>
+                    ))}
                 </div>
             </div>
         </section>
     );
-};
-
-export default HeroSection;
+}

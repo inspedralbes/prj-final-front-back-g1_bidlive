@@ -1,81 +1,72 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
-const ForgotPassword = () => {
+export default function ForgotPassword() {
+    const [email, setEmail] = useState('');
+    const [sent, setSent] = useState(false);
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        // No endpoint in backend yet — show success UI anyway
+        setSent(true);
+    };
+
     return (
-        <div className="bg-background-light dark:bg-background-dark font-display text-white min-h-screen flex flex-col">
-            <div className="layout-container flex h-full grow flex-col">
-                {/* Top Navigation Bar */}
-                <header className="flex items-center justify-between whitespace-nowrap border-b border-solid border-b-primary/20 px-10 py-3 bg-background-light dark:bg-background-dark">
-                    <Link to="/" className="flex items-center gap-4 text-primary dark:text-white">
-                        <div className="size-6">
-                            <span className="material-symbols-outlined text-[32px]">gavel</span>
+        <div className="min-h-screen flex items-center justify-center px-4"
+            style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+            {/* Glow */}
+            <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full blur-3xl opacity-10 pointer-events-none"
+                style={{ background: 'radial-gradient(circle, #f59e0b 0%, transparent 70%)' }} />
+
+            <div className="w-full max-w-md animate-fade-in relative z-10">
+                <Link to="/login" className="flex items-center gap-2 mb-8">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z" fill="#08080f" /></svg>
+                    </div>
+                    <span className="text-white font-bold text-lg">Bid<span className="text-amber-400">Live</span></span>
+                </Link>
+
+                <div className="rounded-2xl p-8" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                    {!sent ? (
+                        <>
+                            <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-5"
+                                style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="1.8" strokeLinecap="round">
+                                    <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 01-2.06 0L2 7" />
+                                </svg>
+                            </div>
+                            <h1 className="text-2xl font-black text-white mb-2">Forgot password?</h1>
+                            <p className="text-gray-500 text-sm mb-6">Enter your email and we'll send a reset link.</p>
+
+                            <form onSubmit={handleSubmit} className="space-y-4">
+                                <div>
+                                    <label className="input-label">Email address</label>
+                                    <input className="input-field" type="email" placeholder="you@example.com"
+                                        value={email} onChange={e => setEmail(e.target.value)} required />
+                                </div>
+                                <button type="submit" className="btn-primary w-full py-3">
+                                    Send reset link
+                                </button>
+                            </form>
+                        </>
+                    ) : (
+                        <div className="text-center py-4">
+                            <div className="w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center"
+                                style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)' }}>
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+                            </div>
+                            <h2 className="text-xl font-black text-white mb-2">Check your inbox</h2>
+                            <p className="text-gray-500 text-sm">If an account exists for <strong className="text-white">{email}</strong>, a reset link has been sent.</p>
                         </div>
-                        <h2 className="text-primary dark:text-white text-lg font-bold leading-tight tracking-[-0.015em]">LiveAuction</h2>
-                    </Link>
-                    <div className="flex flex-1 justify-end gap-8">
-                        <div className="hidden md:flex items-center gap-9">
-                            <Link to="/explore" className="text-zinc-600 dark:text-white text-sm font-medium leading-normal hover:text-primary transition-colors">Auctions</Link>
-                            <Link to="/explore" className="text-zinc-600 dark:text-white text-sm font-medium leading-normal hover:text-primary transition-colors">Live Streams</Link>
-                            <Link to="/seller" className="text-zinc-600 dark:text-white text-sm font-medium leading-normal hover:text-primary transition-colors">Sell</Link>
-                            <Link to="#" className="text-zinc-600 dark:text-white text-sm font-medium leading-normal hover:text-primary transition-colors">Help</Link>
-                        </div>
-                        <Link to="/login" className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em]">
-                            <span className="truncate">Login</span>
+                    )}
+
+                    <div className="mt-6 text-center">
+                        <Link to="/login" className="text-sm text-amber-400 hover:text-amber-300 transition-colors font-medium">
+                            ← Back to sign in
                         </Link>
                     </div>
-                </header>
-
-                <main className="flex-1 flex items-center justify-center py-12 px-4">
-                    <div className="layout-content-container flex flex-col max-w-[480px] w-full bg-white dark:bg-[#2d161a] p-8 rounded-xl shadow-2xl border border-zinc-200 dark:border-primary/10">
-                        {/* Icon and Heading */}
-                        <div className="flex flex-col items-center">
-                            <div className="mb-4 bg-primary/10 p-4 rounded-full">
-                                <span className="material-symbols-outlined text-primary text-4xl">lock_reset</span>
-                            </div>
-                            <h1 className="text-zinc-900 dark:text-white tracking-tight text-[32px] font-bold leading-tight text-center pb-3">Reset Password</h1>
-                        </div>
-
-                        {/* Instructional Text */}
-                        <p className="text-zinc-600 dark:text-zinc-300 text-base font-normal leading-normal pb-6 pt-1 text-center">
-                            Enter your email address below and we'll send you a link to reset your password and regain access to your account.
-                        </p>
-
-                        {/* Input Field */}
-                        <div className="flex flex-col gap-4 py-3">
-                            <label className="flex flex-col w-full">
-                                <p className="text-zinc-800 dark:text-white text-base font-medium leading-normal pb-2">Email Address</p>
-                                <div className="relative">
-                                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400">mail</span>
-                                    <input className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-zinc-900 dark:text-white focus:outline-0 focus:ring-2 focus:ring-primary border border-zinc-300 dark:border-[#543b3f] bg-zinc-50 dark:bg-[#271b1d] h-14 placeholder:text-zinc-400 dark:placeholder:text-[#ba9ca1] pl-12 pr-4 text-base font-normal leading-normal transition-all" placeholder="Enter your email address" type="email" />
-                                </div>
-                            </label>
-                        </div>
-
-                        {/* Primary Action Button */}
-                        <div className="flex py-6">
-                            <button className="flex min-w-[84px] w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg h-12 px-5 flex-1 bg-primary hover:bg-primary/90 text-white text-base font-bold leading-normal tracking-[0.015em] shadow-lg shadow-primary/20 transition-all active:scale-[0.98]">
-                                <span className="truncate">Send Reset Link</span>
-                            </button>
-                        </div>
-
-                        {/* Navigation Link */}
-                        <div className="flex flex-col items-center pt-2">
-                            <Link to="/login" className="group flex items-center gap-2 text-zinc-500 dark:text-zinc-400 hover:text-primary dark:hover:text-primary transition-colors font-medium">
-                                <span className="material-symbols-outlined text-sm">arrow_back</span>
-                                Back to Login
-                            </Link>
-                        </div>
-                    </div>
-                </main>
-
-                {/* Footer for context */}
-                <footer className="py-8 text-center text-zinc-500 dark:text-zinc-500 text-sm">
-                    <p>© 2024 LiveAuction Inc. Secure Bidding & Streaming.</p>
-                </footer>
+                </div>
             </div>
         </div>
     );
-};
-
-export default ForgotPassword;
+}

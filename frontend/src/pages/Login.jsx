@@ -2,149 +2,175 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const Login = () => {
+const GlowOrb = ({ className }) => (
+    <div className={`absolute rounded-full pointer-events-none blur-3xl opacity-30 ${className}`} />
+);
+
+export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPass, setShowPass] = useState(false);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
+        setLoading(true);
         try {
             await login(email, password);
             navigate('/');
         } catch (err) {
-            setError(err.message || 'Failed to login');
+            setError(err.message || 'Login failed. Please try again.');
+        } finally {
+            setLoading(false);
         }
     };
 
     return (
-        <div className="bg-background-light dark:bg-background-dark text-white min-h-screen font-display">
-            <div className="relative flex h-auto min-h-screen w-full flex-col group/design-root overflow-x-hidden">
-                <div className="layout-container flex h-full grow flex-col">
-                    {/* Top Navigation Bar */}
-                    <header className="flex items-center justify-between border-b border-solid border-[#39282b] px-10 py-3 bg-background-light dark:bg-background-dark">
-                        <Link to="/" className="flex items-center gap-4 text-white">
-                            <div className="size-6 text-primary">
-                                <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z" fill="currentColor"></path>
-                                </svg>
-                            </div>
-                            <h2 className="text-white text-xl font-bold leading-tight tracking-[-0.015em]">BidLive</h2>
-                        </Link>
-                        <div className="flex flex-1 justify-end gap-8">
-                            <Link to="/register" className="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal hover:bg-primary/90 transition-colors">
-                                <span>Sign Up</span>
-                            </Link>
+        <div
+            className="min-h-screen flex"
+            style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}
+        >
+            {/* Left — branding */}
+            <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 overflow-hidden"
+                style={{ background: 'linear-gradient(135deg, #0f0f1e 0%, #1a1028 100%)' }}
+            >
+                <GlowOrb className="w-96 h-96 -top-20 -left-20 bg-amber-500" />
+                <GlowOrb className="w-72 h-72 bottom-10 right-0 bg-purple-600" />
+
+                {/* Logo */}
+                <Link to="/" className="flex items-center gap-2.5 z-10">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/40">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2L2 7v10l10 5 10-5V7L12 2z" fill="#08080f" />
+                            <path d="M12 2v20M2 7l10 5 10-5" stroke="#f59e0b" strokeWidth="1.5" strokeLinejoin="round" />
+                        </svg>
+                    </div>
+                    <span className="text-white font-bold text-xl">Bid<span className="text-amber-400">Live</span></span>
+                </Link>
+
+                {/* Central tagline */}
+                <div className="z-10 space-y-6">
+                    <div className="badge-live w-fit">
+                        <span className="live-dot" />
+                        Live auctions happening now
+                    </div>
+                    <h1 className="text-5xl font-black leading-tight text-white">
+                        The world's most<br />
+                        <span className="text-amber-400">thrilling</span> auction<br />
+                        platform.
+                    </h1>
+                    <p className="text-gray-400 text-lg max-w-sm leading-relaxed">
+                        Watch, bid, and win in real-time. Thousands of items go live every day.
+                    </p>
+                </div>
+
+                {/* Stats */}
+                <div className="z-10 flex gap-8">
+                    {[['12K+', 'Active auctions'], ['500+', 'Live now'], ['98%', 'Satisfaction']].map(([val, label]) => (
+                        <div key={label}>
+                            <p className="text-amber-400 text-2xl font-black">{val}</p>
+                            <p className="text-gray-500 text-xs mt-0.5">{label}</p>
                         </div>
-                    </header>
+                    ))}
+                </div>
+            </div>
 
-                    {/* Login Content Area */}
-                    <div className="flex flex-1 justify-center items-center py-10 px-4">
-                        <div className="layout-content-container flex flex-col w-full max-w-[480px] bg-[#271b1d]/40 p-8 rounded-xl border border-[#39282b]">
-                            {/* Headline & Body */}
-                            <div className="mb-2">
-                                <h1 className="text-white tracking-light text-[32px] font-bold leading-tight text-center">Welcome back!</h1>
-                                <p className="text-white/70 text-base font-normal leading-normal pt-2 text-center">Login to start bidding in real-time auctions</p>
-                            </div>
+            {/* Right — form */}
+            <div className="flex-1 flex flex-col justify-center items-center px-6 py-12">
+                {/* Mobile Logo */}
+                <Link to="/" className="flex lg:hidden items-center gap-2 mb-10">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2L2 7v10l10 5 10-5V7L12 2z" fill="#08080f" />
+                        </svg>
+                    </div>
+                    <span className="text-white font-bold text-lg">Bid<span className="text-amber-400">Live</span></span>
+                </Link>
 
-                            {error && <div className="text-red-500 text-center mt-4">{error}</div>}
-
-                            {/* Form Section */}
-                            <form className="flex flex-col gap-2 mt-6" onSubmit={handleSubmit}>
-                                {/* Email Field */}
-                                <div className="flex flex-col w-full py-2">
-                                    <label className="flex flex-col w-full">
-                                        <p className="text-white text-sm font-medium leading-normal pb-2">Email</p>
-                                        <input
-                                            className="form-input flex w-full min-w-0 resize-none overflow-hidden rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-14 placeholder:text-[#ba9ca1] p-[15px] text-base font-normal"
-                                            placeholder="Enter your email"
-                                            type="email"
-                                            value={email}
-                                            onChange={(e) => setEmail(e.target.value)}
-                                            required
-                                        />
-                                    </label>
-                                </div>
-
-                                {/* Password Field */}
-                                <div className="flex flex-col w-full py-2">
-                                    <label className="flex flex-col w-full">
-                                        <div className="flex justify-between items-center pb-2">
-                                            <p className="text-white text-sm font-medium leading-normal">Password</p>
-                                            <Link to="/forgot-password" className="text-primary text-xs font-medium hover:underline">Forgot Password?</Link>
-                                        </div>
-                                        <div className="flex w-full flex-1 items-stretch rounded-lg">
-                                            <input
-                                                className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-14 placeholder:text-[#ba9ca1] p-[15px] rounded-r-none border-r-0 pr-2 text-base font-normal"
-                                                placeholder="Enter your password"
-                                                type="password"
-                                                value={password}
-                                                onChange={(e) => setPassword(e.target.value)}
-                                                required
-                                            />
-                                            <div className="text-[#ba9ca1] flex border border-[#543b3f] bg-[#271b1d] items-center justify-center px-4 rounded-r-lg border-l-0 cursor-pointer hover:text-white transition-colors">
-                                                <span className="material-symbols-outlined text-[24px]">visibility</span>
-                                            </div>
-                                        </div>
-                                    </label>
-                                </div>
-
-                                {/* Login Button */}
-                                <div className="pt-4">
-                                    <button className="w-full flex cursor-pointer items-center justify-center overflow-hidden rounded-lg h-14 px-4 bg-primary text-white text-base font-bold leading-normal tracking-[0.015em] hover:bg-primary/90 transition-all shadow-lg shadow-primary/20" type="submit">
-                                        <span>Login</span>
-                                    </button>
-                                </div>
-                            </form>
-
-                            {/* Divider */}
-                            <div className="flex items-center gap-4 my-8">
-                                <div className="h-[1px] flex-1 bg-[#39282b]"></div>
-                                <span className="text-[#ba9ca1] text-xs font-medium uppercase tracking-wider">Or continue with</span>
-                                <div className="h-[1px] flex-1 bg-[#39282b]"></div>
-                            </div>
-
-                            {/* Social Logins */}
-                            <div className="flex flex-col gap-3">
-                                <button className="flex w-full items-center justify-center gap-3 rounded-lg border border-[#543b3f] bg-[#271b1d] h-12 px-4 text-white hover:bg-[#39282b] transition-colors">
-                                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                                        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="currentColor"></path>
-                                        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="currentColor"></path>
-                                        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="currentColor"></path>
-                                        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="currentColor"></path>
-                                    </svg>
-                                    <span className="text-sm font-medium">Google</span>
-                                </button>
-                                <button className="flex w-full items-center justify-center gap-3 rounded-lg border border-[#543b3f] bg-[#271b1d] h-12 px-4 text-white hover:bg-[#39282b] transition-colors">
-                                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                                        <path d="M17.05 20.28c-.96.95-2.21 1.72-3.72 1.72-1.52 0-2.49-.47-3.62-.47-1.13 0-2.3.47-3.53.47-2.15 0-4.37-1.89-4.37-5.55 0-3.32 1.95-5.23 3.86-5.23.95 0 1.83.47 2.82.47 1.01 0 1.54-.47 2.81-.47 1.48 0 2.76.71 3.53 1.83-3.15 1.48-2.65 5.8 0 6.94-.3.8-.82 1.48-1.48 2.29M12.03 7.25c-.02-2.13 1.6-4.08 3.55-4.14.23 2.37-1.93 4.3-3.55 4.14z" fill="currentColor"></path>
-                                    </svg>
-                                    <span className="text-sm font-medium">Apple</span>
-                                </button>
-                            </div>
-
-                            {/* Footer Link */}
-                            <div className="mt-8 text-center">
-                                <p className="text-[#ba9ca1] text-sm">
-                                    Don't have an account?
-                                    <Link to="/register" className="text-primary font-bold hover:underline ml-1">Create an account</Link>
-                                </p>
-                            </div>
-                        </div>
+                <div className="w-full max-w-md animate-fade-in">
+                    <div className="mb-8">
+                        <h2 className="text-3xl font-black text-white">Welcome back</h2>
+                        <p className="text-gray-400 mt-2">Sign in to continue bidding</p>
                     </div>
 
-                    {/* Footer Decorative Element */}
-                    <div className="h-1 bg-gradient-to-r from-transparent via-primary/50 to-transparent opacity-20 w-full mt-auto"></div>
+                    {error && (
+                        <div className="mb-5 p-4 rounded-xl text-sm text-red-400 border border-red-500/20"
+                            style={{ background: 'rgba(239,68,68,0.07)' }}>
+                            {error}
+                        </div>
+                    )}
+
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        <div>
+                            <label className="input-label">Email address</label>
+                            <input
+                                className="input-field"
+                                type="email"
+                                placeholder="you@example.com"
+                                value={email}
+                                onChange={e => setEmail(e.target.value)}
+                                required
+                                autoComplete="email"
+                            />
+                        </div>
+
+                        <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                                <label className="input-label" style={{ marginBottom: 0 }}>Password</label>
+                                <Link to="/forgot-password" className="text-xs text-amber-400 hover:text-amber-300 transition-colors">
+                                    Forgot password?
+                                </Link>
+                            </div>
+                            <div className="relative">
+                                <input
+                                    className="input-field pr-12"
+                                    type={showPass ? 'text' : 'password'}
+                                    placeholder="Your password"
+                                    value={password}
+                                    onChange={e => setPassword(e.target.value)}
+                                    required
+                                    autoComplete="current-password"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPass(v => !v)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                                    tabIndex={-1}
+                                >
+                                    {showPass ? (
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                                    ) : (
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="btn-primary w-full py-3 text-base mt-2"
+                        >
+                            {loading ? (
+                                <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /></svg>
+                            ) : 'Sign in'}
+                        </button>
+                    </form>
+
+                    <div className="mt-8 text-center">
+                        <p className="text-gray-500 text-sm">
+                            Don't have an account?{' '}
+                            <Link to="/register" className="text-amber-400 font-semibold hover:text-amber-300 transition-colors">
+                                Create one
+                            </Link>
+                        </p>
+                    </div>
                 </div>
-                {/* Background Decoration */}
-                <div className="fixed top-0 right-0 -z-10 w-[500px] h-[500px] bg-primary/10 blur-[120px] rounded-full opacity-50"></div>
-                <div className="fixed bottom-0 left-0 -z-10 w-[400px] h-[400px] bg-primary/5 blur-[100px] rounded-full opacity-30"></div>
             </div>
         </div>
     );
-};
-
-export default Login;
+}

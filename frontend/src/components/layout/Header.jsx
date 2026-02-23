@@ -1,103 +1,210 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useState, useRef, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { useLanguage } from '../../context/LanguageContext';
 
-const Header = () => {
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
+const Logo = () => (
+    <Link to="/" className="flex items-center gap-2 select-none group">
+        <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/30 group-hover:shadow-amber-500/50 transition-shadow">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2L2 7v10l10 5 10-5V7L12 2z" stroke="#08080f" strokeWidth="2" strokeLinejoin="round" fill="#08080f" />
+                <path d="M12 2v20M2 7l10 5 10-5" stroke="#f59e0b" strokeWidth="1.5" strokeLinejoin="round" />
+            </svg>
+        </div>
+        <span className="text-white font-bold text-lg tracking-tight">
+            Bid<span className="text-amber-500">Live</span>
+        </span>
+    </Link>
+);
+
+const NavLink = ({ to, children, active }) => (
+    <Link
+        to={to}
+        className={`text-sm font-medium transition-colors px-1 py-0.5 ${active
+                ? 'text-amber-400'
+                : 'text-gray-400 hover:text-white'
+            }`}
+    >
+        {children}
+    </Link>
+);
+
+export default function Header() {
     const { user, logout } = useAuth();
-    const { t, toggleLanguage, language } = useLanguage();
     const navigate = useNavigate();
+    const location = useLocation();
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [userMenuOpen, setUserMenuOpen] = useState(false);
+    const userMenuRef = useRef(null);
 
     const handleLogout = () => {
         logout();
-        setIsMenuOpen(false);
         navigate('/login');
+        setUserMenuOpen(false);
     };
 
+    // Close user menu on outside click
+    useEffect(() => {
+        const handler = (e) => {
+            if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
+                setUserMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    const isActive = (path) => location.pathname === path;
+
     return (
-        <header className="sticky top-0 z-50 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md border-b border-gray-200 dark:border-border-dark px-6 md:px-10 lg:px-20 py-3">
-            <div className="max-w-[1440px] mx-auto flex items-center justify-between gap-4 md:gap-8">
-                <div className="flex items-center gap-8">
-                    <Link to="/" className="flex items-center gap-2 text-primary">
-                        <span className="material-symbols-outlined text-3xl font-bold">gavel</span>
-                        <h2 className="text-xl font-black tracking-tight dark:text-white">BidLive</h2>
-                    </Link>
-                    <div className="hidden md:flex items-center gap-6">
-                        <Link to="/explore?status=live" className="text-sm font-semibold hover:text-primary transition-colors dark:text-white/80">{t('nav.live')}</Link>
-                        <Link to="/explore?status=upcoming" className="text-sm font-semibold hover:text-primary transition-colors dark:text-white/80">{t('nav.upcoming')}</Link>
-                        <Link to="/auctioneers" className="text-sm font-semibold hover:text-primary transition-colors dark:text-white/80">{t('nav.auctioneers')}</Link>
-                    </div>
-                </div>
+        <header
+            className="sticky top-0 z-50 w-full"
+            style={{
+                background: 'rgba(8,8,15,0.85)',
+                backdropFilter: 'blur(16px)',
+                WebkitBackdropFilter: 'blur(16px)',
+                borderBottom: '1px solid rgba(255,255,255,0.07)',
+            }}
+        >
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+                {/* Left */}
+                <Logo />
 
-                <div className="flex-1 max-w-md hidden lg:block">
-                    <form onSubmit={(e) => {
-                        e.preventDefault();
-                        const q = e.target.search.value;
-                        navigate(`/explore?q=${q}`);
-                    }} className="relative group">
-                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary">search</span>
-                        <input
-                            type="text"
-                            name="search"
-                            placeholder={t('nav.searchPlaceholder')}
-                            className="w-full bg-gray-100 dark:bg-surface-dark border-none rounded-lg pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-primary/50 transition-all placeholder:text-gray-500 text-slate-900 dark:text-white"
-                        />
-                    </form>
-                </div>
+                {/* Nav links — desktop */}
+                <nav className="hidden md:flex items-center gap-6">
+                    <NavLink to="/" active={isActive('/')}>Home</NavLink>
+                    <NavLink to="/explore" active={isActive('/explore')}>Explore</NavLink>
+                    {user && <NavLink to="/seller" active={isActive('/seller')}>Dashboard</NavLink>}
+                </nav>
 
-                <div className="flex items-center gap-4">
-                    <button
-                        onClick={toggleLanguage}
-                        className="text-sm font-bold text-slate-600 dark:text-gray-300 hover:text-primary transition-colors uppercase border border-slate-200 dark:border-white/10 rounded px-2 py-1"
-                    >
-                        {language === 'en' ? 'ES' : 'EN'}
-                    </button>
+                {/* Right */}
+                <div className="flex items-center gap-3">
+                    {!user ? (
+                        <>
+                            <Link to="/login" className="hidden sm:inline-flex btn-ghost text-sm py-2 px-4">
+                                Sign in
+                            </Link>
+                            <Link to="/register" className="btn-primary text-sm py-2 px-4">
+                                Get started
+                            </Link>
+                        </>
+                    ) : (
+                        <>
+                            {/* Create auction button */}
+                            <Link
+                                to="/create-puja"
+                                className="hidden sm:inline-flex btn-primary text-sm py-2 px-4 gap-1.5"
+                            >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                                    <path d="M12 5v14M5 12h14" />
+                                </svg>
+                                New auction
+                            </Link>
 
-                    <Link to="/create-puja" className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-transform active:scale-95">
-                        <span className="material-symbols-outlined text-sm">videocam</span>
-                        <span className="hidden sm:inline">{t('nav.goLive')}</span>
-                    </Link>
-                    <button className="p-2 hover:bg-gray-100 dark:hover:bg-surface-dark rounded-lg relative text-slate-700 dark:text-white">
-                        <span className="material-symbols-outlined">notifications</span>
-                        <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-background-dark"></span>
-                    </button>
+                            {/* User avatar dropdown */}
+                            <div className="relative" ref={userMenuRef}>
+                                <button
+                                    onClick={() => setUserMenuOpen(v => !v)}
+                                    className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-amber-400 border border-amber-500/30 hover:border-amber-500/60 transition-colors cursor-pointer select-none"
+                                    style={{ background: 'rgba(245,158,11,0.12)' }}
+                                >
+                                    {(user.username || user.email || 'U')[0].toUpperCase()}
+                                </button>
 
-                    {/* User Menu */}
-                    <div className="relative">
-                        <div
-                            onClick={() => setIsMenuOpen(!isMenuOpen)}
-                            className="h-8 w-8 rounded-full bg-gradient-to-tr from-primary to-orange-400 border-2 border-white dark:border-border-dark cursor-pointer shadow-lg hover:scale-105 transition-transform"
-                        ></div>
-
-                        {isMenuOpen && (
-                            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-[#271b1d] rounded-xl shadow-xl border border-gray-100 dark:border-[#39282b] overflow-hidden z-50">
-                                <div className="px-4 py-3 border-b border-gray-100 dark:border-[#39282b]">
-                                    <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{user?.username || 'User'}</p>
-                                    <p className="text-xs text-gray-500 dark:text-[#ba9ca1] truncate">{user?.email || 'email@example.com'}</p>
-                                </div>
-                                <div className="py-1">
-                                    <Link
-                                        to="/profile"
-                                        className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-[#39282b]"
-                                        onClick={() => setIsMenuOpen(false)}
+                                {userMenuOpen && (
+                                    <div
+                                        className="absolute right-0 top-12 min-w-[180px] rounded-xl overflow-hidden animate-scale-in"
+                                        style={{
+                                            background: '#1a1a28',
+                                            border: '1px solid rgba(255,255,255,0.1)',
+                                            boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+                                        }}
                                     >
-                                        {t('nav.profile')}
-                                    </Link>
-                                    <button
-                                        onClick={handleLogout}
-                                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-[#39282b]/50"
-                                    >
-                                        {t('nav.logout')}
-                                    </button>
-                                </div>
+                                        <div className="px-4 py-3 border-b border-white/5">
+                                            <p className="text-white font-semibold text-sm truncate">
+                                                {user.username || 'User'}
+                                            </p>
+                                            <p className="text-gray-400 text-xs truncate mt-0.5">{user.email}</p>
+                                        </div>
+                                        <Link
+                                            to="/seller"
+                                            onClick={() => setUserMenuOpen(false)}
+                                            className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                                        >
+                                            Dashboard
+                                        </Link>
+                                        <Link
+                                            to="/create-puja"
+                                            onClick={() => setUserMenuOpen(false)}
+                                            className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                                        >
+                                            New auction
+                                        </Link>
+                                        <div className="border-t border-white/5 mt-1">
+                                            <button
+                                                onClick={handleLogout}
+                                                className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/5 transition-colors"
+                                            >
+                                                Sign out
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </div>
+                        </>
+                    )}
+
+                    {/* Mobile hamburger */}
+                    <button
+                        className="md:hidden p-2 rounded-lg hover:bg-white/5 transition-colors"
+                        onClick={() => setMenuOpen(v => !v)}
+                        aria-label="Toggle menu"
+                    >
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                            {menuOpen
+                                ? <><path d="M18 6L6 18" /><path d="M6 6L18 18" /></>
+                                : <><path d="M3 6h18" /><path d="M3 12h18" /><path d="M3 18h18" /></>
+                            }
+                        </svg>
+                    </button>
                 </div>
             </div>
+
+            {/* Mobile nav menu */}
+            {menuOpen && (
+                <div
+                    className="md:hidden border-t border-white/5 px-4 py-4 space-y-1"
+                    style={{ background: 'rgba(8,8,15,0.97)' }}
+                >
+                    {[
+                        { to: '/', label: 'Home' },
+                        { to: '/explore', label: 'Explore' },
+                        ...(user ? [
+                            { to: '/seller', label: 'Dashboard' },
+                            { to: '/create-puja', label: 'New auction' },
+                        ] : [
+                            { to: '/login', label: 'Sign in' },
+                            { to: '/register', label: 'Get started' },
+                        ])
+                    ].map(({ to, label }) => (
+                        <Link
+                            key={to}
+                            to={to}
+                            onClick={() => setMenuOpen(false)}
+                            className="block px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                        >
+                            {label}
+                        </Link>
+                    ))}
+                    {user && (
+                        <button
+                            onClick={handleLogout}
+                            className="block w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:bg-red-500/5 transition-colors"
+                        >
+                            Sign out
+                        </button>
+                    )}
+                </div>
+            )}
         </header>
     );
-};
-
-export default Header;
+}

@@ -2,183 +2,190 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-const Register = () => {
-    const [formData, setFormData] = useState({
-        username: '',
-        email: '',
-        password: '',
-        confirmPassword: ''
-    });
+const GlowOrb = ({ className }) => (
+    <div className={`absolute rounded-full pointer-events-none blur-3xl opacity-30 ${className}`} />
+);
+
+export default function Register() {
+    const [form, setForm] = useState({ username: '', email: '', password: '', confirm: '' });
+    const [showPass, setShowPass] = useState(false);
     const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
     const { register } = useAuth();
     const navigate = useNavigate();
 
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-    };
+    const set = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-
-        if (formData.password !== formData.confirmPassword) {
-            return setError('Passwords do not match');
+        if (form.password !== form.confirm) {
+            setError('Passwords do not match.');
+            return;
         }
-
+        if (form.password.length < 6) {
+            setError('Password must be at least 6 characters.');
+            return;
+        }
+        setLoading(true);
         try {
-            await register(formData.username, formData.email, formData.password);
+            await register(form.username, form.email, form.password);
             navigate('/login');
         } catch (err) {
-            setError(err.message || 'Failed to register');
+            setError(err.message || 'Registration failed. Please try again.');
+        } finally {
+            setLoading(false);
         }
     };
 
+    const strength = (() => {
+        const p = form.password;
+        if (!p) return 0;
+        let s = 0;
+        if (p.length >= 8) s++;
+        if (/[A-Z]/.test(p)) s++;
+        if (/[0-9]/.test(p)) s++;
+        if (/[^A-Za-z0-9]/.test(p)) s++;
+        return s;
+    })();
+
+    const strengthColors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-green-500'];
+    const strengthLabels = ['Weak', 'Fair', 'Good', 'Strong'];
+
     return (
-        <div className="bg-background-light dark:bg-background-dark font-display text-white min-h-screen">
-            <div className="layout-container flex h-full grow flex-col">
-                {/* Top Navigation */}
-                <header className="flex items-center justify-between border-b border-solid border-[#39282b] px-10 py-3 bg-background-light dark:bg-background-dark">
-                    <Link to="/" className="flex items-center gap-4 text-white">
-                        <div className="size-6 text-primary">
-                            <svg fill="none" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z" fill="currentColor"></path>
-                            </svg>
-                        </div>
-                        <h2 className="text-white text-xl font-bold leading-tight tracking-[-0.015em]">BidLive</h2>
-                    </Link>
-                    <div className="flex flex-1 justify-end gap-8">
-                        <Link to="/login" className="flex min-w-[84px] cursor-pointer items-center justify-center rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal hover:bg-primary/90 transition-colors">
-                            <span>Login</span>
-                        </Link>
+        <div
+            className="min-h-screen flex"
+            style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}
+        >
+            {/* Left branding */}
+            <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 overflow-hidden"
+                style={{ background: 'linear-gradient(135deg, #0f0f1e 0%, #1a1028 100%)' }}
+            >
+                <GlowOrb className="w-80 h-80 -top-16 -right-10 bg-amber-500" />
+                <GlowOrb className="w-64 h-64 bottom-0 left-0 bg-indigo-600" />
+
+                <Link to="/" className="flex items-center gap-2.5 z-10">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center shadow-lg shadow-amber-500/40">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2L2 7v10l10 5 10-5V7L12 2z" fill="#08080f" />
+                            <path d="M12 2v20M2 7l10 5 10-5" stroke="#f59e0b" strokeWidth="1.5" strokeLinejoin="round" />
+                        </svg>
                     </div>
-                </header>
+                    <span className="text-white font-bold text-xl">Bid<span className="text-amber-400">Live</span></span>
+                </Link>
 
-                <main className="flex-1 flex flex-col items-center justify-center py-12 px-4">
-                    <div className="layout-content-container flex flex-col w-full max-w-[480px] bg-[#271b1d]/40 p-8 rounded-xl border border-[#39282b] relative z-10">
-                        {/* Headline */}
-                        <h1 className="text-white tracking-light text-[32px] font-bold leading-tight text-center pb-2 pt-6">Join the Auction</h1>
-                        <p className="text-[#ba9ca1] text-center mb-6">Create an account to start bidding and streaming.</p>
+                <div className="z-10 space-y-6">
+                    <h1 className="text-5xl font-black leading-tight text-white">
+                        Join the world's<br />
+                        <span className="text-amber-400">fastest growing</span><br />
+                        auction platform.
+                    </h1>
+                    <p className="text-gray-400 text-lg max-w-sm leading-relaxed">
+                        Buy, sell and bid on unique items — all in real-time. Create your account in seconds.
+                    </p>
+                </div>
 
-                        {error && <div className="text-red-500 text-center mb-4">{error}</div>}
+                <div className="z-10 flex gap-8">
+                    {[['Free', 'Account creation'], ['Real-time', 'Bidding experience'], ['Secure', 'Transactions']].map(([val, label]) => (
+                        <div key={label}>
+                            <p className="text-amber-400 text-2xl font-black">{val}</p>
+                            <p className="text-gray-500 text-xs mt-0.5">{label}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
 
-                        {/* Registration Form */}
-                        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-                            {/* Full Name */}
-                            <div className="flex flex-col gap-2">
-                                <label className="flex flex-col w-full">
-                                    <p className="text-white text-sm font-medium leading-normal pb-1">Full Name</p>
-                                    <input
-                                        name="username"
-                                        value={formData.username}
-                                        onChange={handleChange}
-                                        required
-                                        className="form-input flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-12 placeholder:text-[#ba9ca1] px-4 text-base font-normal leading-normal"
-                                        placeholder="Enter your full name"
-                                        type="text"
-                                    />
-                                </label>
-                            </div>
+            {/* Right form */}
+            <div className="flex-1 flex flex-col justify-center items-center px-6 py-12">
+                <Link to="/" className="flex lg:hidden items-center gap-2 mb-10">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                            <path d="M12 2L2 7v10l10 5 10-5V7L12 2z" fill="#08080f" />
+                        </svg>
+                    </div>
+                    <span className="text-white font-bold text-lg">Bid<span className="text-amber-400">Live</span></span>
+                </Link>
 
-                            {/* Email */}
-                            <div className="flex flex-col gap-2">
-                                <label className="flex flex-col w-full">
-                                    <p className="text-white text-sm font-medium leading-normal pb-1">Email Address</p>
-                                    <input
-                                        name="email"
-                                        value={formData.email}
-                                        onChange={handleChange}
-                                        required
-                                        className="form-input flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-12 placeholder:text-[#ba9ca1] px-4 text-base font-normal leading-normal"
-                                        placeholder="name@example.com"
-                                        type="email"
-                                    />
-                                </label>
-                            </div>
+                <div className="w-full max-w-md animate-fade-in">
+                    <div className="mb-8">
+                        <h2 className="text-3xl font-black text-white">Create your account</h2>
+                        <p className="text-gray-400 mt-2">Start bidding in seconds.</p>
+                    </div>
 
-                            {/* Password */}
-                            <div className="flex flex-col gap-2">
-                                <label className="flex flex-col w-full">
-                                    <p className="text-white text-sm font-medium leading-normal pb-1">Password</p>
-                                    <div className="relative flex items-center">
-                                        <input
-                                            name="password"
-                                            value={formData.password}
-                                            onChange={handleChange}
-                                            required
-                                            className="form-input flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-12 placeholder:text-[#ba9ca1] px-4 pr-12 text-base font-normal leading-normal"
-                                            placeholder="Create a password"
-                                            type="password"
-                                        />
-                                        <span className="material-symbols-outlined absolute right-4 text-[#ba9ca1] cursor-pointer">visibility</span>
-                                    </div>
-                                </label>
-                            </div>
+                    {error && (
+                        <div className="mb-5 p-4 rounded-xl text-sm text-red-400 border border-red-500/20"
+                            style={{ background: 'rgba(239,68,68,0.07)' }}>
+                            {error}
+                        </div>
+                    )}
 
-                            {/* Confirm Password */}
-                            <div className="flex flex-col gap-2">
-                                <label className="flex flex-col w-full">
-                                    <p className="text-white text-sm font-medium leading-normal pb-1">Confirm Password</p>
-                                    <div className="relative flex items-center">
-                                        <input
-                                            name="confirmPassword"
-                                            value={formData.confirmPassword}
-                                            onChange={handleChange}
-                                            required
-                                            className="form-input flex w-full rounded-lg text-white focus:outline-0 focus:ring-2 focus:ring-primary/50 border border-[#543b3f] bg-[#271b1d] h-12 placeholder:text-[#ba9ca1] px-4 pr-12 text-base font-normal leading-normal"
-                                            placeholder="Repeat your password"
-                                            type="password"
-                                        />
-                                        <span className="material-symbols-outlined absolute right-4 text-[#ba9ca1] cursor-pointer">visibility</span>
-                                    </div>
-                                </label>
-                            </div>
-
-                            {/* Terms and Conditions */}
-                            <div className="flex items-center gap-3 py-2">
-                                <input className="w-5 h-5 rounded border-[#543b3f] bg-[#271b1d] text-primary focus:ring-primary focus:ring-offset-background-dark" id="terms" type="checkbox" required />
-                                <label className="text-sm text-[#ba9ca1] leading-tight" htmlFor="terms">
-                                    I agree to the <a className="text-primary hover:underline" href="#">Terms of Service</a> and <a className="text-primary hover:underline" href="#">Privacy Policy</a>
-                                </label>
-                            </div>
-
-                            {/* Action Button */}
-                            <button className="flex w-full cursor-pointer items-center justify-center rounded-xl h-14 px-4 bg-primary text-white text-base font-bold leading-normal shadow-lg hover:bg-primary/90 transition-colors" type="submit">
-                                Sign Up
-                            </button>
-                        </form>
-
-                        {/* Divider */}
-                        <div className="relative flex items-center py-6">
-                            <div className="flex-grow border-t border-[#39282b]"></div>
-                            <span className="flex-shrink mx-4 text-sm text-[#ba9ca1]">Or register with</span>
-                            <div className="flex-grow border-t border-[#39282b]"></div>
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <label className="input-label">Username</label>
+                            <input className="input-field" type="text" placeholder="coolbidder99" value={form.username}
+                                onChange={set('username')} required minLength={3} />
                         </div>
 
-                        {/* Social Registration */}
-                        <div className="flex gap-4">
-                            <button className="flex-1 flex items-center justify-center gap-3 h-12 rounded-lg border border-[#543b3f] bg-[#271b1d] hover:bg-[#39282b] transition-colors">
-                                <img alt="Google" className="w-5 h-5" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDKDd7pAUUDZW9Wkte_YX0MhnFeoxrHtwadoh378Jc5sw1Q7O4FDI_PlPWD_NyiJi2c6kS5QBCZV9J-kJ862NRSJ9_fdGReteGPym0L0_CldcsLckPcbOcKhZ6JEATlEpV6OqhVVip75wSkyZk7jX0A-ygfMjf3iQpP86ZP0zc918zZ0LVAj27CCinRMNGPIDbVwCzO677e7ShaQU2VpPEOi5pAp5HG50ITc0UwwPJu_kDmv7108iFfM_Ky7jFqyTt2Am5MjyY1bYHO" />
-                                <span className="text-sm font-medium">Google</span>
-                            </button>
-                            <button className="flex-1 flex items-center justify-center gap-3 h-12 rounded-lg border border-[#543b3f] bg-[#271b1d] hover:bg-[#39282b] transition-colors">
-                                <span className="material-symbols-outlined text-white">brand_awareness</span>
-                                <span className="text-sm font-medium">Apple</span>
-                            </button>
+                        <div>
+                            <label className="input-label">Email address</label>
+                            <input className="input-field" type="email" placeholder="you@example.com" value={form.email}
+                                onChange={set('email')} required autoComplete="email" />
                         </div>
 
-                        {/* Footer link */}
-                        <p className="text-center text-[#ba9ca1] text-sm mt-8">
-                            Already have an account? <Link to="/login" className="text-primary font-bold hover:underline">Login</Link>
+                        <div>
+                            <label className="input-label">Password</label>
+                            <div className="relative">
+                                <input className="input-field pr-12" type={showPass ? 'text' : 'password'}
+                                    placeholder="Min. 6 characters" value={form.password}
+                                    onChange={set('password')} required minLength={6} autoComplete="new-password" />
+                                <button type="button" onClick={() => setShowPass(v => !v)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors" tabIndex={-1}>
+                                    {showPass
+                                        ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
+                                        : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                                    }
+                                </button>
+                            </div>
+                            {form.password && (
+                                <div className="mt-2 flex items-center gap-2">
+                                    <div className="flex gap-1 flex-1">
+                                        {[0, 1, 2, 3].map(i => (
+                                            <div key={i} className={`h-1 flex-1 rounded-full transition-all ${i < strength ? strengthColors[strength - 1] : 'bg-white/10'}`} />
+                                        ))}
+                                    </div>
+                                    <span className="text-xs text-gray-500">{strengthLabels[strength - 1] || ''}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <div>
+                            <label className="input-label">Confirm password</label>
+                            <input className="input-field" type={showPass ? 'text' : 'password'}
+                                placeholder="Repeat your password" value={form.confirm}
+                                onChange={set('confirm')} required autoComplete="new-password" />
+                            {form.confirm && form.confirm !== form.password && (
+                                <p className="text-xs text-red-400 mt-1">Passwords don't match</p>
+                            )}
+                        </div>
+
+                        <button type="submit" disabled={loading || (form.confirm && form.confirm !== form.password)}
+                            className="btn-primary w-full py-3 text-base mt-2">
+                            {loading ? (
+                                <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /></svg>
+                            ) : 'Create account'}
+                        </button>
+                    </form>
+
+                    <div className="mt-8 text-center">
+                        <p className="text-gray-500 text-sm">
+                            Already have an account?{' '}
+                            <Link to="/login" className="text-amber-400 font-semibold hover:text-amber-300 transition-colors">
+                                Sign in
+                            </Link>
                         </p>
                     </div>
-                </main>
-
-                {/* Background Decoration */}
-                <div className="fixed top-0 right-0 -z-10 w-[500px] h-[500px] bg-primary/10 blur-[120px] rounded-full opacity-50"></div>
-                <div className="fixed bottom-0 left-0 -z-10 w-[400px] h-[400px] bg-primary/5 blur-[100px] rounded-full opacity-30"></div>
+                </div>
             </div>
         </div>
     );
-};
-
-export default Register;
+}
