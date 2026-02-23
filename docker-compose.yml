@@ -21,9 +21,12 @@ services:
     ports:
       - "${PORT_GATEWAY}:80"
     depends_on:
-      - auth-service
-      - auction-service
-      - bidding-service
+      auth-service:
+        condition: service_started
+      auction-service:
+        condition: service_started
+      bidding-service:
+        condition: service_started
 
   # Database
   db:
@@ -36,7 +39,11 @@ services:
     volumes:
       - db_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p${DB_ROOT_PASSWORD} --silent"]
+      test:
+        [
+          "CMD-SHELL",
+          "mysqladmin ping -h 127.0.0.1 -uroot -p${DB_ROOT_PASSWORD} --silent",
+        ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -65,7 +72,8 @@ services:
     volumes:
       - ./backend/auth-service:/app
       - /app/node_modules
-    command: npm run dev
+    # Usamos npx para evitar errores de permisos con nodemon
+    command: npx nodemon index.js
     depends_on:
       db:
         condition: service_healthy
@@ -83,8 +91,8 @@ services:
     volumes:
       - ./backend/auction-service:/app
       - /app/node_modules
-      - ./backend/auction-service/uploads:/app/uploads # Persist uploads
-    command: npm run dev
+      - ./backend/auction-service/uploads:/app/uploads
+    command: npx nodemon index.js
     depends_on:
       db:
         condition: service_healthy
@@ -94,12 +102,17 @@ services:
       context: ./backend/bidding-service
     environment:
       - PORT=${PORT_BIDDING_SERVICE}
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=${DB_DATABASE}
     volumes:
       - ./backend/bidding-service:/app
       - /app/node_modules
-    command: npm run dev
+    command: npx nodemon index.js
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
 volumes:
   db_data:
