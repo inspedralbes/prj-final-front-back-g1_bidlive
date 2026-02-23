@@ -4,8 +4,11 @@ import Sidebar from '../components/seller/Sidebar';
 import StatsGrid from '../components/seller/StatsGrid';
 import RecentSalesTable from '../components/seller/RecentSalesTable';
 import UpcomingAuctions from '../components/seller/UpcomingAuctions';
+import { useAuth } from '../context/AuthContext';
+import { Link } from 'react-router-dom';
 
 const SellerDashboard = () => {
+    const { user } = useAuth();
     return (
         <div className="bg-background-light dark:bg-background-dark min-h-screen text-slate-900 dark:text-white font-display">
             <Header />
@@ -15,12 +18,12 @@ const SellerDashboard = () => {
                     <div className="flex justify-between items-center mb-8">
                         <div>
                             <h1 className="text-3xl font-black">Dashboard</h1>
-                            <p className="text-slate-500">Welcome back, VintageVault Auctions</p>
+                            <p className="text-slate-500">Welcome back, {user?.username || user?.email || 'Seller'}</p>
                         </div>
-                        <button className="bg-primary text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-primary/90 transition-colors">
+                        <Link to="/create-auction" className="bg-primary text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-primary/90 transition-colors">
                             <span className="material-symbols-outlined">add</span>
                             Create Auction
-                        </button>
+                        </Link>
                     </div>
 
                     <StatsGrid />

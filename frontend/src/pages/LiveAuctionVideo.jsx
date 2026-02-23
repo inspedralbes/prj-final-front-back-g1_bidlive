@@ -77,9 +77,9 @@ const LiveAuctionVideo = () => {
                         )}
                     </div>
                     <div className="p-6 space-y-6">
-                        <SellerInfo />
+                        <SellerInfo auctionData={auctionData} />
                         <BiddingHUD auctionData={auctionData} />
-                        <ItemDescription />
+                        <ItemDescription auctionData={auctionData} />
                     </div>
                 </div>
                 {/* Right: Real-time Feed & Bidding Controls (4 Columns) */}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import api from '../../services/api';
 
 const ResultsGrid = () => {
     const [searchParams] = useSearchParams();
@@ -13,15 +14,9 @@ const ResultsGrid = () => {
             try {
                 const status = searchParams.get('status') || '';
                 const q = searchParams.get('q') || '';
-                const queryParams = new URLSearchParams();
-                if (status) queryParams.append('status', status);
-                if (q) queryParams.append('q', q);
 
-                const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auction/pujas?${queryParams.toString()}`);
-                if (!response.ok) throw new Error('Failed to fetch auctions');
-
-                const data = await response.json();
-                setAuctions(data);
+                const data = await api.getAuctions(status, q);
+                setAuctions(Array.isArray(data) ? data : []);
             } catch (err) {
                 console.error(err);
                 setError('Failed to load auctions. Please try again later.');
@@ -80,12 +75,18 @@ const ResultsGrid = () => {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {auctions.map(item => (
-                    <Link to={`/auction/${item.status === 'live' ? 'video' : 'photo'}/${item.id}`} key={item.id} className="group bg-white dark:bg-surface-dark rounded-xl overflow-hidden border border-slate-200 dark:border-border-dark hover:border-primary/50 transition-all hover:shadow-2xl hover:shadow-primary/5 cursor-pointer">
-                        <div className="relative aspect-[4/3] overflow-hidden">
+                    <Link to={`/auction/${item.status === 'live' ? 'video' : 'photo'}/${item.id}`} key={item.id} className="group bg-white dark:bg-surface-dark rounded-xl overflow-hidden border border-slate-200 dark:border-border-dark hover:border-primary/50 transition-all hover:shadow-2xl hover:shadow-primary/5 cursor-pointer flex flex-col">
+                        <div className="relative aspect-[4/3] overflow-hidden bg-slate-100 dark:bg-black/20">
                             <div
                                 className="absolute inset-0 bg-cover bg-center group-hover:scale-105 transition-transform duration-500"
-                                style={{ backgroundImage: `url('${item.img}')` }}
-                            ></div>
+                                style={item.image_url ? { backgroundImage: `url('${item.image_url}')` } : {}}
+                            >
+                                {!item.image_url && (
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-700">image</span>
+                                    </div>
+                                )}
+                            </div>
 
                             {/* Badges */}
                             {item.status === 'live' && (
@@ -114,26 +115,30 @@ const ResultsGrid = () => {
                             )}
                         </div>
 
-                        <div className="p-4">
+                        <div className="p-4 flex flex-col flex-1">
                             <div className="flex justify-between items-start mb-2">
                                 <h4 className="font-bold text-lg line-clamp-1">{item.title}</h4>
-                                <span className="material-symbols-outlined text-slate-400 hover:text-primary transition-colors">favorite</span>
+                                <span className={`material-symbols-outlined text-sm ${item.status === 'ended' ? 'text-slate-400' : 'text-primary'}`}>
+                                    {item.status === 'ended' ? 'gavel' : 'favorite'}
+                                </span>
                             </div>
-                            <p className="text-slate-500 dark:text-slate-400 text-sm mb-4 line-clamp-2">{item.description}</p>
+                            <p className="text-slate-500 dark:text-slate-400 text-sm mb-4 line-clamp-2 flex-1">{item.description}</p>
 
-                            <div className="bg-slate-50 dark:bg-surface-dark rounded-xl p-3 flex flex-col gap-2 border border-slate-100 dark:border-border-dark">
+                            <div className="bg-slate-50 dark:bg-black/30 rounded-xl p-3 flex flex-col gap-2 border border-slate-100 dark:border-white/5">
                                 <div className="flex justify-between items-center">
-                                    <span className="text-xs text-slate-500 uppercase font-bold tracking-widest">Current Bid</span>
-                                    <span className="text-xs font-bold text-primary">
-                                        0 Bids
-                                    </span>
+                                    <span className="text-xs text-slate-500 uppercase font-bold tracking-widest">{item.status === 'ended' ? 'Final Price' : 'Current Bid'}</span>
+                                    {item.status === 'live' && (
+                                        <span className="text-xs font-bold text-primary">Active Bidding</span>
+                                    )}
                                 </div>
                                 <div className="flex justify-between items-end">
-                                    <span className="text-2xl font-black text-primary">{item.bid}</span>
+                                    <span className={`text-2xl font-black ${item.status === 'ended' ? 'text-green-500' : 'text-primary'}`}>€{item.current_price || item.starting_price}</span>
                                     {item.status === 'upcoming' ? (
-                                        <button className="bg-primary text-white text-xs font-bold px-3 py-1.5 rounded-lg">Remind Me</button>
+                                        <button className="bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors uppercase tracking-wider">Remind Me</button>
+                                    ) : item.status === 'ended' ? (
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-200 dark:bg-surface-dark px-2 py-1 rounded">Auction Ended</span>
                                     ) : (
-                                        <span className="text-xs font-bold text-slate-400">Bid Now</span>
+                                        <span className="text-[10px] font-bold bg-primary text-white uppercase tracking-widest px-3 py-1.5 rounded-lg hover:bg-primary/90 transition-colors">Bid Now</span>
                                     )}
                                 </div>
                             </div>

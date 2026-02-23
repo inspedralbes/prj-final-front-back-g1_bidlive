@@ -3,6 +3,7 @@ import Header from '../components/layout/Header';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import { Link } from 'react-router-dom';
+import api from '../services/api';
 
 const Profile = () => {
     const { user } = useAuth();
@@ -14,11 +15,8 @@ const Profile = () => {
         const fetchUserAuctions = async () => {
             if (!user) return;
             try {
-                const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auction/pujas/user/${user.id}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setMyAuctions(data);
-                }
+                const data = await api.getAuctionsByUser(user.id);
+                setMyAuctions(Array.isArray(data) ? data : []);
             } catch (error) {
                 console.error("Error fetching user auctions:", error);
             } finally {
@@ -106,7 +104,7 @@ const Profile = () => {
                                 <div className="bg-white dark:bg-surface-dark rounded-xl border-2 border-dashed border-slate-200 dark:border-border-dark p-12 text-center">
                                     <span className="material-symbols-outlined text-4xl text-slate-300 mb-2">storefront</span>
                                     <p className="text-slate-500 font-medium mb-4">You haven't created any auctions yet.</p>
-                                    <Link to="/create-puja" className="inline-block px-6 py-2 bg-primary text-white rounded-lg font-bold hover:bg-primary/90 transition-colors">
+                                    <Link to="/create-auction" className="inline-block px-6 py-2 bg-primary text-white rounded-lg font-bold hover:bg-primary/90 transition-colors">
                                         Create Your First Auction
                                     </Link>
                                 </div>

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { io } from "socket.io-client";
 
-const SIGNALING_URL = import.meta.env.VITE_SIGNALING_URL || "http://localhost:8080";
+// WebSocket URL: goes through nginx gateway at /bidding/
+const SIGNALING_URL = (import.meta.env.VITE_SIGNALING_URL || "ws://localhost:8080/bidding/").replace(/^http/, "ws");
 
 const RTC_CONFIG = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
@@ -10,30 +10,42 @@ const RTC_CONFIG = {
 const VideoPlayer = ({ auctionId = "demo", role = "viewer", autoStart = false }) => {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
-  const socketRef = useRef(null);
-  
-  // Per al venedor: un PeerConnection per cada espectador { viewerId: RTCPeerConnection }
-  const pcsRef = useRef({}); 
-  // Per a l'espectador: el PeerConnection únic amb el venedor
+  const wsRef = useRef(null);
+
+  // Seller: one PeerConnection per viewer  { viewerId -> RTCPeerConnection }
+  const pcsRef = useRef({});
+  // Viewer: single PeerConnection to seller
   const pcRef = useRef(null);
-  
+
   const localStreamRef = useRef(null);
+  const mySocketIdRef = useRef(null);
 
   const [started, setStarted] = useState(false);
   const [status, setStatus] = useState("idle");
   const [viewers, setViewers] = useState(0);
   const [mediaError, setMediaError] = useState("");
 
+  // ─── Helper: send a message through the WebSocket ──────────────────────────
+  const wsSend = (obj) => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(obj));
+    }
+  };
+
+  // ─── Main effect: open WS and wire up signaling ────────────────────────────
   useEffect(() => {
     if (!started) return;
 
-    const socket = io(SIGNALING_URL, { transports: ["websocket"] });
-    socketRef.current = socket;
+    const ws = new WebSocket(SIGNALING_URL);
+    wsRef.current = ws;
 
-    socket.on("connect", async () => {
+    ws.onopen = async () => {
       console.log("Connected to signaling server");
       setStatus("socket-connected");
-      socket.emit("join-room", { auctionId, role });
+
+      // Join the signaling room
+      wsSend({ type: "join-room", payload: { auctionId, role } });
 
       if (role === "seller") {
         try {
@@ -45,75 +57,116 @@ const VideoPlayer = ({ auctionId = "demo", role = "viewer", autoStart = false })
           setStatus("media-error");
         }
       }
-    });
+    };
 
-    socket.on("viewer-count", ({ count }) => setViewers(count));
-
-    socket.on("viewer-joined", async ({ viewerId }) => {
-      if (role !== "seller") return;
-      console.log("New viewer joined:", viewerId);
-
-      // Crea un nou RTCPeerConnection per a aquest viewer
-      const pc = createPeerConnection(viewerId);
-      pcsRef.current[viewerId] = pc;
-
-      // Afegeix el stream local al nou peer
-      if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach((track) => {
-          pc.addTrack(track, localStreamRef.current);
-        });
+    ws.onmessage = async (event) => {
+      let msg;
+      try {
+        msg = JSON.parse(event.data);
+      } catch {
+        return;
       }
 
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
+      const { type } = msg;
 
-      socket.emit("offer", { auctionId, to: viewerId, sdp: offer });
-    });
-
-    socket.on("offer", async ({ from, sdp }) => {
-      if (role !== "viewer") return;
-      console.log("Received offer from:", from);
-
-      const pc = createPeerConnection(from);
-      pcRef.current = pc;
-
-      await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-
-      socket.emit("answer", { auctionId, to: from, sdp: answer });
-      setStatus("connected");
-    });
-
-    socket.on("answer", async ({ from, sdp }) => {
-      if (role !== "seller") return;
-      console.log("Received answer from:", from);
-
-      const pc = pcsRef.current[from];
-      if (pc) {
-        await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+      // Ignore bidding-related messages in this component
+      if (["AUCTION_UPDATE", "BID_PLACED", "AUCTION_ENDED", "CHAT_MESSAGE", "VIEWER_COUNT", "ERROR"].includes(type)) {
+        if (type === "VIEWER_COUNT") setViewers(msg.payload?.count ?? 0);
+        return;
       }
-    });
 
-    socket.on("ice-candidate", async ({ from, candidate }) => {
-      const pc = role === "seller" ? pcsRef.current[from] : pcRef.current;
-      if (pc && candidate) {
-        try {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (e) {
-          console.error("Error adding ice candidate:", e);
+      switch (type) {
+        case "connected":
+          mySocketIdRef.current = msg.socketId;
+          break;
+
+        case "viewer-count":
+          setViewers(msg.count ?? 0);
+          break;
+
+        // ── Seller receives: new viewer joined ──────────────────────────────
+        case "viewer-joined": {
+          if (role !== "seller") break;
+          const { viewerId } = msg;
+          console.log("New viewer joined:", viewerId);
+
+          const pc = createPeerConnection(viewerId);
+          pcsRef.current[viewerId] = pc;
+
+          if (localStreamRef.current) {
+            localStreamRef.current.getTracks().forEach((track) => {
+              pc.addTrack(track, localStreamRef.current);
+            });
+          }
+
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          wsSend({ type: "offer", payload: { auctionId, to: viewerId, sdp: offer } });
+          break;
         }
-      }
-    });
 
-    socket.on("disconnect", () => setStatus("socket-disconnected"));
+        // ── Viewer receives: offer from seller ──────────────────────────────
+        case "offer": {
+          if (role !== "viewer") break;
+          const { from, sdp } = msg;
+          console.log("Received offer from:", from);
+
+          const pc = createPeerConnection(from);
+          pcRef.current = pc;
+
+          await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          wsSend({ type: "answer", payload: { auctionId, to: from, sdp: answer } });
+          setStatus("connected");
+          break;
+        }
+
+        // ── Seller receives: answer from viewer ─────────────────────────────
+        case "answer": {
+          if (role !== "seller") break;
+          const { from, sdp } = msg;
+          console.log("Received answer from:", from);
+          const pc = pcsRef.current[from];
+          if (pc) await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+          break;
+        }
+
+        // ── ICE candidate exchange ──────────────────────────────────────────
+        case "ice-candidate": {
+          const { from, candidate } = msg;
+          const pc = role === "seller" ? pcsRef.current[from] : pcRef.current;
+          if (pc && candidate) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) {
+              console.error("Error adding ice candidate:", e);
+            }
+          }
+          break;
+        }
+
+        default:
+          break;
+      }
+    };
+
+    ws.onclose = () => setStatus("socket-disconnected");
+    ws.onerror = (e) => console.error("WS error:", e);
 
     return () => {
       cleanup();
-      socket.disconnect();
+      ws.close();
     };
   }, [started, auctionId, role]);
 
+  // ─── Auto-start ────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (autoStart && !started) handleStart();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoStart]);
+
+  // ─── Helpers ───────────────────────────────────────────────────────────────
   const getLocalStream = async () => {
     if (localStreamRef.current) return localStreamRef.current;
     const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -127,10 +180,9 @@ const VideoPlayer = ({ auctionId = "demo", role = "viewer", autoStart = false })
 
     pc.onicecandidate = (e) => {
       if (e.candidate) {
-        socketRef.current?.emit("ice-candidate", { 
-          auctionId, 
-          candidate: e.candidate, 
-          to: remoteId 
+        wsSend({
+          type: "ice-candidate",
+          payload: { auctionId, candidate: e.candidate, to: remoteId },
         });
       }
     };
@@ -149,7 +201,7 @@ const VideoPlayer = ({ auctionId = "demo", role = "viewer", autoStart = false })
       localStreamRef.current.getTracks().forEach((t) => t.stop());
       localStreamRef.current = null;
     }
-    Object.values(pcsRef.current).forEach(pc => pc.close());
+    Object.values(pcsRef.current).forEach((pc) => pc.close());
     pcsRef.current = {};
     if (pcRef.current) {
       pcRef.current.close();
@@ -168,33 +220,15 @@ const VideoPlayer = ({ auctionId = "demo", role = "viewer", autoStart = false })
     }
   };
 
-useEffect(() => {
-  if (autoStart && !started) {
-    handleStart();
-  }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [autoStart]);
-
-
+  // ─── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="relative w-full aspect-video bg-black group overflow-hidden rounded-none">
       {/* VIDEO LAYER */}
       {started ? (
         role === "seller" ? (
-          <video
-            ref={localVideoRef}
-            autoPlay
-            playsInline
-            muted
-            className="absolute inset-0 w-full h-full object-cover"
-          />
+          <video ref={localVideoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
         ) : (
-          <video
-            ref={remoteVideoRef}
-            autoPlay
-            playsInline
-            className="absolute inset-0 w-full h-full object-cover"
-          />
+          <video ref={remoteVideoRef} autoPlay playsInline className="absolute inset-0 w-full h-full object-cover" />
         )
       ) : (
         <div
@@ -228,7 +262,7 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* CENTER PLAY */}
+      {/* CENTER PLAY BUTTON */}
       {!started && (
         <div className="absolute inset-0 flex items-center justify-center opacity-100 transition-opacity z-10">
           <button
@@ -236,14 +270,12 @@ useEffect(() => {
             className="flex shrink-0 items-center justify-center rounded-full size-20 bg-black/40 backdrop-blur-sm text-white border border-white/20 hover:scale-110 transition-transform"
             title={role === "seller" ? "Començar emissió" : "Veure en directe"}
           >
-            <span className="material-symbols-outlined text-4xl leading-none">
-              play_arrow
-            </span>
+            <span className="material-symbols-outlined text-4xl leading-none">play_arrow</span>
           </button>
         </div>
       )}
 
-      {/* BOTTOM RIGHT CONTROLS (mock) */}
+      {/* BOTTOM RIGHT CONTROLS */}
       <div className="absolute bottom-4 right-4 flex gap-2 z-10">
         <button className="bg-black/60 backdrop-blur-md p-2 rounded-lg hover:bg-black/80 text-white">
           <span className="material-symbols-outlined text-sm">volume_up</span>

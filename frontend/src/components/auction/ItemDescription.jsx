@@ -1,11 +1,13 @@
 import React from 'react';
 
-const ItemDescription = () => {
+const ItemDescription = ({ auctionData }) => {
+    if (!auctionData) return null;
+
     return (
-        <div className="bg-[#39282b]/40 rounded-xl p-6 border border-white/5">
-            <h3 className="text-lg font-bold mb-2 text-white">Rolex Submariner 1968 "Meters First"</h3>
-            <p className="text-[#ba9ca1] text-sm leading-relaxed">
-                A stunning example of the iconic Ref. 5513. Features an original matte dial with creamy patina markers and matching hands. Movement has been fully serviced in 2023. Comes with original box and paper provenance.
+        <div className="bg-slate-50 dark:bg-[#39282b]/40 rounded-xl p-6 border border-slate-200 dark:border-white/5">
+            <h3 className="text-lg font-bold mb-2 text-slate-900 dark:text-white">{auctionData.title || 'Auction Item'}</h3>
+            <p className="text-slate-600 dark:text-[#ba9ca1] text-sm leading-relaxed whitespace-pre-wrap">
+                {auctionData.description || 'No description provided.'}
             </p>
         </div>
     );
