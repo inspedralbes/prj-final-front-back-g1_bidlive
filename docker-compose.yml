@@ -87,6 +87,10 @@ services:
       context: ./backend/bidding-service
     environment:
       - PORT=${PORT_BIDDING_SERVICE}
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=${DB_DATABASE}
     volumes:
       - ./backend/bidding-service:/app
       - /app/node_modules

@@ -29,6 +29,22 @@ const translations = {
         auctioneers: {
             title: 'Top Auctioneers',
             subtitle: 'Discover the best sellers on BidLive.'
+        },
+        auction: {
+            liveChat: 'Live Chat',
+            bidHistory: 'Bid History',
+            welcome: 'Welcome to the Live Auction',
+            currentBid: 'Current Bid',
+            timeLeft: 'Time Left',
+            endsIn: 'Auction Ends In',
+            nextMinBid: 'Next minimum bid',
+            heldBy: 'Held by',
+            noBids: 'NO BIDS YET',
+            placeBid: 'Place bid now',
+            custom: 'Custom',
+            bid: 'BID',
+            minBidAlert: 'Bid must be at least',
+            sendMessagePlaceholder: 'Send a message...'
         }
     },
     es: {
@@ -57,6 +73,22 @@ const translations = {
         auctioneers: {
             title: 'Mejores Subastadores',
             subtitle: 'Descubre los mejores vendedores en BidLive.'
+        },
+        auction: {
+            liveChat: 'Chat en Vivo',
+            bidHistory: 'Historial',
+            welcome: 'Bienvenido a la Subasta en Vivo',
+            currentBid: 'Puja Actual',
+            timeLeft: 'Tiempo Restante',
+            endsIn: 'Termina en',
+            nextMinBid: 'Siguiente mínima',
+            heldBy: 'Líder',
+            noBids: 'SIN PUJAS',
+            placeBid: 'Pujar ahora',
+            custom: 'Personalizado',
+            bid: 'PUJAR',
+            minBidAlert: 'La puja debe ser al menos',
+            sendMessagePlaceholder: 'Escribe un mensaje...'
         }
     }
 };
