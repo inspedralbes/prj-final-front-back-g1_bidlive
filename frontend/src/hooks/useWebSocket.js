@@ -26,7 +26,9 @@ export const useWebSocket = (url, auctionId, username) => {
         socket.onmessage = (event) => {
             try {
                 const data = JSON.parse(event.data);
-                setMessages(prev => [...prev, data]);
+                if (data.type === 'CHAT_MESSAGE' || data.type === 'BID_PLACED' || data.type === 'SYSTEM') {
+                    setMessages(prev => [...prev, data]);
+                }
             } catch (error) {
                 console.error('Error parsing WS message:', error);
             }

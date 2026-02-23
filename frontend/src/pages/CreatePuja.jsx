@@ -11,18 +11,18 @@ const CreatePuja = () => {
     title: "",
     description: "",
     startingPrice: "",
-    imageUrl: "",
+    imageFile: null,
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleChange = (e) => {
-        if (e.target.name === 'imageFile') {
-            setFormData({ ...formData, imageFile: e.target.files[0] });
-        } else {
-        setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-        }
+    if (e.target.name === 'imageFile') {
+      setFormData({ ...formData, imageFile: e.target.files[0] });
+    } else {
+      setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -36,20 +36,20 @@ const CreatePuja = () => {
       const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
       // Important: startingPrice ha de ser número
-      const payload = {
-        title: formData.title.trim(),
-        description: formData.description.trim(),
-        startingPrice: Number(formData.startingPrice),
-        imageUrl: formData.imageUrl.trim() || null,
-        sellerId: user.id,
-        status: "live", // si vols que surti com a live directament
-        // si prefereixes que sigui upcoming fins que el venedor faci "Go Live", posa "upcoming"
-      };
+      const formDataToSend = new FormData();
+      formDataToSend.append('title', formData.title.trim());
+      formDataToSend.append('description', formData.description.trim());
+      formDataToSend.append('startingPrice', Number(formData.startingPrice));
+      formDataToSend.append('sellerId', user.id);
+      formDataToSend.append('status', 'live');
+
+      if (formData.imageFile) {
+        formDataToSend.append('image', formData.imageFile);
+      }
 
       const response = await fetch(`${baseUrl}/auction/pujas`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: formDataToSend,
       });
 
       // Llegim el body 1 sola vegada
@@ -151,14 +151,13 @@ const CreatePuja = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-2">Image URL</label>
+              <label className="block text-sm font-medium mb-2">Image Upload</label>
               <input
-                type="url"
-                name="imageUrl"
-                value={formData.imageUrl}
+                type="file"
+                name="imageFile"
+                accept="image/*"
                 onChange={handleChange}
-                className="w-full bg-[#39282b]/50 border border-[#543b3f] rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary/50 outline-none transition-all"
-                placeholder="https://example.com/image.jpg"
+                className="w-full bg-[#39282b]/50 border border-[#543b3f] rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary/50 outline-none transition-all text-gray-300"
               />
             </div>
 
