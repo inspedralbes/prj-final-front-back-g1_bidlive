@@ -1,92 +1,155 @@
 const express = require("express");
 const http = require("http");
-const { Server } = require("socket.io");
+const WebSocket = require("ws");
 const cors = require("cors");
 
 const app = express();
 app.use(cors());
 
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  },
-  transports: ["websocket", "polling"]
-});
+const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3002;
 
-// Estructures per a gestió d'habitacions (rooms)
-// { auctionId: { sellerId: string, viewers: Set<string> } }
+// Structure for room management
+// { auctionId: { sellerId: ws, viewers: Set<ws> } }
 const rooms = new Map();
 
-io.on("connection", (socket) => {
-  console.log("Client connected:", socket.id);
+// Helper to send JSON
+const sendJson = (ws, data) => {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(data));
+  }
+};
 
-  socket.on("join-room", ({ auctionId, role }) => {
-    socket.join(auctionId);
-    console.log(`User ${socket.id} joined room ${auctionId} as ${role}`);
+wss.on("connection", (ws) => {
+  console.log("Client connected");
 
-    if (!rooms.has(auctionId)) {
-      rooms.set(auctionId, { sellerId: null, viewers: new Set() });
-    }
-    const room = rooms.get(auctionId);
+  ws.on("message", (message) => {
+    try {
+      const data = JSON.parse(message);
+      const { type, payload } = data;
 
-    if (role === "seller") {
-      room.sellerId = socket.id;
-    } else {
-      room.viewers.add(socket.id);
-      // Notificar al venedor que hi ha un nou espectador
-      if (room.sellerId) {
-        io.to(room.sellerId).emit("viewer-joined", { viewerId: socket.id });
-      }
-    }
+      switch (type) {
+        case "JOIN_ROOM": {
+          const { auctionId, username, role } = payload;
+          ws.auctionId = auctionId;
+          ws.username = username;
+          ws.role = role || (payload.role === 'seller' ? 'seller' : 'viewer');
 
-    // Actualitzar comptador d'espectadors a tots
-    io.to(auctionId).emit("viewer-count", { count: room.viewers.size });
-  });
+          if (!rooms.has(auctionId)) {
+            rooms.set(auctionId, { sellerId: null, viewers: new Set() });
+          }
+          const room = rooms.get(auctionId);
 
-  socket.on("offer", ({ auctionId, to, sdp }) => {
-    console.log(`Offer from ${socket.id} to ${to}`);
-    io.to(to).emit("offer", { from: socket.id, sdp });
-  });
+          if (ws.role === "seller") {
+            room.sellerId = ws;
+          } else {
+            room.viewers.add(ws);
+          }
 
-  socket.on("answer", ({ auctionId, to, sdp }) => {
-    console.log(`Answer from ${socket.id} to ${to}`);
-    io.to(to).emit("answer", { from: socket.id, sdp });
-  });
+          console.log(`User ${username} joined ${auctionId} as ${ws.role}`);
 
-  socket.on("ice-candidate", ({ auctionId, candidate, to }) => {
-    // Si 'to' no està definit, vol dir que estem enviant el candidat a tots els altres de la sala
-    // Però en WebRTC P2P normalment ho enviem a un 'peer' específic.
-    // En el nostre VideoPlayer.jsx actual, el seller ho envia sense 'to' especificat? No, anem a veure el VideoPlayer.jsx.
-    
-    if (to) {
-      io.to(to).emit("ice-candidate", { from: socket.id, candidate });
-    } else {
-      socket.to(auctionId).emit("ice-candidate", { from: socket.id, candidate });
-    }
-  });
+          // Broadcast viewer count
+          const count = rooms.get(auctionId).viewers.size;
+          const countMsg = { type: "VIEWER_COUNT", payload: { count } };
 
-  socket.on("disconnecting", () => {
-    for (const auctionId of socket.rooms) {
-      const room = rooms.get(auctionId);
-      if (room) {
-        if (room.sellerId === socket.id) {
-          room.sellerId = null;
-          console.log(`Seller ${socket.id} left room ${auctionId}`);
-        } else {
-          room.viewers.delete(socket.id);
-          console.log(`Viewer ${socket.id} left room ${auctionId}`);
+          if (room.sellerId) sendJson(room.sellerId, countMsg);
+          room.viewers.forEach(viewer => sendJson(viewer, countMsg));
+          break;
         }
-        io.to(auctionId).emit("viewer-count", { count: room.viewers.size });
+
+        case "CHAT_MESSAGE": {
+          if (ws.auctionId) {
+            const room = rooms.get(ws.auctionId);
+            if (room) {
+              // Structuring the message for the frontend
+              // Frontend expects the message object directly in the array?
+              // Or wrapped? useWebSocket.js pushes 'data' (the parsed event.data)
+              // So we send { type: "CHAT_MESSAGE", payload: { ... } }
+              const chatMsg = {
+                type: "CHAT_MESSAGE",
+                payload: {
+                  username: ws.username || "Anonymous",
+                  message: payload.message,
+                  timestamp: new Date().toISOString(),
+                  senderId: ws.role === 'seller' ? 'seller' : 'viewer' // Simplified ID
+                }
+              };
+
+              if (room.sellerId) sendJson(room.sellerId, chatMsg);
+              room.viewers.forEach(viewer => sendJson(viewer, chatMsg));
+            }
+          }
+          break;
+        }
+
+        case "PLACE_BID": {
+          if (ws.auctionId) {
+            const room = rooms.get(ws.auctionId);
+            if (room) {
+              const bidMsg = {
+                type: "BID_PLACED",
+                payload: {
+                  username: ws.username || "Anonymous",
+                  amount: payload.amount,
+                  timestamp: new Date().toISOString()
+                }
+              };
+              if (room.sellerId) sendJson(room.sellerId, bidMsg);
+              room.viewers.forEach(viewer => sendJson(viewer, bidMsg));
+            }
+          }
+          break;
+        }
+
+        case "OFFER":
+        case "ANSWER":
+        case "ICE_CANDIDATE": {
+          // Signaling forwarding
+          if (ws.auctionId) {
+            const room = rooms.get(ws.auctionId);
+            if (room) {
+              const signalMsg = { type, payload: { ...payload, from: ws.username } };
+
+              // Very basic broadcasting for signaling (inefficient but matches basic logic)
+              // Ideally strict P2P targeting
+              if (room.sellerId && room.sellerId !== ws) sendJson(room.sellerId, signalMsg);
+              room.viewers.forEach(viewer => {
+                if (viewer !== ws) sendJson(viewer, signalMsg);
+              });
+            }
+          }
+          break;
+        }
+
+        default:
+          console.log("Unknown message type:", type);
       }
+    } catch (error) {
+      console.error("Error parsing message:", error);
     }
   });
 
-  socket.on("disconnect", () => {
-    console.log("Client disconnected:", socket.id);
+  ws.on("close", () => {
+    if (ws.auctionId) {
+      const room = rooms.get(ws.auctionId);
+      if (room) {
+        if (room.sellerId === ws) {
+          room.sellerId = null;
+          console.log(`Seller left room ${ws.auctionId}`);
+        } else {
+          room.viewers.delete(ws);
+          console.log(`Viewer left room ${ws.auctionId}`);
+        }
+
+        // Broadcast new count
+        const count = room.viewers.size;
+        const countMsg = { type: "VIEWER_COUNT", payload: { count } };
+        if (room.sellerId) sendJson(room.sellerId, countMsg);
+        room.viewers.forEach(viewer => sendJson(viewer, countMsg));
+      }
+    }
   });
 });
 
