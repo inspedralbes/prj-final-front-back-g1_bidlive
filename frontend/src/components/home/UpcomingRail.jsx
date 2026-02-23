@@ -5,7 +5,7 @@ const UpcomingRail = () => {
     const [loading, setLoading] = React.useState(true);
 
     React.useEffect(() => {
-        fetch('/api/drops')
+        fetch('/api/auction/drops')
             .then(res => res.json())
             .then(data => {
                 setDrops(data);

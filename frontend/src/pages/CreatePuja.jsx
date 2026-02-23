@@ -1,25 +1,27 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import Header from '../components/layout/Header';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import Header from "../components/layout/Header";
 
 const CreatePuja = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
+
     const [formData, setFormData] = useState({
-        title: '',
-        description: '',
-        startingPrice: '',
-        imageFile: null
+        title: "",
+        description: "",
+        startingPrice: "",
+        imageUrl: "",
     });
+
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [error, setError] = useState("");
 
     const handleChange = (e) => {
         if (e.target.name === 'imageFile') {
             setFormData({ ...formData, imageFile: e.target.files[0] });
         } else {
-            setFormData({ ...formData, [e.target.name]: e.target.value });
+            setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
         }
     };
 
@@ -46,23 +48,15 @@ const CreatePuja = () => {
 
             const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auction/pujas`, {
                 method: 'POST',
-                headers: {
-                    // 'Content-Type': 'multipart/form-data', // Do NOT set this manually, let fetch handle the boundary
-                    // 'Authorization': `Bearer ${localStorage.getItem('token')}` 
-                },
+                // headers: {
+                //     'Authorization': `Bearer ${localStorage.getItem('token')}` 
+                // },
                 body: data
             });
 
             if (!response.ok) {
-                const text = await response.text();
-                console.error('Server error response:', text);
-                let data;
-                try {
-                    data = JSON.parse(text);
-                } catch (e) {
-                    throw new Error(`Server Error: ${text.substring(0, 100)}...`);
-                }
-                throw new Error(data.message || 'Failed to create puja');
+                const data = await response.json();
+                throw new Error(data.error || data.message || 'Failed to create puja');
             }
 
             navigate('/profile');
@@ -81,7 +75,11 @@ const CreatePuja = () => {
                 <div className="bg-[#271b1d]/40 p-8 rounded-xl border border-[#39282b]">
                     <h1 className="text-3xl font-bold mb-6 text-center">Create New Puja</h1>
 
-                    {error && <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 rounded-lg mb-6">{error}</div>}
+                    {error && (
+                        <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 rounded-lg mb-6">
+                            {error}
+                        </div>
+                    )}
 
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div>
@@ -106,7 +104,7 @@ const CreatePuja = () => {
                                 rows="4"
                                 className="w-full bg-[#39282b]/50 border border-[#543b3f] rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary/50 outline-none transition-all"
                                 placeholder="Describe your item..."
-                            ></textarea>
+                            />
                         </div>
 
                         <div>
@@ -125,13 +123,14 @@ const CreatePuja = () => {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-medium mb-2">Image</label>
+                            <label className="block text-sm font-medium mb-2">Image URL</label>
                             <input
-                                type="file"
-                                name="imageFile"
+                                type="url"
+                                name="imageUrl"
+                                value={formData.imageUrl}
                                 onChange={handleChange}
-                                accept="image/*"
-                                className="w-full bg-[#39282b]/50 border border-[#543b3f] rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary/50 outline-none transition-all file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90"
+                                className="w-full bg-[#39282b]/50 border border-[#543b3f] rounded-lg px-4 py-3 focus:ring-2 focus:ring-primary/50 outline-none transition-all"
+                                placeholder="https://example.com/image.jpg"
                             />
                         </div>
 
@@ -140,7 +139,7 @@ const CreatePuja = () => {
                             disabled={loading}
                             className="w-full bg-primary hover:bg-primary/90 text-white font-bold py-4 rounded-xl transition-all shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {loading ? 'Creating...' : 'Launch Puja'}
+                            {loading ? "Creating..." : "Launch Puja"}
                         </button>
                     </form>
                 </div>

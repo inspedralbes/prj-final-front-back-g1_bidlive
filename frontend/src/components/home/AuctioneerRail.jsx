@@ -5,7 +5,7 @@ const AuctioneerRail = () => {
     const [loading, setLoading] = React.useState(true);
 
     React.useEffect(() => {
-        fetch('/api/auctioneers')
+        fetch('/api/auction/auctioneers')
             .then(res => res.json())
             .then(data => {
                 setAuctioneers(data);
