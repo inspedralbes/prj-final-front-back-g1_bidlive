@@ -5,7 +5,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile.prod
       args:
-        VITE_SIGNALING_URL: ${VITE_SIGNALING_URL}
+        VITE_API_URL: ${VITE_API_URL}
+        VITE_WS_URL: ${VITE_WS_URL}
     ports:
       - "${PORT_FRONTEND}:80"
     depends_on:
