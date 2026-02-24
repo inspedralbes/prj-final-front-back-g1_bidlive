@@ -1,9 +1,11 @@
 services:
-  # Frontend (static build served by nginx
+  # Frontend (static build served by nginx)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
+      args:
+        VITE_SIGNALING_URL: ${VITE_SIGNALING_URL}
     ports:
       - "${PORT_FRONTEND}:80"
     depends_on:

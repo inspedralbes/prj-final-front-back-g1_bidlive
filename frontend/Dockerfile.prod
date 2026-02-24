@@ -8,6 +8,10 @@ RUN npm ci
 
 COPY . .
 
+# Receive the gateway URL as a build argument and expose it to Vite
+ARG VITE_SIGNALING_URL
+ENV VITE_SIGNALING_URL=$VITE_SIGNALING_URL
+
 # Build the Vite static bundle
 RUN npm run build
 
