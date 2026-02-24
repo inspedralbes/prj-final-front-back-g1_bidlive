@@ -1,0 +1,53 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy via SSH
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -e
+
+            # 1. Ir al directorio del proyecto
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            # 2. Actualizar el codigo
+            git pull origin main
+
+            # 3. Escribir el archivo .env.production con los secrets de GitHub
+            cat > .env.production << 'EOF'
+            DB_ROOT_PASSWORD=${{ secrets.DB_ROOT_PASSWORD }}
+            DB_DATABASE=${{ secrets.DB_DATABASE }}
+            DB_USER=${{ secrets.DB_USER }}
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            PORT_FRONTEND=3000
+            PORT_GATEWAY=8080
+            PORT_AUTH_SERVICE=3000
+            PORT_AUCTION_SERVICE=3001
+            PORT_BIDDING_SERVICE=3002
+            VITE_SIGNALING_URL=${{ secrets.VITE_SIGNALING_URL }}
+            EOF
+
+            # 4. Reconstruir y levantar los contenedores en produccion
+            docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+
+            # 5. Limpiar imagenes antiguas para liberar espacio
+            docker image prune -f
+
+            echo "✅ Deploy completado con exito"
