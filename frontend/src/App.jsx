@@ -12,6 +12,7 @@ import LiveAuctionVideo from "./pages/LiveAuctionVideo";
 import SellerDashboard from "./pages/SellerDashboard";
 import CreatePuja from "./pages/CreatePuja";
 import SellerLiveVideo from "./pages/SellerLiveVideo";
+import Profile from "./pages/Profile";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
@@ -34,6 +35,7 @@ function App() {
             <Route path="/seller" element={<SellerDashboard />} />
             <Route path="/seller/live/video/:id" element={<SellerLiveVideo />} />
             <Route path="/create-puja" element={<CreatePuja />} />
+            <Route path="/profile" element={<Profile />} />
           </Route>
         </Routes>
       </AuthProvider>

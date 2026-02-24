@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { GoogleLogin } from '@react-oauth/google';
 
 const GlowOrb = ({ className }) => (
     <div className={`absolute rounded-full pointer-events-none blur-3xl opacity-30 ${className}`} />
@@ -11,7 +12,7 @@ export default function Register() {
     const [showPass, setShowPass] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    const { register } = useAuth();
+    const { register, googleLogin } = useAuth();
     const navigate = useNavigate();
 
     const set = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -175,6 +176,38 @@ export default function Register() {
                             ) : 'Create account'}
                         </button>
                     </form>
+
+                    <div className="mt-6">
+                        <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                                <div className="w-full border-t border-gray-700"></div>
+                            </div>
+                            <div className="relative flex justify-center text-sm">
+                                <span className="px-2 bg-[#08080f] text-gray-400">Or continue with</span>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 flex justify-center">
+                            <GoogleLogin
+                                onSuccess={async credentialResponse => {
+                                    try {
+                                        setLoading(true);
+                                        await googleLogin(credentialResponse.credential);
+                                        navigate('/');
+                                    } catch (err) {
+                                        setError(err.message || 'Google signup failed');
+                                    } finally {
+                                        setLoading(false);
+                                    }
+                                }}
+                                onError={() => {
+                                    setError('Google signup failed');
+                                }}
+                                theme="filled_black"
+                                shape="pill"
+                            />
+                        </div>
+                    </div>
 
                     <div className="mt-8 text-center">
                         <p className="text-gray-500 text-sm">

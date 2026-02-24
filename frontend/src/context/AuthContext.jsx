@@ -61,6 +61,30 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const googleLogin = async (token) => {
+        try {
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auth/google`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Google Login failed');
+            }
+
+            const data = await response.json();
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user', JSON.stringify(data.user));
+            setUser(data.user);
+            return data.user;
+        } catch (error) {
+            console.error('Google Login error:', error);
+            throw error;
+        }
+    };
+
     const logout = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
@@ -68,7 +92,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, register, logout, loading }}>
+        <AuthContext.Provider value={{ user, login, register, googleLogin, logout, loading }}>
             {children}
         </AuthContext.Provider>
     );
