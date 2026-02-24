@@ -1,5 +1,5 @@
 services:
-  # Frontend (static build served by nginx)
+  # Frontend (static build served by nginx
   frontend:
     build:
       context: ./frontend
@@ -32,11 +32,7 @@ services:
     volumes:
       - db_data:/var/lib/mysql
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "mysqladmin ping -h 127.0.0.1 -uroot -p${DB_ROOT_PASSWORD} --silent",
-        ]
+      test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p${DB_ROOT_PASSWORD} --silent" ]
       interval: 5s
       timeout: 3s
       retries: 20
