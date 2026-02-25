@@ -47,6 +47,12 @@ const Puja = {
         return true;
     },
 
+    migrate: async () => {
+        try { await db.query("ALTER TABLE pujas ADD COLUMN category_id INT DEFAULT NULL"); } catch (e) { }
+        try { await db.query("ALTER TABLE pujas ADD FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL"); } catch (e) { }
+        return true;
+    },
+
     create: async (title, description, category, reservePrice, duration, mode, startingPrice, imageUrl, sellerId, status = 'upcoming') => {
         const sql = `
             INSERT INTO pujas (title, description, category, reserve_price, duration, mode, starting_price, current_price, image_url, seller_id, status)
@@ -56,7 +62,7 @@ const Puja = {
         return { id: result.insertId, title, description, category, reservePrice, duration, mode, startingPrice, currentPrice: startingPrice, imageUrl, sellerId, status };
     },
 
-    findAll: async (status = null, search = null) => {
+    findAll: async (status = null, search = null, categoryId = null) => {
         let query = `
             SELECT p.*, u.username as seller_username, u.reputation_score, u.total_sales 
             FROM pujas p 

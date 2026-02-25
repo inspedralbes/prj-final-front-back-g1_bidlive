@@ -16,7 +16,6 @@ import Profile from "./pages/Profile";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
-import Profile from "./pages/Profile";
 
 function App() {
   return (
