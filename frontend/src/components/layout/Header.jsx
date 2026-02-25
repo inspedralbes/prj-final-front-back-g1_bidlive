@@ -20,8 +20,8 @@ const NavLink = ({ to, children, active }) => (
     <Link
         to={to}
         className={`text-sm font-medium transition-colors px-1 py-0.5 ${active
-                ? 'text-amber-400'
-                : 'text-gray-400 hover:text-white'
+            ? 'text-amber-400'
+            : 'text-gray-400 hover:text-white'
             }`}
     >
         {children}
@@ -126,6 +126,13 @@ export default function Header() {
                                             <p className="text-gray-400 text-xs truncate mt-0.5">{user.email}</p>
                                         </div>
                                         <Link
+                                            to="/profile"
+                                            onClick={() => setUserMenuOpen(false)}
+                                            className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                                        >
+                                            My Profile
+                                        </Link>
+                                        <Link
                                             to="/seller"
                                             onClick={() => setUserMenuOpen(false)}
                                             className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
@@ -179,6 +186,7 @@ export default function Header() {
                         { to: '/', label: 'Home' },
                         { to: '/explore', label: 'Explore' },
                         ...(user ? [
+                            { to: '/profile', label: 'My profile' },
                             { to: '/seller', label: 'Dashboard' },
                             { to: '/create-puja', label: 'New auction' },
                         ] : [

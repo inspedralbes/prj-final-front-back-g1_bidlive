@@ -32,6 +32,8 @@ const initDB = async (retries = 5, delay = 5000) => {
 // Routes directas (Nginx se encarga del prefijo /auth)
 app.post("/register", authController.register);
 app.post("/login", authController.login);
+app.post("/google", authController.googleLogin);
+app.put("/profile/:id", authController.updateProfile);
 
 app.get("/", (req, res) => {
   res.send("Auth Service is running");
