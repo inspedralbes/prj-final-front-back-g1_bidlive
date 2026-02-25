@@ -55,7 +55,17 @@ export const usePujasByUser = (userId) => {
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const json = await res.json();
-            setData(Array.isArray(json) ? json : []);
+            // Normalize snake_case DB fields → camelCase for consistent access in components
+            const normalized = (Array.isArray(json) ? json : []).map(p => ({
+                ...p,
+                currentPrice: p.current_price ?? p.currentPrice ?? p.starting_price ?? p.startingPrice ?? 0,
+                startingPrice: p.starting_price ?? p.startingPrice ?? 0,
+                img: p.image_url || p.img || null,
+                seller: p.seller_username || p.seller || `User ${p.seller_id}`,
+                sellerReputation: p.reputation_score ?? p.sellerReputation ?? 0,
+                sellerTotalSales: p.total_sales ?? p.sellerTotalSales ?? 0,
+            }));
+            setData(normalized);
         } catch (err) {
             console.error('[usePujasByUser]', err);
             setError(err.message);

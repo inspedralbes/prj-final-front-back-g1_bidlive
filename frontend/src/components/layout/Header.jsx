@@ -20,8 +20,8 @@ const NavLink = ({ to, children, active }) => (
     <Link
         to={to}
         className={`text-sm font-medium transition-colors px-1 py-0.5 ${active
-                ? 'text-amber-400'
-                : 'text-gray-400 hover:text-white'
+            ? 'text-amber-400'
+            : 'text-gray-400 hover:text-white'
             }`}
     >
         {children}
@@ -104,10 +104,18 @@ export default function Header() {
                             <div className="relative" ref={userMenuRef}>
                                 <button
                                     onClick={() => setUserMenuOpen(v => !v)}
-                                    className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-amber-400 border border-amber-500/30 hover:border-amber-500/60 transition-colors cursor-pointer select-none"
+                                    className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-amber-400 border border-amber-500/30 hover:border-amber-500/60 transition-colors cursor-pointer select-none overflow-hidden"
                                     style={{ background: 'rgba(245,158,11,0.12)' }}
                                 >
-                                    {(user.username || user.email || 'U')[0].toUpperCase()}
+                                    {user.avatar_url ? (
+                                        <img
+                                            src={`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}${user.avatar_url}`}
+                                            alt="avatar"
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        (user.username || user.email || 'U')[0].toUpperCase()
+                                    )}
                                 </button>
 
                                 {userMenuOpen && (
@@ -131,6 +139,13 @@ export default function Header() {
                                             className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
                                         >
                                             Dashboard
+                                        </Link>
+                                        <Link
+                                            to="/profile"
+                                            onClick={() => setUserMenuOpen(false)}
+                                            className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                                        >
+                                            My Profile
                                         </Link>
                                         <Link
                                             to="/create-puja"
@@ -180,6 +195,7 @@ export default function Header() {
                         { to: '/explore', label: 'Explore' },
                         ...(user ? [
                             { to: '/seller', label: 'Dashboard' },
+                            { to: '/profile', label: 'My Profile' },
                             { to: '/create-puja', label: 'New auction' },
                         ] : [
                             { to: '/login', label: 'Sign in' },

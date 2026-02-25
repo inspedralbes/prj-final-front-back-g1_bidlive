@@ -20,9 +20,26 @@ const CreateAuction = () => {
 
   const launchAuction = async () => {
     setError('');
+
+    // Validations (US-5 acceptance criteria)
+    if (!title) {
+      return setError("Item Title es obligatorio.");
+    }
+    if (!description) {
+      return setError("Description es obligatoria.");
+    }
+    if (!startingPrice || isNaN(startingPrice) || Number(startingPrice) < 0) {
+      return setError("Starting Price es obligatorio y debe ser un valor válido.");
+    }
+
     setLoading(true);
 
     try {
+      // Obtenemos el userId simulado, en entorno real vendria del contexto o token local
+      const userStr = localStorage.getItem('user');
+      const userObj = userStr ? JSON.parse(userStr) : {};
+      const sellerId = userObj.id || 1; // 1 fallback
+
       const payload = {
         title,
         category,
@@ -31,9 +48,10 @@ const CreateAuction = () => {
         reservePrice: reservePrice ? Number(reservePrice) : null,
         duration,
         mode, // important: video o photo
+        sellerId
       };
 
-      const res = await fetch(`${API_BASE}/api/auction`, {
+      const res = await fetch(`${API_BASE}/api/auction/pujas`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

@@ -74,8 +74,11 @@ app.get('/', (req, res) => {
 // Real Endpoints
 app.post('/pujas', upload.single('image'), pujaController.createPuja);
 app.get('/pujas', pujaController.getPujas);
-app.get('/pujas/user/:userId', pujaController.getPujasByUser);
-app.get('/pujas/live', pujaController.getPujas); // Reusing getPujas for now, effectively getting all
+app.get('/pujas/live', pujaController.getPujas);        // specific string routes first
+app.get('/pujas/user/:userId', pujaController.getPujasByUser); // specific before :id
+app.get('/pujas/:id', pujaController.getPujaById);      // generic param last
+app.post('/pujas/:id/end', pujaController.endPuja);
+app.post('/pujas/:id/start', pujaController.startPuja);
 
 // Global Error Handler
 app.use((err, req, res, next) => {

@@ -15,6 +15,7 @@ import SellerLiveVideo from "./pages/SellerLiveVideo";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
+import Profile from "./pages/Profile";
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
             <Route path="/seller" element={<SellerDashboard />} />
             <Route path="/seller/live/video/:id" element={<SellerLiveVideo />} />
             <Route path="/create-puja" element={<CreatePuja />} />
+            <Route path="/profile" element={<Profile />} />
           </Route>
         </Routes>
       </AuthProvider>
