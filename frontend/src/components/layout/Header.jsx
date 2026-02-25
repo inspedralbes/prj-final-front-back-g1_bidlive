@@ -109,13 +109,18 @@ export default function Header() {
                                 >
                                     {user.avatar_url ? (
                                         <img
-                                            src={`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}${user.avatar_url}`}
-                                            alt="avatar"
-                                            className="w-full h-full object-cover"
+                                            src={user.avatar_url}
+                                            alt="User Avatar"
+                                            className="w-full h-full object-cover rounded-full"
+                                            onError={(e) => {
+                                                e.target.style.display = 'none';
+                                                e.target.nextSibling.style.display = 'inline';
+                                            }}
                                         />
-                                    ) : (
-                                        (user.username || user.email || 'U')[0].toUpperCase()
-                                    )}
+                                    ) : null}
+                                    <span style={{ display: user.avatar_url ? 'none' : 'inline' }}>
+                                        {(user.username || user.email || 'U')[0].toUpperCase()}
+                                    </span>
                                 </button>
 
                                 {userMenuOpen && (

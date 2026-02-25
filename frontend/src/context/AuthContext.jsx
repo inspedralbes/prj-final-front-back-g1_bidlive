@@ -91,15 +91,16 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
     };
 
-    // Update user data in state and localStorage (called after profile edits)
-    const updateUser = (newUserData) => {
-        const merged = { ...user, ...newUserData };
-        localStorage.setItem('user', JSON.stringify(merged));
-        setUser(merged);
+    const updateUser = (partial) => {
+        setUser(prev => {
+            const updated = { ...prev, ...partial };
+            localStorage.setItem('user', JSON.stringify(updated));
+            return updated;
+        });
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, register, googleLogin, logout, loading }}>
+        <AuthContext.Provider value={{ user, login, register, googleLogin, logout, updateUser, loading }}>
             {children}
         </AuthContext.Provider>
     );

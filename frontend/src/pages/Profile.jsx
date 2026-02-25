@@ -18,16 +18,18 @@ const getReputationStars = (sales) => {
 };
 
 const Profile = () => {
-    const { user } = useAuth();
+    const { user, updateUser } = useAuth();
 
     const [myAuctions, setMyAuctions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
+    const [avatarUploading, setAvatarUploading] = useState(false);
+    const [avatarPreview, setAvatarPreview] = useState(null);
+    const avatarInputRef = React.useRef(null);
 
     // Form state
     const [formData, setFormData] = useState({
         username: user?.username || '',
-        avatar_url: user?.avatar_url || '',
         billing_address: user?.billing_address || '',
         payment_method: user?.payment_method || 'credit_card'
     });
@@ -85,12 +87,16 @@ const Profile = () => {
                     'Content-Type': 'application/json',
                     Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify(formData),
+                body: JSON.stringify({
+                    username: formData.username,
+                    avatar_url: user?.avatar_url || '',
+                    billing_address: formData.billing_address,
+                    payment_method: formData.payment_method,
+                }),
             });
 
             if (response.ok) {
                 const data = await response.json();
-                // Update local storage and context state if needed (we'll just use window.location.reload() for now, or update local storage manually)
                 localStorage.setItem('user', JSON.stringify(data.user));
                 window.location.reload();
             } else {
@@ -101,6 +107,50 @@ const Profile = () => {
             alert('An error occurred');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleAvatarChange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Show instant local preview
+        const reader = new FileReader();
+        reader.onloadend = () => setAvatarPreview(reader.result);
+        reader.readAsDataURL(file);
+
+        setAvatarUploading(true);
+        try {
+            const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+            const fd = new FormData();
+            fd.append('avatar', file);
+
+            const res = await fetch(`${baseUrl}/auth/profile/${user.id}/avatar`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                body: fd,
+            });
+
+            if (!res.ok) {
+                const errText = await res.text();
+                console.error(`[avatar] HTTP ${res.status}:`, errText);
+                throw new Error(`HTTP ${res.status}: ${errText}`);
+            }
+            const data = await res.json();
+
+            // Build the public URL using the gateway base (same origin the browser uses)
+            const avatarUrl = `${baseUrl}/auth/uploads/avatars/${data.filename}`;
+
+            // Update context + localStorage so it persists on next page load
+            updateUser({ avatar_url: avatarUrl });
+            // Show the server URL — we know it's correct because we built it ourselves
+            setAvatarPreview(avatarUrl);
+        } catch (err) {
+            console.error('Avatar upload error:', err);
+            alert(`Error al subir la imagen:\n${err.message}`);
+            setAvatarPreview(null);
+        } finally {
+            setAvatarUploading(false);
         }
     };
 
@@ -122,24 +172,60 @@ const Profile = () => {
                         <div className="relative group">
                             <div className="w-40 h-40 rounded-full bg-gradient-to-tr from-amber-500 via-orange-400 to-indigo-500 p-1.5 shadow-[0_0_30px_rgba(245,158,11,0.3)]">
                                 <div className="w-full h-full rounded-full bg-[#08080f] flex items-center justify-center overflow-hidden">
-                                    {user?.avatar_url ? (
-                                        <img src={user.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <span className="text-6xl font-black bg-gradient-to-tr from-amber-400 to-orange-500 bg-clip-text text-transparent">
-                                            {initial}
-                                        </span>
-                                    )}
+                                    {avatarPreview || user?.avatar_url ? (
+                                        <img
+                                            src={avatarPreview || user.avatar_url}
+                                            alt="Avatar"
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                                e.target.style.display = 'none';
+                                                e.target.nextSibling.style.display = 'flex';
+                                            }}
+                                        />
+                                    ) : null}
+                                    <span
+                                        className="text-6xl font-black bg-gradient-to-tr from-amber-400 to-orange-500 bg-clip-text text-transparent"
+                                        style={{ display: (avatarPreview || user?.avatar_url) ? 'none' : 'flex' }}
+                                    >
+                                        {initial}
+                                    </span>
                                 </div>
                             </div>
-                            <button className="absolute bottom-2 right-2 p-3 bg-white/10 backdrop-blur-md rounded-full text-white shadow-lg border border-white/20 hover:bg-white/20 transition-all transform hover:scale-110">
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg>
+
+                            {/* Hidden file input */}
+                            <input
+                                ref={avatarInputRef}
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={handleAvatarChange}
+                            />
+
+                            {/* Upload button */}
+                            <button
+                                type="button"
+                                onClick={() => avatarInputRef.current?.click()}
+                                disabled={avatarUploading}
+                                title="Change profile picture"
+                                className="absolute bottom-2 right-2 p-3 backdrop-blur-md rounded-full text-white shadow-lg border transition-all transform hover:scale-110 disabled:opacity-60 disabled:cursor-not-allowed"
+                                style={{
+                                    background: avatarUploading ? 'rgba(245,158,11,0.4)' : 'rgba(245,158,11,0.85)',
+                                    borderColor: 'rgba(245,158,11,0.5)',
+                                }}
+                            >
+                                {avatarUploading ? (
+                                    <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4" />
+                                    </svg>
+                                ) : (
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+                                    </svg>
+                                )}
                             </button>
                         </div>
 
                         <div className="flex-1 text-center md:text-left pt-4">
-                            <div className="inline-block px-3 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold rounded-full mb-3 uppercase tracking-wider">
-                                Miembro Pro
-                            </div>
                             <h1 className="text-5xl font-black text-white tracking-tight flex justify-center md:justify-start items-center gap-3">
                                 {user?.username}
                                 <svg className="w-8 h-8 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
@@ -215,8 +301,8 @@ const Profile = () => {
                                     <input type="text" name="username" value={formData.username} onChange={handleInputChange} className="w-full bg-[#08080f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors" />
                                 </div>
                                 <div>
-                                    <label className="block text-gray-400 text-sm font-bold mb-2">Enlace URL para la Foto de Perfil</label>
-                                    <input type="text" name="avatar_url" value={formData.avatar_url} onChange={handleInputChange} placeholder="https://..." className="w-full bg-[#08080f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                                    <p className="block text-gray-400 text-sm font-bold mb-2">Foto de Perfil</p>
+                                    <p className="text-xs text-gray-500">Haz clic en el icono de subida de la foto de perfil para cambiarla.</p>
                                 </div>
                             </div>
                             <div className="space-y-4">

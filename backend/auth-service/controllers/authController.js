@@ -124,7 +124,45 @@ const authController = {
       console.error("Update profile error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
-  }
+  },
+
+  uploadAvatar: async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      if (!req.file) {
+        return res.status(400).json({ message: "No image file provided" });
+      }
+
+      // Build the public URL — use X-Forwarded-* headers when behind nginx
+      const proto = req.get("X-Forwarded-Proto") || req.protocol;
+      const host = req.get("X-Forwarded-Host") || req.get("host");
+      const avatarUrl = `${proto}://${host}/auth/uploads/avatars/${req.file.filename}`;
+
+      console.log(`[uploadAvatar] saved: ${req.file.filename} → ${avatarUrl}`);
+
+      // Persist in DB
+      const user = await User.findById(id);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      await User.updateProfile(id, {
+        username: user.username,
+        avatar_url: avatarUrl,
+        billing_address: user.billing_address,
+        payment_method: user.payment_method,
+      });
+
+      const updatedUser = await User.findById(id);
+      res.json({
+        message: "Avatar updated successfully",
+        filename: req.file.filename,
+        user: updatedUser,
+      });
+    } catch (error) {
+      console.error("Upload avatar error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  },
 };
 
 module.exports = authController;
