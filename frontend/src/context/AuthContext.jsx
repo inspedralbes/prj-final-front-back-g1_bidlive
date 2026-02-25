@@ -91,8 +91,16 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
     };
 
+    const updateUser = (partial) => {
+        setUser(prev => {
+            const updated = { ...prev, ...partial };
+            localStorage.setItem('user', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
     return (
-        <AuthContext.Provider value={{ user, login, register, googleLogin, logout, loading }}>
+        <AuthContext.Provider value={{ user, login, register, googleLogin, logout, updateUser, loading }}>
             {children}
         </AuthContext.Provider>
     );

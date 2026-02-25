@@ -1,14 +1,43 @@
 const express = require("express");
+const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
 const authController = require("./controllers/authController");
 const User = require("./models/User");
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// IMPORTANTE: Quitamos app.use(cors()) de aquí porque lo gestionará el Gateway
 app.use(express.json());
 
-// Initialize Database Table with Retry Logic
+// ── Avatar uploads ──────────────────────────────────────────────────────────
+const avatarDir = path.join(__dirname, "uploads", "avatars");
+if (!fs.existsSync(avatarDir)) fs.mkdirSync(avatarDir, { recursive: true });
+
+const avatarStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, avatarDir),
+  filename: (_req, file, cb) => {
+    const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    cb(null, `avatar-${unique}${path.extname(file.originalname)}`);
+  },
+});
+
+const uploadAvatar = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only images are allowed"));
+  },
+});
+
+// Serve avatar files statically
+app.use(
+  "/uploads/avatars",
+  express.static(avatarDir)
+);
+
+// ── Initialize DB ────────────────────────────────────────────────────────────
 const initDB = async (retries = 5, delay = 5000) => {
   for (let i = 0; i < retries; i++) {
     try {
@@ -16,10 +45,7 @@ const initDB = async (retries = 5, delay = 5000) => {
       console.log("✅ Users table checked/created successfully");
       return true;
     } catch (err) {
-      console.error(
-        `❌ Error creating users table (attempt ${i + 1}/${retries}):`,
-        err,
-      );
+      console.error(`❌ Error creating users table (attempt ${i + 1}/${retries}):`, err);
       if (i < retries - 1) {
         console.log(`Retrying in ${delay / 1000} seconds...`);
         await new Promise((res) => setTimeout(res, delay));
@@ -29,20 +55,38 @@ const initDB = async (retries = 5, delay = 5000) => {
   return false;
 };
 
-// Routes directas (Nginx se encarga del prefijo /auth)
+// ── Routes ───────────────────────────────────────────────────────────────────
 app.post("/register", authController.register);
 app.post("/login", authController.login);
 app.post("/google", authController.googleLogin);
 app.put("/profile/:id", authController.updateProfile);
 
-app.get("/", (req, res) => {
-  res.send("Auth Service is running");
+// Avatar upload: POST /auth/profile/:id/avatar  (multipart, field = "avatar")
+app.post(
+  "/profile/:id/avatar",
+  uploadAvatar.single("avatar"),
+  authController.uploadAvatar
+);
+
+app.get("/", (_req, res) => res.send("Auth Service is running"));
+
+// ── Global error handler ─────────────────────────────────────────────────────
+app.use((err, _req, res, _next) => {
+  if (err instanceof multer.MulterError) {
+    return res.status(400).json({ message: `Upload error: ${err.message}` });
+  }
+  if (err.message === "Only images are allowed") {
+    return res.status(400).json({ message: err.message });
+  }
+  console.error("Unhandled error:", err);
+  res.status(500).json({ message: "Internal Server Error" });
 });
 
+// ── Boot ─────────────────────────────────────────────────────────────────────
 (async () => {
   const ok = await initDB();
   if (!ok) process.exit(1);
-  app.listen(port, () => {
-    console.log(`Auth Service listening on port ${port}`);
-  });
+  app.listen(port, () =>
+    console.log(`Auth Service listening on port ${port}`)
+  );
 })();

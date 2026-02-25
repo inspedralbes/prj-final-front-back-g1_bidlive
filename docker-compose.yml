@@ -40,11 +40,7 @@ services:
     volumes:
       - db_data:/var/lib/mysql
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "mysqladmin ping -h 127.0.0.1 -uroot -p${DB_ROOT_PASSWORD} --silent",
-        ]
+      test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p${DB_ROOT_PASSWORD} --silent" ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -74,6 +70,7 @@ services:
     volumes:
       - ./backend/auth-service:/app
       - /app/node_modules
+      - ./backend/auth-service/uploads:/app/uploads
     # Usamos npx para evitar errores de permisos con nodemon
     command: npx nodemon index.js
     depends_on:

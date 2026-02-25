@@ -107,7 +107,20 @@ export default function Header() {
                                     className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-amber-400 border border-amber-500/30 hover:border-amber-500/60 transition-colors cursor-pointer select-none"
                                     style={{ background: 'rgba(245,158,11,0.12)' }}
                                 >
-                                    {(user.username || user.email || 'U')[0].toUpperCase()}
+                                    {user.avatar_url ? (
+                                        <img
+                                            src={user.avatar_url}
+                                            alt="User Avatar"
+                                            className="w-full h-full object-cover rounded-full"
+                                            onError={(e) => {
+                                                e.target.style.display = 'none';
+                                                e.target.nextSibling.style.display = 'inline';
+                                            }}
+                                        />
+                                    ) : null}
+                                    <span style={{ display: user.avatar_url ? 'none' : 'inline' }}>
+                                        {(user.username || user.email || 'U')[0].toUpperCase()}
+                                    </span>
                                 </button>
 
                                 {userMenuOpen && (
