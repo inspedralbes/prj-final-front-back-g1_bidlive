@@ -1,13 +1,13 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePujasByUser } from '../hooks/usePujas';
 import Header from '../components/layout/Header';
 
 const statusColor = (status) => {
     if (status === 'live') return { text: '#ef4444', bg: 'rgba(239,68,68,0.1)', label: 'Live' };
-    if (status === 'active') return { text: '#22c55e', bg: 'rgba(34,197,94,0.1)', label: 'Active' };
-    return { text: '#9ca3af', bg: 'rgba(156,163,175,0.1)', label: status || 'Inactive' };
+    if (status === 'ended') return { text: '#6b7280', bg: 'rgba(107,114,128,0.1)', label: 'Ended' };
+    return { text: '#9ca3af', bg: 'rgba(156,163,175,0.1)', label: 'Not Live' };
 };
 
 const StatCard = ({ label, value, icon, accent }) => (
@@ -39,12 +39,23 @@ const SkeletonRow = () => (
 export default function SellerDashboard() {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const { data: pujas, loading } = usePujasByUser(user?.id);
+    const location = useLocation();
+    const { data: pujas, loading, refetch } = usePujasByUser(user?.id);
+
+    // Force a fresh fetch every time the dashboard mounts OR the user navigates back to it.
+    // location.key changes on every navigation event, ensuring we always get fresh data.
+    useEffect(() => {
+        if (user?.id) refetch();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user?.id, location.key]);
+
+    const activePujas = pujas.filter(p => p.status !== 'ended');
+    const endedPujas = pujas.filter(p => p.status === 'ended');
 
     const total = pujas.length;
     const live = pujas.filter(p => p.status === 'live').length;
-    const prices = pujas.map(p => parseFloat(String(p.current_price || p.startingPrice || 0)));
-    const revenue = prices.reduce((a, b) => a + b, 0);
+    // Use normalized currentPrice field (mapped by usePujas.js)
+    const revenue = pujas.reduce((sum, p) => sum + parseFloat(String(p.currentPrice || p.current_price || 0)), 0);
 
     return (
         <div className="min-h-screen" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
@@ -78,87 +89,116 @@ export default function SellerDashboard() {
                 </div>
 
                 {/* Auctions table */}
-                <div>
-                    <h2 className="text-xl font-black text-white mb-4">Your auctions</h2>
+                <div className="mb-12">
+                    <h2 className="text-xl font-black text-white mb-4">My Auctions</h2>
                     <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                        {/* Header row */}
                         <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3"
                             style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
-                            {['Item', 'Status', 'Starting price', 'Actions'].map((h, i) => (
+                            {['Item', 'Status', 'Starting/Current', 'Actions'].map((h, i) => (
                                 <span key={h} className={`text-xs font-semibold text-gray-500 uppercase tracking-wider ${i === 3 ? 'col-span-2 text-right' : i === 0 ? 'col-span-5' : 'col-span-2'}`}>{h}</span>
                             ))}
                         </div>
 
                         {loading && (
                             <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                                {[0, 1, 2].map(i => <SkeletonRow key={i} />)}
+                                {[0, 1].map(i => <SkeletonRow key={i} />)}
                             </div>
                         )}
 
-                        {!loading && pujas.length === 0 && (
+                        {!loading && activePujas.length === 0 && (
                             <div className="p-16 text-center">
-                                <div className="w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center" style={{ background: 'rgba(245,158,11,0.1)' }}>
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(245,158,11,0.6)" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M8 12h8M12 8v8" /></svg>
-                                </div>
-                                <p className="text-gray-400 font-semibold text-lg">No auctions yet</p>
-                                <p className="text-gray-600 text-sm mt-1 mb-6">Create your first auction to start selling</p>
-                                <Link to="/create-puja" className="btn-primary text-sm px-6 py-2.5">
-                                    Create first auction
-                                </Link>
+                                <p className="text-gray-400 font-semibold mb-2">No active auctions</p>
+                                <Link to="/create-puja" className="btn-primary text-sm px-6 py-2.5">Create your first auction</Link>
                             </div>
                         )}
 
-                        {!loading && pujas.length > 0 && (
+                        {!loading && activePujas.length > 0 && (
                             <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                                {pujas.map((p, idx) => {
+                                {activePujas.map((p, idx) => {
                                     const col = statusColor(p.status);
-                                    const price = p.current_price || p.startingPrice || p.starting_price || 0;
+                                    const price = p.currentPrice ?? p.current_price ?? p.startingPrice ?? p.starting_price ?? 0;
                                     return (
-                                        <div key={p.id} className="grid grid-cols-12 gap-4 items-center px-5 py-4 hover:bg-white/[0.02] transition-colors animate-fade-in"
-                                            style={{ animationDelay: `${idx * 40}ms` }}>
-                                            {/* Item */}
+                                        <div key={p.id} className="grid grid-cols-12 gap-4 items-center px-5 py-4 hover:bg-white/[0.02] transition-colors">
                                             <div className="col-span-10 md:col-span-5 flex items-center gap-3">
-                                                <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0"
-                                                    style={{ background: '#1a1a2e', border: '1px solid var(--border)' }}>
-                                                    {p.image_url || p.img
-                                                        ? <img src={p.image_url || p.img} alt={p.title} className="w-full h-full object-cover" onError={e => { e.target.style.display = 'none'; }} />
-                                                        : <div className="w-full h-full flex items-center justify-center text-gray-700">
-                                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
-                                                        </div>
-                                                    }
+                                                <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0" style={{ background: '#1a1a2e', border: '1px solid var(--border)' }}>
+                                                    {p.image_url || p.img ? <img src={p.image_url || p.img} alt={p.title} className="w-full h-full object-cover" onError={e => e.target.style.display = 'none'} /> : <div className="w-full h-full flex items-center justify-center text-gray-700"></div>}
                                                 </div>
                                                 <div className="min-w-0">
                                                     <p className="text-white font-semibold text-sm truncate">{p.title}</p>
                                                     <p className="text-gray-600 text-xs">#{p.id}</p>
                                                 </div>
                                             </div>
-                                            {/* Status */}
                                             <div className="hidden md:flex col-span-2 items-center">
-                                                <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ color: col.text, background: col.bg }}>
-                                                    {col.label}
-                                                </span>
+                                                <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ color: col.text, background: col.bg }}>{col.label}</span>
                                             </div>
-                                            {/* Price */}
                                             <div className="hidden md:block col-span-2">
                                                 <p className="text-amber-400 font-bold text-sm">${Number(price).toLocaleString()}</p>
                                             </div>
-                                            {/* Actions */}
                                             <div className="col-span-2 md:col-span-3 flex justify-end gap-2">
-                                                {p.status === 'live' ? (
-                                                    <button
-                                                        onClick={() => navigate(`/seller/live/video/${p.id}`)}
-                                                        className="btn-primary text-xs py-2 px-3"
-                                                    >
-                                                        Go live
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => navigate(`/seller/live/video/${p.id}`)}
-                                                        className="btn-ghost text-xs py-2 px-3"
-                                                    >
-                                                        Start
-                                                    </button>
-                                                )}
+                                                <button
+                                                    onClick={() => navigate(`/seller/live/video/${p.id}`)}
+                                                    className={p.status === 'live' ? 'btn-primary text-xs py-2 px-3' : 'btn-ghost text-xs py-2 px-3'}
+                                                >
+                                                    {p.status === 'live' ? 'Enter Live' : 'Go Live'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* History table (Ended) */}
+                <div>
+                    <h2 className="text-xl font-black text-white mb-4">Historial de Pujas (Ended)</h2>
+                    <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+                        <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3"
+                            style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
+                            {['Item', 'Status', 'Final Price', 'Actions'].map((h, i) => (
+                                <span key={h} className={`text-xs font-semibold text-gray-500 uppercase tracking-wider ${i === 3 ? 'col-span-2 text-right' : i === 0 ? 'col-span-5' : 'col-span-2'}`}>{h}</span>
+                            ))}
+                        </div>
+
+                        {loading && (
+                            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                                <SkeletonRow />
+                            </div>
+                        )}
+
+                        {!loading && endedPujas.length === 0 && (
+                            <div className="p-10 text-center">
+                                <p className="text-gray-400 font-semibold mb-2">No ended auctions yet</p>
+                            </div>
+                        )}
+
+                        {!loading && endedPujas.length > 0 && (
+                            <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                                {endedPujas.map((p, idx) => {
+                                    const col = statusColor(p.status);
+                                    const price = p.currentPrice ?? p.current_price ?? p.startingPrice ?? p.starting_price ?? 0;
+                                    return (
+                                        <div key={p.id} className="grid grid-cols-12 gap-4 items-center px-5 py-4 hover:bg-white/[0.02] transition-colors">
+                                            <div className="col-span-10 md:col-span-5 flex items-center gap-3 opacity-60">
+                                                <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0" style={{ background: '#1a1a2e', border: '1px solid var(--border)' }}>
+                                                    {p.image_url || p.img ? <img src={p.image_url || p.img} alt={p.title} className="w-full h-full flex items-center justify-center grayscale" onError={e => e.target.style.display = 'none'} /> : <div className="w-full h-full flex items-center justify-center text-gray-700"></div>}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-white font-semibold text-sm truncate line-through">{p.title}</p>
+                                                    <p className="text-gray-600 text-xs">#{p.id}</p>
+                                                </div>
+                                            </div>
+                                            <div className="hidden md:flex col-span-2 items-center opacity-70">
+                                                <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ color: col.text, background: col.bg }}>Completed</span>
+                                            </div>
+                                            <div className="hidden md:block col-span-2 opacity-70">
+                                                <p className="text-gray-400 font-bold text-sm">${Number(price).toLocaleString()}</p>
+                                            </div>
+                                            <div className="col-span-2 md:col-span-3 flex justify-end gap-2">
+                                                <button disabled className="bg-gray-800 text-gray-500 text-xs py-2 px-3 rounded cursor-not-allowed">
+                                                    Closed
+                                                </button>
                                             </div>
                                         </div>
                                     );

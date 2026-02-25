@@ -1,8 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Header from '../components/layout/Header';
 import { useAuth } from '../context/AuthContext';
-
 import { Link } from 'react-router-dom';
+
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const ALLOWED_EXT_LABEL = 'JPG, PNG, WebP or GIF';
+
+const getReputationStars = (sales) => {
+    if (!sales || sales === 0) return { stars: 0, label: "New Seller" };
+    if (sales <= 5) return { stars: 1, label: "Beginner" };
+    if (sales <= 15) return { stars: 2, label: "Regular" };
+    if (sales <= 30) return { stars: 3, label: "Reliable" };
+    if (sales <= 50) return { stars: 4, label: "Outstanding" };
+    return { stars: 5, label: "Top Seller" };
+};
 
 const Profile = () => {
     const { user } = useAuth();
@@ -20,23 +33,42 @@ const Profile = () => {
     });
     const [saving, setSaving] = useState(false);
 
+    // --- Edit panel state ---
+    const [editOpen, setEditOpen] = useState(false);
+    const [editUsername, setEditUsername] = useState('');
+    const [editBio, setEditBio] = useState('');
+    const [saveStatus, setSaveStatus] = useState('idle'); // idle | saving | saved | error
+    const [saveError, setSaveError] = useState('');
+
+    // --- Avatar upload state ---
+    const avatarInputRef = useRef(null);
+    const [avatarStatus, setAvatarStatus] = useState('idle'); // idle | uploading | success | error
+    const [avatarError, setAvatarError] = useState('');
+    const [avatarPreview, setAvatarPreview] = useState(null);
+
     useEffect(() => {
-        const fetchUserAuctions = async () => {
-            if (!user) return;
+        if (!user) return;
+        const fetchData = async () => {
             try {
-                const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auction/pujas/user/${user.id}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setMyAuctions(data);
+                const [profileRes, auctionsRes] = await Promise.all([
+                    fetch(`${API}/auth/profile/${user.id}`),
+                    fetch(`${API}/auction/pujas/user/${user.id}`),
+                ]);
+                if (profileRes.ok) {
+                    const p = await profileRes.json();
+                    setProfile(p);
+                    setEditUsername(p.username || '');
+                    setEditBio(p.bio || '');
+                    if (p.avatar_url) setAvatarPreview(`${API}${p.avatar_url}`);
                 }
-            } catch (error) {
-                console.error("Error fetching user auctions:", error);
+                if (auctionsRes.ok) setMyAuctions(await auctionsRes.json());
+            } catch (err) {
+                console.error('Profile fetch error:', err);
             } finally {
                 setLoading(false);
             }
         };
-
-        fetchUserAuctions();
+        fetchData();
     }, [user]);
 
     const handleInputChange = (e) => {

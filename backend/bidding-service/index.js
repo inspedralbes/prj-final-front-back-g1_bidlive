@@ -2,157 +2,171 @@ const express = require("express");
 const http = require("http");
 const WebSocket = require("ws");
 const cors = require("cors");
+const { randomUUID } = require("crypto");
 
 const app = express();
 app.use(cors());
 
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
-
 const PORT = process.env.PORT || 3002;
 
-// Structure for room management
-// { auctionId: { sellerId: ws, viewers: Set<ws> } }
+// { auctionId: { seller: ws|null, viewers: Map<sessionId, ws> } }
 const rooms = new Map();
 
-// Helper to send JSON
 const sendJson = (ws, data) => {
-  if (ws.readyState === WebSocket.OPEN) {
-    ws.send(JSON.stringify(data));
-  }
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
+};
+
+const broadcastViewerCount = (room) => {
+    const count = room.viewers.size;
+    const msg = { type: "VIEWER_COUNT", payload: { count } };
+    if (room.seller) sendJson(room.seller, msg);
+    room.viewers.forEach(v => sendJson(v, msg));
 };
 
 wss.on("connection", (ws) => {
-  console.log("Client connected");
+    ws.sessionId = randomUUID();
+    sendJson(ws, { type: "SESSION_INIT", payload: { sessionId: ws.sessionId } });
 
-  ws.on("message", (message) => {
-    try {
-      const data = JSON.parse(message);
-      const { type, payload } = data;
+    ws.on("message", (raw) => {
+        try {
+            const { type, payload } = JSON.parse(raw);
 
-      switch (type) {
-        case "JOIN_ROOM": {
-          const { auctionId, username, role } = payload;
-          ws.auctionId = auctionId;
-          ws.username = username;
-          ws.role = role || (payload.role === 'seller' ? 'seller' : 'viewer');
+            switch (type) {
+                case "JOIN_ROOM": {
+                    const { auctionId, username, role } = payload;
+                    ws.auctionId = auctionId;
+                    ws.username = username;
+                    ws.role = role === "seller" ? "seller" : "viewer";
 
-          if (!rooms.has(auctionId)) {
-            rooms.set(auctionId, { sellerId: null, viewers: new Set() });
-          }
-          const room = rooms.get(auctionId);
+                    if (!rooms.has(auctionId)) rooms.set(auctionId, { seller: null, viewers: new Map() });
+                    const room = rooms.get(auctionId);
 
-          if (ws.role === "seller") {
-            room.sellerId = ws;
-          } else {
-            room.viewers.add(ws);
-          }
-
-          console.log(`User ${username} joined ${auctionId} as ${ws.role}`);
-
-          // Broadcast viewer count
-          const count = rooms.get(auctionId).viewers.size;
-          const countMsg = { type: "VIEWER_COUNT", payload: { count } };
-
-          if (room.sellerId) sendJson(room.sellerId, countMsg);
-          room.viewers.forEach(viewer => sendJson(viewer, countMsg));
-          break;
-        }
-
-        case "CHAT_MESSAGE": {
-          if (ws.auctionId) {
-            const room = rooms.get(ws.auctionId);
-            if (room) {
-              // Structuring the message for the frontend
-              // Frontend expects the message object directly in the array?
-              // Or wrapped? useWebSocket.js pushes 'data' (the parsed event.data)
-              // So we send { type: "CHAT_MESSAGE", payload: { ... } }
-              const chatMsg = {
-                type: "CHAT_MESSAGE",
-                payload: {
-                  username: ws.username || "Anonymous",
-                  message: payload.message,
-                  timestamp: new Date().toISOString(),
-                  senderId: ws.role === 'seller' ? 'seller' : 'viewer' // Simplified ID
+                    if (ws.role === "seller") {
+                        room.seller = ws;
+                        console.log(`[Room ${auctionId}] Seller joined [${ws.sessionId}]`);
+                    } else {
+                        room.viewers.set(ws.sessionId, ws);
+                        console.log(`[Room ${auctionId}] Viewer joined [${ws.sessionId}]`);
+                    }
+                    broadcastViewerCount(room);
+                    break;
                 }
-              };
 
-              if (room.sellerId) sendJson(room.sellerId, chatMsg);
-              room.viewers.forEach(viewer => sendJson(viewer, chatMsg));
-            }
-          }
-          break;
-        }
-
-        case "PLACE_BID": {
-          if (ws.auctionId) {
-            const room = rooms.get(ws.auctionId);
-            if (room) {
-              const bidMsg = {
-                type: "BID_PLACED",
-                payload: {
-                  username: ws.username || "Anonymous",
-                  amount: payload.amount,
-                  timestamp: new Date().toISOString()
+                case "CHAT_MESSAGE": {
+                    const room = rooms.get(ws.auctionId);
+                    if (!room) break;
+                    const msg = { type: "CHAT_MESSAGE", payload: { username: ws.username || "Anonymous", message: payload.message, timestamp: new Date().toISOString(), senderId: ws.role } };
+                    if (room.seller) sendJson(room.seller, msg);
+                    room.viewers.forEach(v => sendJson(v, msg));
+                    break;
                 }
-              };
-              if (room.sellerId) sendJson(room.sellerId, bidMsg);
-              room.viewers.forEach(viewer => sendJson(viewer, bidMsg));
+
+                case "PLACE_BID": {
+                    const room = rooms.get(ws.auctionId);
+                    if (!room) break;
+                    const msg = { type: "BID_PLACED", payload: { username: ws.username || "Anonymous", amount: payload.amount, timestamp: new Date().toISOString() } };
+                    if (room.seller) sendJson(room.seller, msg);
+                    room.viewers.forEach(v => sendJson(v, msg));
+                    break;
+                }
+
+                // ── WebRTC Signaling ───────────────────────────────────────────
+
+                // Seller → all viewers: "I'm live now, please request an offer"
+                case "SELLER_LIVE": {
+                    const room = rooms.get(ws.auctionId);
+                    if (!room || ws.role !== "seller") break;
+                    console.log(`[Room ${ws.auctionId}] SELLER_LIVE broadcast → ${room.viewers.size} viewer(s)`);
+                    room.viewers.forEach(v => sendJson(v, { type: "SELLER_LIVE", payload: {} }));
+                    break;
+                }
+
+                // Viewer → seller only (includes fromId = viewer's sessionId)
+                case "REQUEST_OFFER": {
+                    const room = rooms.get(ws.auctionId);
+                    if (!room || !room.seller) { console.log(`[Room ${ws.auctionId}] REQUEST_OFFER but no seller`); break; }
+                    console.log(`[Room ${ws.auctionId}] REQUEST_OFFER viewer[${ws.sessionId}] → seller`);
+                    sendJson(room.seller, { type: "REQUEST_OFFER", payload: { fromId: ws.sessionId, from: ws.username } });
+                    break;
+                }
+
+                // Seller → specific viewer (targetId) or all viewers
+                case "OFFER": {
+                    const room = rooms.get(ws.auctionId);
+                    if (!room) break;
+                    const targetId = payload?.targetId;
+                    const offerMsg = { type: "OFFER", payload: { sdp: payload.sdp } };
+                    if (targetId) {
+                        const target = room.viewers.get(targetId);
+                        if (target) { sendJson(target, offerMsg); console.log(`[Room ${ws.auctionId}] OFFER seller → viewer[${targetId}]`); }
+                        else console.warn(`[Room ${ws.auctionId}] OFFER target viewer[${targetId}] not found`);
+                    } else {
+                        room.viewers.forEach(v => sendJson(v, offerMsg));
+                        console.log(`[Room ${ws.auctionId}] OFFER seller → all ${room.viewers.size} viewer(s)`);
+                    }
+                    break;
+                }
+
+                // Viewer → seller (fromId so seller knows which PeerConnection)
+                case "ANSWER": {
+                    const room = rooms.get(ws.auctionId);
+                    if (!room || !room.seller) break;
+                    console.log(`[Room ${ws.auctionId}] ANSWER viewer[${ws.sessionId}] → seller`);
+                    sendJson(room.seller, { type: "ANSWER", payload: { sdp: payload.sdp, fromId: ws.sessionId } });
+                    break;
+                }
+
+                // ICE: seller→viewers (targeted or all), viewer→seller
+                case "ICE_CANDIDATE": {
+                    const room = rooms.get(ws.auctionId);
+                    if (!room) break;
+                    if (ws.role === "seller") {
+                        const targetId = payload?.targetId;
+                        const iceMsg = { type: "ICE_CANDIDATE", payload: { candidate: payload.candidate } };
+                        if (targetId) { const t = room.viewers.get(targetId); if (t) sendJson(t, iceMsg); }
+                        else room.viewers.forEach(v => sendJson(v, iceMsg));
+                    } else {
+                        if (room.seller) sendJson(room.seller, { type: "ICE_CANDIDATE", payload: { candidate: payload.candidate, fromId: ws.sessionId } });
+                    }
+                    break;
+                }
+
+                // Seller ends auction → broadcast AUCTION_ENDED to all
+                case "END_AUCTION": {
+                    const room = rooms.get(ws.auctionId);
+                    if (!room || ws.role !== "seller") break;
+                    console.log(`[Room ${ws.auctionId}] END_AUCTION → broadcasting AUCTION_ENDED`);
+                    const endMsg = { type: "AUCTION_ENDED", payload: { auctionId: ws.auctionId } };
+                    if (room.seller) sendJson(room.seller, endMsg);
+                    room.viewers.forEach(v => sendJson(v, endMsg));
+                    break;
+                }
+
+                default:
+                    console.log("Unknown message type:", type);
             }
-          }
-          break;
+        } catch (err) {
+            console.error("Message parse error:", err);
         }
+    });
 
-        case "OFFER":
-        case "ANSWER":
-        case "ICE_CANDIDATE": {
-          // Signaling forwarding
-          if (ws.auctionId) {
-            const room = rooms.get(ws.auctionId);
-            if (room) {
-              const signalMsg = { type, payload: { ...payload, from: ws.username } };
-
-              // Very basic broadcasting for signaling (inefficient but matches basic logic)
-              // Ideally strict P2P targeting
-              if (room.sellerId && room.sellerId !== ws) sendJson(room.sellerId, signalMsg);
-              room.viewers.forEach(viewer => {
-                if (viewer !== ws) sendJson(viewer, signalMsg);
-              });
-            }
-          }
-          break;
-        }
-
-        default:
-          console.log("Unknown message type:", type);
-      }
-    } catch (error) {
-      console.error("Error parsing message:", error);
-    }
-  });
-
-  ws.on("close", () => {
-    if (ws.auctionId) {
-      const room = rooms.get(ws.auctionId);
-      if (room) {
-        if (room.sellerId === ws) {
-          room.sellerId = null;
-          console.log(`Seller left room ${ws.auctionId}`);
+    ws.on("close", () => {
+        if (!ws.auctionId) return;
+        const room = rooms.get(ws.auctionId);
+        if (!room) return;
+        if (ws.role === "seller") {
+            room.seller = null;
+            room.viewers.forEach(v => sendJson(v, { type: "SELLER_LEFT", payload: {} }));
+            console.log(`[Room ${ws.auctionId}] Seller disconnected`);
         } else {
-          room.viewers.delete(ws);
-          console.log(`Viewer left room ${ws.auctionId}`);
+            room.viewers.delete(ws.sessionId);
+            console.log(`[Room ${ws.auctionId}] Viewer[${ws.sessionId}] disconnected`);
         }
-
-        // Broadcast new count
-        const count = room.viewers.size;
-        const countMsg = { type: "VIEWER_COUNT", payload: { count } };
-        if (room.sellerId) sendJson(room.sellerId, countMsg);
-        room.viewers.forEach(viewer => sendJson(viewer, countMsg));
-      }
-    }
-  });
+        broadcastViewerCount(room);
+        if (!room.seller && room.viewers.size === 0) { rooms.delete(ws.auctionId); console.log(`[Room ${ws.auctionId}] deleted (empty)`); }
+    });
 });
 
-server.listen(PORT, () => {
-  console.log(`Bidding (Signaling) Service listening on port ${PORT}`);
-});
+server.listen(PORT, () => console.log(`Bidding Service on port ${PORT}`));

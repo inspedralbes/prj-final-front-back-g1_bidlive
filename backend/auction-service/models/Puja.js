@@ -17,23 +17,50 @@ const sql = `
 `;
 
 const Puja = {
-    createTable: async () => db.query(sql),
+    createTable: async () => {
+        // Ejecutamos CREATE TABLE primero
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS pujas (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                description TEXT,
+                category VARCHAR(100) DEFAULT 'Collectibles',
+                reserve_price DECIMAL(10, 2),
+                duration VARCHAR(50) DEFAULT '1 Hour',
+                mode ENUM('video', 'photo') DEFAULT 'video',
+                starting_price DECIMAL(10, 2) NOT NULL,
+                current_price DECIMAL(10, 2) DEFAULT 0.00,
+                image_url VARCHAR(2048),
+                seller_id INT NOT NULL,
+                status ENUM('live', 'upcoming', 'ended') DEFAULT 'upcoming',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
 
-    create: async (title, description, startingPrice, imageUrl, sellerId, status = 'upcoming', categoryId = null) => {
-        const insertSql = `
-            INSERT INTO pujas (title, description, starting_price, current_price, image_url, seller_id, status, category_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-        const result = await db.query(insertSql, [title, description, startingPrice, startingPrice, imageUrl, sellerId, status, categoryId]);
-        return { id: result.insertId, title, description, startingPrice, currentPrice: startingPrice, imageUrl, sellerId, status, categoryId };
+        // Si la tabla existía pero le faltaban columnas, tratamos de añadirlas.
+        // Capturamos el error si ya existen (por eso el try/catch por cada alter)
+        try { await db.query("ALTER TABLE pujas ADD COLUMN category VARCHAR(100) DEFAULT 'Collectibles'"); } catch (e) { }
+        try { await db.query("ALTER TABLE pujas ADD COLUMN reserve_price DECIMAL(10, 2)"); } catch (e) { }
+        try { await db.query("ALTER TABLE pujas ADD COLUMN duration VARCHAR(50) DEFAULT '1 Hour'"); } catch (e) { }
+        try { await db.query("ALTER TABLE pujas ADD COLUMN mode ENUM('video', 'photo') DEFAULT 'video'"); } catch (e) { }
+
+        return true;
     },
 
-    findAll: async (status = null, search = null, categoryId = null) => {
-        // Join with categories so we always have the name & icon in one query
+    create: async (title, description, category, reservePrice, duration, mode, startingPrice, imageUrl, sellerId, status = 'upcoming') => {
+        const sql = `
+            INSERT INTO pujas (title, description, category, reserve_price, duration, mode, starting_price, current_price, image_url, seller_id, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        const result = await db.query(sql, [title, description, category, reservePrice, duration, mode, startingPrice, startingPrice, imageUrl, sellerId, status]);
+        return { id: result.insertId, title, description, category, reservePrice, duration, mode, startingPrice, currentPrice: startingPrice, imageUrl, sellerId, status };
+    },
+
+    findAll: async (status = null, search = null) => {
         let query = `
-            SELECT p.*, c.name AS category_name, c.icon AS category_icon
-            FROM pujas p
-            LEFT JOIN categories c ON p.category_id = c.id
+            SELECT p.*, u.username as seller_username, u.reputation_score, u.total_sales 
+            FROM pujas p 
+            LEFT JOIN users u ON p.seller_id = u.id
         `;
         const params = [];
         const conditions = [];
@@ -78,27 +105,20 @@ const Puja = {
     },
 
     findBySellerId: async (sellerId) => {
-        return db.query(
-            `SELECT p.*, c.name AS category_name, c.icon AS category_icon
-             FROM pujas p LEFT JOIN categories c ON p.category_id = c.id
-             WHERE p.seller_id = ?
-             ORDER BY p.created_at DESC`,
-            [sellerId]
-        );
+        const sql = `
+            SELECT p.*, u.username as seller_username, u.reputation_score, u.total_sales 
+            FROM pujas p 
+            LEFT JOIN users u ON p.seller_id = u.id 
+            WHERE p.seller_id = ? 
+            ORDER BY p.created_at DESC
+        `;
+        return await db.query(sql, [sellerId]);
     },
 
-    // Idempotent migration: add category_id column to existing tables
-    migrate: async () => {
-        try {
-            await db.query('ALTER TABLE pujas ADD COLUMN category_id INT DEFAULT NULL');
-            await db.query('ALTER TABLE pujas ADD FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL');
-            console.log('Migration: category_id column added to pujas');
-        } catch (err) {
-            if (err.errno !== 1060 && err.errno !== 1826) { // 1060: dup column, 1826: dup FK
-                console.warn('Migration warning (pujas.category_id):', err.message);
-            }
-        }
-    },
+    updateStatus: async (id, status) => {
+        const sql = 'UPDATE pujas SET status = ? WHERE id = ?';
+        return db.query(sql, [status, id]);
+    }
 };
 
 module.exports = Puja;

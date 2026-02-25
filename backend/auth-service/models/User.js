@@ -3,7 +3,7 @@ const bcrypt = require("bcryptjs");
 
 const User = {
   createTable: async () => {
-    const sql = `
+    const createSql = `
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 username VARCHAR(255) NOT NULL,
@@ -15,7 +15,20 @@ const User = {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `;
-    return db.query(sql);
+    await db.query(createSql);
+    // Migrate existing tables that may not have avatar_url or bio
+    try {
+      await db.query("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500) DEFAULT NULL");
+    } catch (_) { /* column already exists */ }
+    try {
+      await db.query("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT NULL");
+    } catch (_) { /* column already exists */ }
+    try {
+      await db.query("ALTER TABLE users ADD COLUMN reputation_score INT DEFAULT 0");
+    } catch (_) { /* column already exists */ }
+    try {
+      await db.query("ALTER TABLE users ADD COLUMN total_sales INT DEFAULT 0");
+    } catch (_) { /* column already exists */ }
   },
 
   create: async (username, email, password) => {
@@ -39,6 +52,23 @@ const User = {
     const result = await db.query(sql, [id]);
     const rows = Array.isArray(result[0]) ? result[0] : result;
     return rows && rows.length > 0 ? rows[0] : null;
+  },
+
+  findByUsername: async (username) => {
+    const sql = "SELECT id FROM users WHERE username = ?";
+    const result = await db.query(sql, [username]);
+    const rows = Array.isArray(result[0]) ? result[0] : result;
+    return rows && rows.length > 0 ? rows[0] : null;
+  },
+
+  updateProfile: async (id, { username, bio }) => {
+    const sql = "UPDATE users SET username = ?, bio = ? WHERE id = ?";
+    return db.query(sql, [username, bio, id]);
+  },
+
+  updateAvatar: async (id, avatarUrl) => {
+    const sql = "UPDATE users SET avatar_url = ? WHERE id = ?";
+    return db.query(sql, [avatarUrl, id]);
   },
 
   validatePassword: async (password, hash) => {

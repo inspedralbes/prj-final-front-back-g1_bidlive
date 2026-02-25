@@ -1,15 +1,21 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
 import ChatSidebar from '../components/auction/ChatSidebar';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+];
+
+// ── Seller camera preview component ─────────────────────────────────────────
 function SellerVideo({ localRef, status, viewerCount, onGoLive, isStreaming }) {
   return (
     <div className="relative w-full rounded-2xl overflow-hidden" style={{ background: '#000', border: '1px solid rgba(255,255,255,0.07)' }}>
       <video ref={localRef} autoPlay playsInline muted className="w-full aspect-video object-cover block" style={{ background: '#000' }} />
 
-      {/* Overlays */}
       <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
         {isStreaming
           ? <span className="badge-live"><span className="live-dot" /> BROADCASTING</span>
@@ -24,12 +30,11 @@ function SellerVideo({ localRef, status, viewerCount, onGoLive, isStreaming }) {
         </div>
       )}
 
-      {/* Go Live overlay */}
       {!isStreaming && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-20">
-          <button onClick={onGoLive} className="btn-primary text-base px-8 py-3.5 gap-2">
+          <button onClick={onGoLive} disabled={status !== 'connected'} className="btn-primary text-base px-8 py-3.5 gap-2 disabled:opacity-50">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-            Go Live
+            {status === 'connected' ? 'Go Live' : 'Connecting...'}
           </button>
         </div>
       )}
@@ -37,74 +42,171 @@ function SellerVideo({ localRef, status, viewerCount, onGoLive, isStreaming }) {
   );
 }
 
+// ── Main seller page ─────────────────────────────────────────────────────────
 export default function SellerLiveVideo() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const username = user?.username || user?.email || 'Anonymous';
 
-  const { status, messages, viewerCount, sendMessage, sendSignal, ws } = useWebSocket(id, username, 'seller');
+  // One shared WS connection for the seller
+  const { status, messages, viewerCount, sendMessage, sendSignal, setSignalHandler } =
+    useWebSocket(id, username, 'seller');
 
   const localRef = useRef(null);
-  const pcRef = useRef(null);
   const streamRef = useRef(null);
-  const streamingRef = useRef(false);
-  const [isStreaming, setIsStreaming] = React.useState(false);
+  // Map<viewerSessionId, { pc: RTCPeerConnection, iceQueue: RTCIceCandidateInit[] }>
+  const peersRef = useRef(new Map());
 
+  const [isStreaming, setIsStreaming] = React.useState(false);
+  const [isEnding, setIsEnding] = React.useState(false);
+
+  // ── Create (or reuse) one RTCPeerConnection per viewer ──────────────────
+  const createPcForViewer = useCallback((viewerSessionId) => {
+    if (peersRef.current.has(viewerSessionId)) {
+      return peersRef.current.get(viewerSessionId).pc;
+    }
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+
+    // Add all current tracks to this PC
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => pc.addTrack(track, streamRef.current));
+    }
+
+    pc.onicecandidate = (e) => {
+      if (e.candidate) sendSignal('ICE_CANDIDATE', { candidate: e.candidate, targetId: viewerSessionId });
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) {
+        peersRef.current.delete(viewerSessionId);
+      }
+    };
+
+    peersRef.current.set(viewerSessionId, { pc, iceQueue: [] });
+    return pc;
+  }, [sendSignal]);
+
+  // ── Send offer to a specific viewer ─────────────────────────────────────
+  const sendOfferToViewer = useCallback(async (viewerSessionId) => {
+    if (!streamRef.current) {
+      console.warn('[Seller] No stream yet — ignoring REQUEST_OFFER from', viewerSessionId);
+      return;
+    }
+    const pc = createPcForViewer(viewerSessionId);
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      sendSignal('OFFER', { sdp: offer, targetId: viewerSessionId });
+      console.log(`[Seller] OFFER → viewer[${viewerSessionId}]`);
+    } catch (err) {
+      console.error('[Seller] createOffer error:', err);
+    }
+  }, [createPcForViewer, sendSignal]);
+
+  // ── Register WebRTC signal handler via the hook (no onmessage override) ─
+  useEffect(() => {
+    if (status !== 'connected') return;
+
+    const handler = async (data) => {
+      try {
+        if (data.type === 'REQUEST_OFFER') {
+          // A viewer joined — create a dedicated PC and send them an offer
+          const viewerSessionId = data.payload?.fromId;
+          if (!viewerSessionId) return;
+          console.log(`[Seller] REQUEST_OFFER from viewer[${viewerSessionId}]`);
+          await sendOfferToViewer(viewerSessionId);
+        }
+
+        if (data.type === 'ANSWER') {
+          const { fromId, sdp } = data.payload;
+          const entry = peersRef.current.get(fromId);
+          if (!entry) { console.warn('[Seller] ANSWER for unknown viewer:', fromId); return; }
+          const { pc, iceQueue } = entry;
+          if (pc.signalingState === 'have-local-offer') {
+            await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+            for (const c of iceQueue) await pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => { });
+            iceQueue.length = 0;
+            console.log(`[Seller] ANSWER processed for viewer[${fromId}]`);
+          }
+        }
+
+        if (data.type === 'ICE_CANDIDATE') {
+          const { fromId, candidate } = data.payload;
+          if (!candidate) return;
+          const entry = peersRef.current.get(fromId);
+          if (!entry) return;
+          const { pc, iceQueue } = entry;
+          if (pc.remoteDescription) {
+            await pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(() => { });
+          } else {
+            iceQueue.push(candidate);
+          }
+        }
+      } catch (err) {
+        console.error('[Seller] signal handler error:', err);
+      }
+    };
+
+    setSignalHandler(handler);
+    return () => setSignalHandler(null);
+  }, [status, setSignalHandler, sendOfferToViewer]);
+
+  // ── Go Live: capture camera, send SELLER_LIVE, update DB ────────────────
   const startBroadcast = async () => {
-    if (streamingRef.current) return;
+    if (isStreaming || streamRef.current) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       streamRef.current = stream;
       if (localRef.current) localRef.current.srcObject = stream;
-
-      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-      pcRef.current = pc;
-      stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
-      pc.onicecandidate = e => {
-        if (e.candidate) sendSignal('ICE_CANDIDATE', { candidate: e.candidate });
-      };
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      sendSignal('OFFER', { sdp: offer });
-
-      // Handle ANSWER from viewer
-      if (ws.current) {
-        const prev = ws.current.onmessage;
-        ws.current.onmessage = (event) => {
-          prev?.(event);
-          try {
-            const data = JSON.parse(event.data);
-            if (data.type === 'ANSWER') {
-              pc.setRemoteDescription(new RTCSessionDescription(data.payload.sdp)).catch(() => { });
-            }
-            if (data.type === 'ICE_CANDIDATE' && data.payload?.candidate) {
-              pc.addIceCandidate(new RTCIceCandidate(data.payload.candidate)).catch(() => { });
-            }
-          } catch { /* ignore */ }
-        };
-      }
-
-      streamingRef.current = true;
       setIsStreaming(true);
+
+      // Tell all waiting viewers the seller is now live
+      sendSignal('SELLER_LIVE', {});
+      console.log('[Seller] SELLER_LIVE sent');
+
+      // Update auction status in DB
+      fetch(`${API_URL}/auction/pujas/${id}/start`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      }).then(r => console.log(`[Seller] start API → ${r.status}`))
+        .catch(err => console.error('[Seller] start API error:', err));
+
     } catch (err) {
-      console.error('[Seller] Camera error:', err);
+      console.error('[Seller] getUserMedia error:', err);
       alert('Camera/microphone access required to go live.');
     }
   };
 
-  const endLive = () => {
+  // ── End live: stop tracks, update DB, signal viewers, navigate ──────────
+  const endLive = async () => {
+    if (isEnding) return;
+    setIsEnding(true);
+
+    // Stop local camera/mic immediately
     streamRef.current?.getTracks().forEach(t => t.stop());
-    pcRef.current?.close();
-    navigate('/seller');
+    // Close all peer connections
+    peersRef.current.forEach(({ pc }) => pc.close());
+    peersRef.current.clear();
+
+    try {
+      await fetch(`${API_URL}/auction/pujas/${id}/end`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+    } catch (err) {
+      console.error('[Seller] endLive API error (non-critical):', err);
+    }
+
+    sendSignal('END_AUCTION', { auctionId: id });
+    setTimeout(() => navigate('/seller'), 600);
   };
 
+  // ── Cleanup on unmount ───────────────────────────────────────────────────
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach(t => t.stop());
-      pcRef.current?.close();
+      peersRef.current.forEach(({ pc }) => pc.close());
     };
   }, []);
 
@@ -112,7 +214,6 @@ export default function SellerLiveVideo() {
   const latestBid = messages
     .filter(m => m.type === 'BID_PLACED')
     .reduce((acc, m) => Math.max(acc, Number(m.payload?.amount) || 0), 0);
-
   const latestBidder = [...messages].reverse().find(m => m.type === 'BID_PLACED')?.payload?.username;
 
   return (
@@ -127,17 +228,11 @@ export default function SellerLiveVideo() {
           Seller Dashboard — Auction #{id}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/seller')}
-            className="btn-ghost text-xs py-1.5 px-3"
-          >
+          <button onClick={() => navigate('/seller')} className="btn-ghost text-xs py-1.5 px-3">
             Dashboard
           </button>
-          <button
-            onClick={endLive}
-            className="btn-danger text-xs py-1.5 px-3"
-          >
-            End live
+          <button onClick={endLive} disabled={isEnding} className="btn-danger text-xs py-1.5 px-3 disabled:opacity-50">
+            {isEnding ? 'Ending...' : 'End live'}
           </button>
         </div>
       </header>

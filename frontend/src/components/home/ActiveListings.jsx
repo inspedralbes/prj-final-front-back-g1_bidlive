@@ -21,7 +21,9 @@ const SkeletonRow = () => (
 );
 
 export default function ActiveListings() {
-    const { data: auctions, loading, error } = usePujas();
+    const { data: allAuctions, loading, error } = usePujas();
+    // Only show live and upcoming auctions — ended ones are hidden from viewers
+    const auctions = allAuctions.filter(a => a.status !== 'ended');
 
     return (
         <section>

@@ -4,6 +4,15 @@ import Header from '../components/layout/Header';
 import { usePujas } from '../hooks/usePujas';
 import { useCategories } from '../hooks/useCategories';
 
+const getReputationStars = (sales) => {
+    if (!sales || sales === 0) return { stars: 0, label: "New" };
+    if (sales <= 5) return { stars: 1, label: "Beginner" };
+    if (sales <= 15) return { stars: 2, label: "Regular" };
+    if (sales <= 30) return { stars: 3, label: "Reliable" };
+    if (sales <= 50) return { stars: 4, label: "Outstanding" };
+    return { stars: 5, label: "Top" };
+};
+
 const statusColor = (status) => {
     if (status === 'live') return '#ef4444';
     if (status === 'active') return '#22c55e';
@@ -47,7 +56,16 @@ const AuctionCard = ({ auction }) => (
         <div className="p-4">
             <h3 className="text-white font-semibold text-sm line-clamp-1 mb-2">{auction.title}</h3>
             <div className="flex items-center justify-between">
-                <span className="text-gray-500 text-xs">{auction.seller}</span>
+                <div className="flex flex-col">
+                    <span className="text-gray-400 text-xs font-medium">{auction.seller}</span>
+                    <div className="flex items-center gap-0.5 mt-0.5">
+                        {[...Array(5)].map((_, i) => (
+                            <span key={i} className={`material-symbols-outlined text-[10px] ${i < getReputationStars(auction.sellerTotalSales || 0).stars ? 'text-amber-400' : 'text-slate-600'}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                                star
+                            </span>
+                        ))}
+                    </div>
+                </div>
                 <span className="text-xs px-2 py-0.5 rounded-full font-medium"
                     style={{ color: statusColor(auction.status), background: `${statusColor(auction.status)}15`, border: `1px solid ${statusColor(auction.status)}30` }}>
                     {auction.status || 'active'}

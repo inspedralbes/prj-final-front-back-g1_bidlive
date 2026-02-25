@@ -2,6 +2,15 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { usePujas } from '../../hooks/usePujas';
 
+const getReputationStars = (sales) => {
+    if (!sales || sales === 0) return { stars: 0, label: "New" };
+    if (sales <= 5) return { stars: 1, label: "Beginner" };
+    if (sales <= 15) return { stars: 2, label: "Regular" };
+    if (sales <= 30) return { stars: 3, label: "Reliable" };
+    if (sales <= 50) return { stars: 4, label: "Outstanding" };
+    return { stars: 5, label: "Top" };
+};
+
 const AuctionCard = ({ auction }) => {
     const viewersCount = auction.viewers || Math.floor(Math.random() * 200) + 10;
     return (
@@ -64,7 +73,16 @@ const AuctionCard = ({ auction }) => {
                     <div className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-[10px] text-amber-400 font-bold">
                         {(auction.seller || 'S')[0].toUpperCase()}
                     </div>
-                    <span className="text-gray-500 text-xs truncate">{auction.seller || 'Seller'}</span>
+                    <div className="flex flex-col">
+                        <span className="text-gray-400 text-xs truncate font-medium">{auction.seller || 'Seller'}</span>
+                        <div className="flex items-center gap-0.5">
+                            {[...Array(5)].map((_, i) => (
+                                <span key={i} className={`material-symbols-outlined text-[10px] ${i < getReputationStars(auction.sellerTotalSales || 0).stars ? 'text-amber-400' : 'text-slate-600'}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                                    star
+                                </span>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </div>
         </Link>
