@@ -9,6 +9,8 @@ const Profile = () => {
     const { t } = useLanguage();
     const [myAuctions, setMyAuctions] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [recharging, setRecharging] = useState(false);
+    const [rechargeAmount, setRechargeAmount] = useState(10);
 
     useEffect(() => {
         const fetchUserAuctions = async () => {
@@ -29,6 +31,39 @@ const Profile = () => {
         fetchUserAuctions();
     }, [user]);
 
+    const handleRecharge = async () => {
+        if (rechargeAmount < 10 || rechargeAmount > 1000) {
+            alert("Please enter an amount between $10 and $1000");
+            return;
+        }
+
+        setRecharging(true);
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auth/wallet/recharge`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ amount: rechargeAmount })
+            });
+
+            if (response.ok) {
+                const { url } = await response.json();
+                window.location.href = url; // Redirect to Stripe
+            } else {
+                const errorData = await response.json();
+                alert("Error: " + (errorData.message || "Failed to create Stripe session"));
+            }
+        } catch (error) {
+            console.error("Recharge error:", error);
+            alert("Connection error: Make sure the backend is running and Stripe key is valid.");
+        } finally {
+            setRecharging(false);
+        }
+    };
+
     return (
         <div className="bg-background-light dark:bg-background-dark min-h-screen text-slate-900 dark:text-white font-display">
             <Header />
@@ -42,6 +77,38 @@ const Profile = () => {
                             </div>
                             <h1 className="text-2xl font-black mb-1">{user?.username}</h1>
                             <p className="text-slate-500 mb-6">{user?.email}</p>
+
+                            {/* WALLET SECTION */}
+                            <div className="mb-6 p-4 bg-orange-500/10 rounded-xl border border-orange-500/20">
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Wallet Balance</p>
+                                <p className="text-3xl font-black text-orange-500">${walletBalance}</p>
+                            </div>
+
+                            <div className="mb-4">
+                                <label className="block text-left text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 ml-1">
+                                    Recharge Amount ($)
+                                </label>
+                                <input
+                                    type="number"
+                                    min="10"
+                                    max="1000"
+                                    value={rechargeAmount}
+                                    onChange={(e) => setRechargeAmount(Number(e.target.value))}
+                                    className="w-full p-2.5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-orange-500/50 mb-2"
+                                    placeholder="Amount (10 - 1000)"
+                                />
+                            </div>
+
+                            <button
+                                onClick={handleRecharge}
+                                disabled={recharging}
+                                style={{ backgroundColor: '#f59e0b' }}
+                                className="w-full py-2.5 text-white rounded-xl font-bold hover:opacity-90 transition-colors mb-4 flex items-center justify-center gap-2"
+                            >
+                                <span className="material-symbols-outlined text-sm">add_card</span>
+                                {recharging ? 'Processing...' : `Recharge Wallet ($${rechargeAmount})`}
+                            </button>
+                            {/* END WALLET SECTION */}
 
                             <button className="w-full py-2.5 border border-slate-200 dark:border-white/10 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-white/5 transition-colors mb-4">
                                 {t('profile.edit')}
