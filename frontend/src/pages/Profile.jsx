@@ -42,11 +42,6 @@ const Profile = () => {
     const [saveStatus, setSaveStatus] = useState('idle'); // idle | saving | saved | error
     const [saveError, setSaveError] = useState('');
 
-    // --- Avatar upload state ---
-    const avatarInputRef = useRef(null);
-    const [avatarStatus, setAvatarStatus] = useState('idle'); // idle | uploading | success | error
-    const [avatarError, setAvatarError] = useState('');
-    const [avatarPreview, setAvatarPreview] = useState(null);
 
     useEffect(() => {
         if (!user) return;

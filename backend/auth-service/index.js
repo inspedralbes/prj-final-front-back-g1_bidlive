@@ -2,7 +2,6 @@ const express = require("express");
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
-const path = require("path");
 const authController = require("./controllers/authController");
 const profileController = require("./controllers/profileController");
 const authMiddleware = require("./authMiddleware");
