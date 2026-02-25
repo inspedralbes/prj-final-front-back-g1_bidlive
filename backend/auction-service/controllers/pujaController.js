@@ -1,13 +1,13 @@
 const Puja = require('../models/Puja');
+const Category = require('../models/Category');
 
 const pujaController = {
     createPuja: async (req, res) => {
         try {
-            const { title, description, startingPrice, sellerId } = req.body;
-            let imageUrl = req.body.imageUrl; // Fallback if URL is provided manually (though form will likely use file)
+            const { title, description, startingPrice, sellerId, categoryId } = req.body;
+            let imageUrl = req.body.imageUrl;
 
             if (req.file) {
-                // Generate URL for the uploaded file
                 const protocol = req.protocol;
                 const host = req.get('host');
                 const servicePrefix = process.env.SERVICE_PREFIX || '';
@@ -18,7 +18,17 @@ const pujaController = {
                 return res.status(400).json({ message: 'Title, starting price, and seller ID are required' });
             }
 
-            const newPuja = await Puja.create(title, description, startingPrice, imageUrl, sellerId, 'live'); // Defaulting to live for now for simplicity of demo
+            // Validate that the provided categoryId exists
+            let resolvedCategoryId = null;
+            if (categoryId) {
+                const cat = await Category.findById(Number(categoryId));
+                if (!cat) {
+                    return res.status(400).json({ message: 'Invalid category' });
+                }
+                resolvedCategoryId = cat.id;
+            }
+
+            const newPuja = await Puja.create(title, description, startingPrice, imageUrl, sellerId, 'live', resolvedCategoryId);
             res.status(201).json({ message: 'Puja created successfully', puja: newPuja });
         } catch (error) {
             console.error('Error creating puja:', error);
@@ -32,10 +42,9 @@ const pujaController = {
 
     getPujas: async (req, res) => {
         try {
-            const { status, q } = req.query;
-            const pujas = await Puja.findAll(status, q);
+            const { status, q, categoryId } = req.query;
+            const pujas = await Puja.findAll(status, q, categoryId ? Number(categoryId) : null);
 
-            // Transform data to match frontend expectations
             const formattedPujas = pujas.map(p => ({
                 id: p.id,
                 title: p.title,
@@ -43,7 +52,9 @@ const pujaController = {
                 img: p.image_url || 'https://images.unsplash.com/photo-1550259979-ed79b48d2a30?auto=format&fit=crop&q=80',
                 seller: `User ${p.seller_id}`,
                 sellerImg: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80',
-                category: 'General',
+                categoryId: p.category_id || null,
+                category: p.category_name || 'Sin categoría',
+                categoryIcon: p.category_icon || 'grid_view',
                 bid: `$${p.current_price}`,
                 viewers: Math.floor(Math.random() * 200) + 10,
                 status: p.status

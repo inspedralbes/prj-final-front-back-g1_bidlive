@@ -2,7 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const db = require('./config/db');
 const Puja = require('./models/Puja');
+const Category = require('./models/Category');
 const pujaController = require('./controllers/pujaController');
+const categoryController = require('./controllers/categoryController');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -43,15 +45,28 @@ const upload = multer({
     }
 });
 
-// Serve uploaded files staticallys
+// Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Initialize Database Table
+// Initialize Database Tables (categories must come before pujas due to FK)
 const initDB = async (retries = 5, delay = 5000) => {
     while (retries > 0) {
         try {
+            // 1. Create categories table first (referenced by pujas FK)
+            await Category.createTable();
+            console.log('Categories table created or already exists');
+
+            // 2. Seed default categories (INSERT IGNORE = idempotent)
+            await Category.seed();
+            console.log('Categories seeded');
+
+            // 3. Create pujas table (with category_id FK)
             await Puja.createTable();
             console.log('Pujas table created or already exists');
+
+            // 4. Idempotent migration: add category_id to existing pujas tables
+            await Puja.migrate();
+
             break;
         } catch (error) {
             console.error(`Error initializing database (retries left: ${retries - 1}):`, error);
@@ -71,11 +86,14 @@ app.get('/', (req, res) => {
     res.send('Auction Service is running');
 });
 
-// Real Endpoints
+// Categories Endpoint
+app.get('/categories', categoryController.getCategories);
+
+// Auctions Endpoints
 app.post('/pujas', upload.single('image'), pujaController.createPuja);
 app.get('/pujas', pujaController.getPujas);
 app.get('/pujas/user/:userId', pujaController.getPujasByUser);
-app.get('/pujas/live', pujaController.getPujas); // Reusing getPujas for now, effectively getting all
+app.get('/pujas/live', pujaController.getPujas);
 
 // Global Error Handler
 app.use((err, req, res, next) => {

@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Header from '../components/layout/Header';
+import { useCategories } from '../hooks/useCategories';
 
 const API_BASE = ''; // com que ja fas /api/... al mateix host, ho deixem buit
 
 const CreateAuction = () => {
   const navigate = useNavigate();
+  const { categories, loading: catsLoading } = useCategories();
 
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('Collectibles');
+  const [categoryId, setCategoryId] = useState('');
   const [description, setDescription] = useState('');
   const [startingPrice, setStartingPrice] = useState('');
   const [reservePrice, setReservePrice] = useState('');
@@ -18,6 +20,13 @@ const CreateAuction = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Set default categoryId once categories are loaded
+  React.useEffect(() => {
+    if (categories.length > 0 && !categoryId) {
+      setCategoryId(String(categories[0].id));
+    }
+  }, [categories, categoryId]);
+
   const launchAuction = async () => {
     setError('');
     setLoading(true);
@@ -25,12 +34,12 @@ const CreateAuction = () => {
     try {
       const payload = {
         title,
-        category,
+        categoryId: categoryId ? Number(categoryId) : null,
         description,
         startingPrice: Number(startingPrice || 0),
         reservePrice: reservePrice ? Number(reservePrice) : null,
         duration,
-        mode, // important: video o photo
+        mode,
       };
 
       const res = await fetch(`${API_BASE}/api/auction`, {
@@ -40,18 +49,15 @@ const CreateAuction = () => {
       });
 
       if (!res.ok) {
-        // important: si és 500 sovint no hi ha JSON → agafem text
         const text = await res.text();
         throw new Error(text || `Error creant subhasta (${res.status})`);
       }
 
-      // assumeixo que el backend retorna { id: "AUC123" } o { id: 123 }
       const data = await res.json();
       const id = data?.id ?? data?.auctionId;
 
       if (!id) throw new Error('El backend no ha retornat cap id de subhasta.');
 
-      // Navegació a la vista del venedor (sense sortir del live)
       if (mode === 'video') {
         navigate(`/seller/auction/video/${id}`, { replace: true });
       } else {
@@ -94,14 +100,15 @@ const CreateAuction = () => {
               <div className="space-y-2">
                 <label className="text-sm font-bold text-slate-700 dark:text-white">Category</label>
                 <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-3 focus:ring-primary focus:border-primary"
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  disabled={catsLoading}
+                  className="w-full bg-slate-50 dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-lg px-4 py-3 focus:ring-primary focus:border-primary disabled:opacity-50"
                 >
-                  <option>Collectibles</option>
-                  <option>Watches</option>
-                  <option>Sneakers</option>
-                  <option>Art</option>
+                  {catsLoading && <option>Loading categories...</option>}
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
                 </select>
               </div>
             </div>

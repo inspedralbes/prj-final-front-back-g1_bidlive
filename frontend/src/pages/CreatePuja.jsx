@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Header from "../components/layout/Header";
+import { useCategories } from "../hooks/useCategories";
 
 export default function CreatePuja() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { categories, loading: catsLoading } = useCategories();
 
   const [formData, setFormData] = useState({
     title: "",
@@ -13,9 +15,17 @@ export default function CreatePuja() {
     startingPrice: "",
     imageFile: null,
   });
+  const [categoryId, setCategoryId] = useState("");
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Set default category once loaded
+  React.useEffect(() => {
+    if (categories.length > 0 && !categoryId) {
+      setCategoryId(String(categories[0].id));
+    }
+  }, [categories, categoryId]);
 
   const handleChange = (e) => {
     if (e.target.name === "imageFile") {
@@ -49,6 +59,7 @@ export default function CreatePuja() {
       fd.append("startingPrice", Number(formData.startingPrice));
       fd.append("sellerId", user.id);
       fd.append("status", "live");
+      if (categoryId) fd.append("categoryId", categoryId);
       if (formData.imageFile) fd.append("image", formData.imageFile);
 
       const response = await fetch(`${baseUrl}/auction/pujas`, {
@@ -159,6 +170,58 @@ export default function CreatePuja() {
               rows={4}
               placeholder="Describe your item — condition, authenticity, history..."
             />
+          </div>
+
+          {/* Category — custom pill picker */}
+          <div>
+            <label className="input-label">Category</label>
+            {catsLoading ? (
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-2">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div key={i} className="skeleton h-14 rounded-xl" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-2">
+                {categories.map(cat => {
+                  const isActive = categoryId === String(cat.id);
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setCategoryId(String(cat.id))}
+                      className="flex flex-col items-center gap-1.5 px-2 py-3 rounded-xl transition-all duration-150 cursor-pointer"
+                      style={{
+                        background: isActive
+                          ? 'rgba(245,158,11,0.15)'
+                          : 'rgba(255,255,255,0.04)',
+                        border: isActive
+                          ? '1.5px solid rgba(245,158,11,0.7)'
+                          : '1.5px solid rgba(255,255,255,0.07)',
+                        boxShadow: isActive ? '0 0 12px rgba(245,158,11,0.15)' : 'none',
+                      }}
+                    >
+                      <span
+                        className="material-symbols-outlined"
+                        style={{
+                          fontSize: '20px',
+                          color: isActive ? '#f59e0b' : '#6b7280',
+                          transition: 'color 0.15s',
+                        }}
+                      >
+                        {cat.icon}
+                      </span>
+                      <span
+                        className="text-xs font-semibold text-center leading-tight"
+                        style={{ color: isActive ? '#f59e0b' : '#9ca3af' }}
+                      >
+                        {cat.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Starting price */}

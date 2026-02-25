@@ -14,6 +14,7 @@ export const usePujas = (filters = {}) => {
             const params = new URLSearchParams();
             if (filters.status) params.set('status', filters.status);
             if (filters.q) params.set('q', filters.q);
+            if (filters.categoryId) params.set('categoryId', filters.categoryId);
 
             const url = `${BASE_URL}/auction/pujas${params.toString() ? `?${params}` : ''}`;
             const res = await fetch(url, {
@@ -31,7 +32,7 @@ export const usePujas = (filters = {}) => {
             setLoading(false);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filters.status, filters.q]);
+    }, [filters.status, filters.q, filters.categoryId]);
 
     useEffect(() => {
         fetchPujas();
