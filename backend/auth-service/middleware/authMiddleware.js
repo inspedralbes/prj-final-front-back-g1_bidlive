@@ -16,6 +16,7 @@ const authMiddleware = (req, res, next) => {
     req.username = decoded.username;
     next();
   } catch (error) {
+    console.error("JWT Verification Error:", error.message, "Token:", token ? token.substring(0, 10) + "..." : "null");
     return res.status(401).json({ message: "Invalid token" });
   }
 };

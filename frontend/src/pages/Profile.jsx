@@ -8,6 +8,7 @@ const Profile = () => {
     const { user } = useAuth();
     const { t } = useLanguage();
     const [myAuctions, setMyAuctions] = useState([]);
+    const [walletBalance, setWalletBalance] = useState(0);
     const [loading, setLoading] = useState(true);
     const [recharging, setRecharging] = useState(false);
     const [rechargeAmount, setRechargeAmount] = useState(10);
@@ -28,7 +29,33 @@ const Profile = () => {
             }
         };
 
+        const fetchWalletBalance = async () => {
+            if (!user) return;
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auth/wallet/balance`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    setWalletBalance(data.wallet);
+                }
+            } catch (error) {
+                console.error("Error fetching wallet balance:", error);
+            }
+        };
+
         fetchUserAuctions();
+        fetchWalletBalance();
+
+        // Handle stripe redirect params
+        const query = new URLSearchParams(window.location.search);
+        if (query.get("success")) {
+            alert("Wallet recharged successfully!");
+        }
+        if (query.get("canceled")) {
+            alert("Recharge canceled.");
+        }
     }, [user]);
 
     const handleRecharge = async () => {

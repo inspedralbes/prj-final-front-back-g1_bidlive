@@ -4,9 +4,14 @@ const cors = require('cors');
 const db = require('./config/db');
 const Puja = require('./models/Puja');
 const pujaController = require('./controllers/pujaController');
+const paymentController = require('./controllers/paymentController');
+const authMiddleware = require('./middleware/authMiddleware');
 
 const app = express();
 const port = process.env.PORT || 3001;
+
+// Webhook for auction payments (MUST be before express.json)
+app.post('/payment/webhook', express.raw({ type: 'application/json' }), paymentController.handleWebhook);
 
 // app.use(cors());
 app.use(express.json());
@@ -75,8 +80,13 @@ app.get('/', (req, res) => {
 // Real Endpoints
 app.post('/pujas', upload.single('image'), pujaController.createPuja);
 app.get('/pujas', pujaController.getPujas);
+app.get('/pujas/:id', pujaController.getPujaById);
+app.post('/pujas/:id/end', pujaController.endAuction);
 app.get('/pujas/user/:userId', pujaController.getPujasByUser);
-app.get('/pujas/live', pujaController.getPujas); // Reusing getPujas for now, effectively getting all
+app.get('/pujas/live', pujaController.getPujas); // Reusing getPujas for now
+
+// Payment routes
+app.post('/payment/create-session', authMiddleware, paymentController.createAuctionPaymentSession);
 
 // Global Error Handler
 app.use((err, req, res, next) => {

@@ -1,10 +1,15 @@
 require("dotenv").config();
 const express = require("express");
 const authController = require("./controllers/authController");
+const walletController = require("./controllers/walletController");
 const User = require("./models/User");
+const authMiddleware = require("./middleware/authMiddleware");
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Webhook must be before express.json() to get raw body
+app.post("/webhook", express.raw({ type: "application/json" }), walletController.handleWebhook);
 
 // IMPORTANTE: Quitamos app.use(cors()) de aquí porque lo gestionará el Gateway
 app.use(express.json());
@@ -33,6 +38,10 @@ const initDB = async (retries = 5, delay = 5000) => {
 // Routes directas (Nginx se encarga del prefijo /auth)
 app.post("/register", authController.register);
 app.post("/login", authController.login);
+
+// Wallet routes
+app.post("/wallet/recharge", authMiddleware, walletController.createRechargeSession);
+app.get("/wallet/balance", authMiddleware, walletController.getBalance);
 
 app.get("/", (req, res) => {
   res.send("Auth Service is running");
