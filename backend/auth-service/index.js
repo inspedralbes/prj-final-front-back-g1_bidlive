@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
@@ -5,10 +6,18 @@ const multer = require("multer");
 const authController = require("./controllers/authController");
 const profileController = require("./controllers/profileController");
 const authMiddleware = require("./authMiddleware");
+const walletController = require("./controllers/walletController");
 const User = require("./models/User");
+const authMiddleware = require("./middleware/authMiddleware");
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Webhook must be before express.json() to get raw body
+app.post("/webhook", express.raw({ type: "application/json" }), walletController.handleWebhook);
+
+// Webhook must be before express.json() to get raw body
+app.post("/webhook", express.raw({ type: "application/json" }), walletController.handleWebhook);
 
 app.use(express.json());
 
@@ -63,6 +72,10 @@ const initDB = async (retries = 5, delay = 5000) => {
 // ── Routes ───────────────────────────────────────────────────────────────────
 app.post("/register", authController.register);
 app.post("/login", authController.login);
+
+// Wallet routes
+app.post("/wallet/recharge", authMiddleware, walletController.createRechargeSession);
+app.get("/wallet/balance", authMiddleware, walletController.getBalance);
 app.post("/google", authController.googleLogin);
 app.put("/profile/:id", authController.updateProfile);
 

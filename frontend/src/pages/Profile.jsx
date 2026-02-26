@@ -21,6 +21,7 @@ const Profile = () => {
     const { user, updateUser } = useAuth();
 
     const [myAuctions, setMyAuctions] = useState([]);
+    const [walletBalance, setWalletBalance] = useState(0);
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [avatarUploading, setAvatarUploading] = useState(false);
@@ -42,6 +43,8 @@ const Profile = () => {
     const [saveStatus, setSaveStatus] = useState('idle'); // idle | saving | saved | error
     const [saveError, setSaveError] = useState('');
 
+    const [recharging, setRecharging] = useState(false);
+    const [rechargeAmount, setRechargeAmount] = useState(10);
 
     useEffect(() => {
         if (!user) return;
@@ -65,8 +68,67 @@ const Profile = () => {
                 setLoading(false);
             }
         };
+
+        const fetchWalletBalance = async () => {
+            if (!user) return;
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auth/wallet/balance`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    setWalletBalance(data.wallet);
+                }
+            } catch (error) {
+                console.error("Error fetching wallet balance:", error);
+            }
+        };
         fetchData();
+        fetchWalletBalance();
+
+        // Handle stripe redirect params
+        const query = new URLSearchParams(window.location.search);
+        if (query.get("success")) {
+            alert("Wallet recharged successfully!");
+        }
+        if (query.get("canceled")) {
+            alert("Recharge canceled.");
+        }
     }, [user]);
+
+    const handleRecharge = async () => {
+        if (rechargeAmount < 10 || rechargeAmount > 1000) {
+            alert("Please enter an amount between $10 and $1000");
+            return;
+        }
+
+        setRecharging(true);
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auth/wallet/recharge`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ amount: rechargeAmount })
+            });
+
+            if (response.ok) {
+                const { url } = await response.json();
+                window.location.href = url; // Redirect to Stripe
+            } else {
+                const errorData = await response.json();
+                alert("Error: " + (errorData.message || "Failed to create Stripe session"));
+            }
+        } catch (error) {
+            console.error("Recharge error:", error);
+            alert("Connection error: Make sure the backend is running and Stripe key is valid.");
+        } finally {
+            setRecharging(false);
+        }
+    };
 
     const handleInputChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -186,38 +248,75 @@ const Profile = () => {
                                     </span>
                                 </div>
                             </div>
+                            <h1 className="text-2xl font-black mb-1">{user?.username}</h1>
+                            <p className="text-slate-500 mb-6">{user?.email}</p>
 
-                            {/* Hidden file input */}
-                            <input
-                                ref={avatarInputRef}
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={handleAvatarChange}
-                            />
+                            {/* WALLET SECTION */}
+                            <div className="mb-6 p-4 bg-orange-500/10 rounded-xl border border-orange-500/20">
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Wallet Balance</p>
+                                <p className="text-3xl font-black text-orange-500">${walletBalance}</p>
+                            </div>
 
-                            {/* Upload button */}
+                            <div className="mb-4">
+                                <label className="block text-left text-xs font-bold text-slate-500 uppercase tracking-widest mb-1 ml-1">
+                                    Recharge Amount ($)
+                                </label>
+                                <input
+                                    type="number"
+                                    min="10"
+                                    max="1000"
+                                    value={rechargeAmount}
+                                    onChange={(e) => setRechargeAmount(Number(e.target.value))}
+                                    className="w-full p-2.5 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl font-bold focus:outline-none focus:ring-2 focus:ring-orange-500/50 mb-2"
+                                    placeholder="Amount (10 - 1000)"
+                                />
+                            </div>
+
                             <button
-                                type="button"
-                                onClick={() => avatarInputRef.current?.click()}
-                                disabled={avatarUploading}
-                                title="Change profile picture"
-                                className="absolute bottom-2 right-2 p-3 backdrop-blur-md rounded-full text-white shadow-lg border transition-all transform hover:scale-110 disabled:opacity-60 disabled:cursor-not-allowed"
-                                style={{
-                                    background: avatarUploading ? 'rgba(245,158,11,0.4)' : 'rgba(245,158,11,0.85)',
-                                    borderColor: 'rgba(245,158,11,0.5)',
-                                }}
+                                onClick={handleRecharge}
+                                disabled={recharging}
+                                style={{ backgroundColor: '#f59e0b' }}
+                                className="w-full py-2.5 text-white rounded-xl font-bold hover:opacity-90 transition-colors mb-4 flex items-center justify-center gap-2"
                             >
-                                {avatarUploading ? (
-                                    <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4" />
-                                    </svg>
-                                ) : (
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-                                    </svg>
-                                )}
+                                <span className="material-symbols-outlined text-sm">add_card</span>
+                                {recharging ? 'Processing...' : `Recharge Wallet ($${rechargeAmount})`}
                             </button>
+                            {/* END WALLET SECTION */}
+
+                            <button className="w-full py-2.5 border border-slate-200 dark:border-white/10 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-white/5 transition-colors mb-4">
+                                {t('profile.edit')}
+
+                                {/* Hidden file input */}
+                                <input
+                                    ref={avatarInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={handleAvatarChange}
+                                />
+
+                                {/* Upload button */}
+                                <button
+                                    type="button"
+                                    onClick={() => avatarInputRef.current?.click()}
+                                    disabled={avatarUploading}
+                                    title="Change profile picture"
+                                    className="absolute bottom-2 right-2 p-3 backdrop-blur-md rounded-full text-white shadow-lg border transition-all transform hover:scale-110 disabled:opacity-60 disabled:cursor-not-allowed"
+                                    style={{
+                                        background: avatarUploading ? 'rgba(245,158,11,0.4)' : 'rgba(245,158,11,0.85)',
+                                        borderColor: 'rgba(245,158,11,0.5)',
+                                    }}
+                                >
+                                    {avatarUploading ? (
+                                        <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4" />
+                                        </svg>
+                                    ) : (
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+                                        </svg>
+                                    )}
+                                </button>
                         </div>
 
                         <div className="flex-1 text-center md:text-left pt-4">
