@@ -144,6 +144,10 @@ wss.on("connection", (ws) => {
                     break;
                 }
 
+                case "PING":
+                    sendJson(ws, { type: "PONG" });
+                    break;
+
                 default:
                     console.log("Unknown message type:", type);
             }

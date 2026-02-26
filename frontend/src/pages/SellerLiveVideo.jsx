@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -12,26 +12,134 @@ const ICE_SERVERS = [
 
 // ── Seller camera preview component ─────────────────────────────────────────
 function SellerVideo({ localRef, status, viewerCount, onGoLive, isStreaming }) {
-  return (
-    <div className="relative w-full rounded-2xl overflow-hidden" style={{ background: '#000', border: '1px solid rgba(255,255,255,0.07)' }}>
-      <video ref={localRef} autoPlay playsInline muted className="w-full aspect-video object-cover block" style={{ background: '#000' }} />
+  const containerRef = useRef(null);
+  const [showControls, setShowControls] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const hideTimer = useRef(null);
 
-      <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  const handleMouseMove = () => {
+    setShowControls(true);
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = setTimeout(() => setShowControls(false), 2500);
+  };
+
+  const handleMouseLeave = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    setShowControls(false);
+  };
+
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().catch(err =>
+        console.warn('[SellerVideo] Fullscreen error:', err)
+      );
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full rounded-2xl overflow-hidden"
+      style={{
+        background: '#000',
+        border: '1px solid rgba(255,255,255,0.07)',
+        height: isFullscreen ? '100vh' : '100%',
+        width: '100%',
+      }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
+      <video
+        ref={localRef}
+        autoPlay
+        playsInline
+        muted
+        className="w-full h-full block"
+        style={{ background: '#000', objectFit: 'cover' }}
+      />
+
+      {/* BROADCASTING / Camera preview badge */}
+      <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
         {isStreaming
           ? <span className="badge-live"><span className="live-dot" /> BROADCASTING</span>
           : <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ background: 'rgba(0,0,0,0.7)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.08)' }}>Camera preview</span>
         }
       </div>
+
+      {/* Viewer count top-right (hides when bar is shown) */}
       {isStreaming && (
-        <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5 text-xs font-medium text-white px-2.5 py-1.5 rounded-full"
-          style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.09)' }}>
+        <div
+          className="absolute top-3 right-3 z-10 flex items-center gap-1.5 text-xs font-medium text-white px-2.5 py-1.5 rounded-full"
+          style={{
+            background: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.09)',
+            transition: 'opacity 0.2s',
+            opacity: showControls ? 0 : 1,
+            pointerEvents: 'none',
+          }}
+        >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" opacity="0.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
           {viewerCount} watching
         </div>
       )}
 
+      {/* Bottom control bar (hover reveal) */}
+      <div
+        className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-3 px-4 py-3"
+        style={{
+          background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%)',
+          transition: 'opacity 0.25s ease',
+          opacity: showControls || isFullscreen ? 1 : 0,
+          pointerEvents: showControls || isFullscreen ? 'auto' : 'none',
+        }}
+      >
+        {/* Viewer count in bar */}
+        {isStreaming && (
+          <div className="flex items-center gap-1.5 text-white/70 text-xs font-medium">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+            </svg>
+            {viewerCount}
+          </div>
+        )}
+        <div style={{ flex: 1 }} />
+        {/* Fullscreen button */}
+        <button
+          onClick={toggleFullscreen}
+          className="text-white/80 hover:text-white transition-colors"
+          title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        >
+          {isFullscreen ? (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+              <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+              <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+              <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+              <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+              <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+              <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+            </svg>
+          )}
+        </button>
+      </div>
+
+      {/* Go Live button */}
       {!isStreaming && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-20">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-30">
           <button onClick={onGoLive} disabled={status !== 'connected'} className="btn-primary text-base px-8 py-3.5 gap-2 disabled:opacity-50">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
             {status === 'connected' ? 'Go Live' : 'Connecting...'}
@@ -156,7 +264,10 @@ export default function SellerLiveVideo() {
   const startBroadcast = async () => {
     if (isStreaming || streamRef.current) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+        audio: true,
+      });
       streamRef.current = stream;
       if (localRef.current) localRef.current.srcObject = stream;
       setIsStreaming(true);
@@ -238,9 +349,9 @@ export default function SellerLiveVideo() {
       </header>
 
       {/* Main */}
-      <main className="flex-1 grid overflow-hidden" style={{ gridTemplateColumns: '1fr 360px' }}>
-        {/* Left */}
-        <div className="flex flex-col overflow-y-auto scroll-area p-5 gap-5">
+      <main className="flex-1 grid overflow-hidden" style={{ gridTemplateColumns: '1fr 380px' }}>
+        {/* Left: video fills the column */}
+        <div className="flex items-center justify-center overflow-hidden" style={{ background: '#000' }}>
           <SellerVideo
             localRef={localRef}
             status={status}
@@ -248,38 +359,42 @@ export default function SellerLiveVideo() {
             onGoLive={startBroadcast}
             isStreaming={isStreaming}
           />
+        </div>
 
-          {/* Controls panel */}
-          <div className="rounded-2xl p-5 grid grid-cols-1 sm:grid-cols-3 gap-4"
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-            <div className="sm:col-span-1">
-              <p className="text-gray-500 text-xs uppercase tracking-wider font-semibold mb-1">Viewers</p>
-              <p className="text-white font-black text-3xl">{viewerCount}</p>
-            </div>
-            <div className="sm:col-span-1">
-              <p className="text-gray-500 text-xs uppercase tracking-wider font-semibold mb-1">Current bid</p>
-              <p className="text-amber-400 font-black text-3xl">${latestBid.toLocaleString()}</p>
-              {latestBidder && <p className="text-gray-600 text-xs mt-0.5">by {latestBidder}</p>}
-            </div>
-            <div className="sm:col-span-1">
-              <p className="text-gray-500 text-xs uppercase tracking-wider font-semibold mb-1">Status</p>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="w-2.5 h-2.5 rounded-full"
-                  style={{ background: status === 'connected' ? '#22c55e' : '#6b7280', boxShadow: status === 'connected' ? '0 0 8px #22c55e' : 'none' }} />
-                <span className="text-white font-semibold capitalize">{status}</span>
+        {/* Right: info panel + chat stacked */}
+        <div className="flex flex-col h-full overflow-hidden" style={{ borderLeft: '1px solid var(--border)' }}>
+          {/* Stats panel */}
+          <div className="shrink-0 p-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <p className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold mb-1">Viewers</p>
+                <p className="text-white font-black text-2xl">{viewerCount}</p>
+              </div>
+              <div>
+                <p className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold mb-1">Current bid</p>
+                <p className="text-amber-400 font-black text-2xl">${latestBid.toLocaleString()}</p>
+                {latestBidder && <p className="text-gray-600 text-[10px] mt-0.5">by {latestBidder}</p>}
+              </div>
+              <div>
+                <p className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold mb-1">Status</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <div className="w-2 h-2 rounded-full"
+                    style={{ background: status === 'connected' ? '#22c55e' : '#6b7280', boxShadow: status === 'connected' ? '0 0 8px #22c55e' : 'none' }} />
+                  <span className="text-white font-semibold text-sm capitalize">{status}</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Right: chat */}
-        <ChatSidebar
-          auctionId={id}
-          role="seller"
-          externalMessages={messages}
-          externalSend={sendMessage}
-          externalStatus={status}
-        />
+          {/* Chat */}
+          <ChatSidebar
+            auctionId={id}
+            role="seller"
+            externalMessages={messages}
+            externalSend={sendMessage}
+            externalStatus={status}
+          />
+        </div>
       </main>
     </div>
   );
