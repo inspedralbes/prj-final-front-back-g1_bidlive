@@ -4,17 +4,12 @@ const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 const authController = require("./controllers/authController");
-const profileController = require("./controllers/profileController");
-const authMiddleware = require("./authMiddleware");
 const walletController = require("./controllers/walletController");
 const User = require("./models/User");
 const authMiddleware = require("./middleware/authMiddleware");
 
 const app = express();
 const port = process.env.PORT || 3000;
-
-// Webhook must be before express.json() to get raw body
-app.post("/webhook", express.raw({ type: "application/json" }), walletController.handleWebhook);
 
 // Webhook must be before express.json() to get raw body
 app.post("/webhook", express.raw({ type: "application/json" }), walletController.handleWebhook);
@@ -78,11 +73,6 @@ app.post("/wallet/recharge", authMiddleware, walletController.createRechargeSess
 app.get("/wallet/balance", authMiddleware, walletController.getBalance);
 app.post("/google", authController.googleLogin);
 app.put("/profile/:id", authController.updateProfile);
-
-// Profile routes
-app.get("/profile/:id", profileController.getProfile);
-app.put("/profile", authMiddleware, profileController.updateProfile);
-app.post("/profile/avatar", authMiddleware, ...profileController.uploadAvatar);
 
 // Avatar upload: POST /auth/profile/:id/avatar  (multipart, field = "avatar")
 app.post(
