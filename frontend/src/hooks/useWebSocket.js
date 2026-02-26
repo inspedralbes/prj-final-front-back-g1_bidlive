@@ -29,6 +29,7 @@ export const useWebSocket = (auctionId, username, role = 'viewer') => {
     const [auctionEnded, setAuctionEnded] = useState(false);
 
     const ws = useRef(null);
+    const pingIntervalRef = useRef(null);
     // Holds the VideoPlayer's WebRTC signal handler — avoids the onmessage override race condition
     const signalHandlerRef = useRef(null);
 
@@ -56,6 +57,14 @@ export const useWebSocket = (auctionId, username, role = 'viewer') => {
                 type: 'JOIN_ROOM',
                 payload: { auctionId, username, role },
             }));
+
+            // Keep-alive ping every 30s to prevent Nginx idle timeout
+            if (pingIntervalRef.current) clearInterval(pingIntervalRef.current);
+            pingIntervalRef.current = setInterval(() => {
+                if (socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify({ type: 'PING' }));
+                }
+            }, 30000);
         };
 
         socket.onmessage = (event) => {
@@ -97,6 +106,10 @@ export const useWebSocket = (auctionId, username, role = 'viewer') => {
                         signalHandlerRef.current?.(data);
                         break;
 
+                    case 'PONG':
+                        // Server acknowledged our ping — connection alive
+                        break;
+
                     default:
                         break;
                 }
@@ -108,14 +121,17 @@ export const useWebSocket = (auctionId, username, role = 'viewer') => {
         socket.onclose = () => {
             console.log('[WS] Disconnected');
             setStatus('disconnected');
+            if (pingIntervalRef.current) { clearInterval(pingIntervalRef.current); pingIntervalRef.current = null; }
         };
 
         socket.onerror = (err) => {
             console.error('[WS] Error:', err);
             setStatus('error');
+            if (pingIntervalRef.current) { clearInterval(pingIntervalRef.current); pingIntervalRef.current = null; }
         };
 
         return () => {
+            if (pingIntervalRef.current) { clearInterval(pingIntervalRef.current); pingIntervalRef.current = null; }
             socket.close();
         };
     }, [auctionId, username, role]);

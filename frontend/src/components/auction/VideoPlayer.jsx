@@ -37,6 +37,7 @@ export default function VideoPlayer({
   const localRef = useRef(null);
   const remoteRef = useRef(null);
   const streamRef = useRef(null);
+  const containerRef = useRef(null);
 
   // Seller: Map<viewerSessionId, { pc, iceQueue[] }>
   const peersRef = useRef(new Map());
@@ -49,10 +50,29 @@ export default function VideoPlayer({
 
   const [broadcasting, setBroadcasting] = useState(false);
   const [streamEnded, setStreamEnded] = useState(false);
-  const [hasStream, setHasStream] = useState(false); // true once viewer receives real video
+  const [hasStream, setHasStream] = useState(false);
+
+  // Controls UI
+  const [showControls, setShowControls] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const hideControlsTimer = useRef(null);
 
   const displayedViewers = viewerCount ?? wsViewerCount;
   const isLive = status === 'connected';
+
+  // ── Track fullscreen changes ────────────────────────────────────────────────
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  // ── Volume sync to video element ───────────────────────────────────────────
+  useEffect(() => {
+    const vid = role === 'seller' ? localRef.current : remoteRef.current;
+    if (vid) vid.volume = role === 'seller' ? 0 : volume;
+  }, [volume, role]);
 
   // ── AUCTION_ENDED ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -105,12 +125,22 @@ export default function VideoPlayer({
   const startBroadcast = useCallback(async () => {
     if (broadcasting || streamRef.current) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      // Request the highest available resolution from the webcam
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30 },
+        },
+        audio: true,
+      });
       streamRef.current = stream;
-      if (localRef.current) localRef.current.srcObject = stream;
+      if (localRef.current) {
+        localRef.current.srcObject = stream;
+        localRef.current.volume = 0; // always mute local preview
+      }
       setBroadcasting(true);
 
-      // ↓ KEY FIX: Tell all waiting viewers that seller is now live
       sendSignal('SELLER_LIVE', {});
       console.log('[Seller] SELLER_LIVE broadcast sent');
 
@@ -139,7 +169,8 @@ export default function VideoPlayer({
       console.log('[Viewer] ontrack fired');
       if (remoteRef.current && e.streams[0]) {
         remoteRef.current.srcObject = e.streams[0];
-        setHasStream(true); // hide "Waiting for stream..." overlay
+        remoteRef.current.volume = volume;
+        setHasStream(true);
       }
     };
 
@@ -148,7 +179,7 @@ export default function VideoPlayer({
     };
 
     return pc;
-  }, [sendSignal]);
+  }, [sendSignal, volume]);
 
   // ── Viewer: send REQUEST_OFFER with retry until we get an OFFER ───────────
   const requestOffer = useCallback(() => {
@@ -156,7 +187,6 @@ export default function VideoPlayer({
     sendSignal('REQUEST_OFFER', {});
     console.log('[Viewer] REQUEST_OFFER sent');
 
-    // Retry every 4 seconds until we get an offer (remoteDescSetRef becomes true)
     retryTimerRef.current = setInterval(() => {
       if (remoteDescSetRef.current) { clearInterval(retryTimerRef.current); return; }
       sendSignal('REQUEST_OFFER', {});
@@ -199,7 +229,6 @@ export default function VideoPlayer({
         // ── VIEWER handling ─────────────────────────────────────────
         if (role === 'viewer') {
           if (data.type === 'SELLER_LIVE') {
-            // Seller just went live — request an offer
             console.log('[Viewer] SELLER_LIVE received → requesting offer');
             initViewerPc();
             requestOffer();
@@ -260,22 +289,111 @@ export default function VideoPlayer({
     if (retryTimerRef.current) clearInterval(retryTimerRef.current);
   }, [role]);
 
+  // ── Controls hover helpers ─────────────────────────────────────────────────
+  const handleMouseMove = () => {
+    setShowControls(true);
+    if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
+    hideControlsTimer.current = setTimeout(() => setShowControls(false), 2500);
+  };
+
+  const handleMouseLeave = () => {
+    if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);
+    setShowControls(false);
+  };
+
+  // ── Fullscreen toggle ──────────────────────────────────────────────────────
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen().catch(err =>
+        console.warn('[VideoPlayer] Fullscreen error:', err)
+      );
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  // ── Volume change ─────────────────────────────────────────────────────────
+  const handleVolumeChange = (e) => {
+    const val = parseFloat(e.target.value);
+    setVolume(val);
+    const vid = remoteRef.current;
+    if (vid) vid.volume = val;
+  };
+
+  // ── Volume icon helper ────────────────────────────────────────────────────
+  const VolumeIcon = () => {
+    if (volume === 0) return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+        <line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
+      </svg>
+    );
+    if (volume < 0.5) return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      </svg>
+    );
+    return (
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+      </svg>
+    );
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="relative w-full rounded-2xl overflow-hidden" style={{ background: '#000', border: '1px solid var(--border)' }}>
+    <div
+      ref={containerRef}
+      className="relative w-full rounded-2xl overflow-hidden"
+      style={{
+        background: '#000',
+        border: '1px solid var(--border)',
+        height: isFullscreen ? '100vh' : '100%',
+        width: '100%',
+        cursor: 'default',
+      }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* ── Video element ── */}
       {role === 'seller'
-        ? <video ref={localRef} autoPlay playsInline muted className="w-full aspect-video object-cover" style={{ display: 'block', background: '#000' }} />
-        : <video ref={remoteRef} autoPlay playsInline className="w-full aspect-video object-cover" style={{ display: 'block', background: '#000' }} />
+        ? <video
+          ref={localRef}
+          autoPlay
+          playsInline
+          muted
+          className="w-full h-full"
+          style={{
+            display: 'block',
+            background: '#000',
+            objectFit: 'cover',
+          }}
+        />
+        : <video
+          ref={remoteRef}
+          autoPlay
+          playsInline
+          className="w-full h-full"
+          style={{
+            display: 'block',
+            background: '#000',
+            objectFit: 'cover',
+          }}
+        />
       }
 
-      {/* Auction ended overlay */}
+      {/* ── Auction ended overlay ── */}
       {streamEnded && (
         <div className="absolute inset-0 z-30 flex flex-col items-center justify-center" style={{ background: 'rgba(0,0,0,0.85)' }}>
           <p className="text-white/70 text-base font-semibold">La subasta ha finalizado</p>
         </div>
       )}
 
-      {/* Viewer: waiting for stream */}
+      {/* ── Viewer: waiting for stream ── */}
       {role === 'viewer' && !streamEnded && !hasStream && (
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ opacity: 0.5 }}>
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5">
@@ -287,23 +405,121 @@ export default function VideoPlayer({
         </div>
       )}
 
-      {/* LIVE badge */}
-      <div className="absolute top-4 left-4 z-10">
+      {/* ── LIVE badge ── */}
+      <div className="absolute top-3 left-3 z-10">
         {isLive && !streamEnded
           ? <span className="badge-live"><span className="live-dot" /> LIVE</span>
-          : !streamEnded && <span className="text-xs px-2.5 py-1 rounded-full font-semibold" style={{ background: 'rgba(0,0,0,0.6)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.1)' }}>{status === 'connecting' ? 'Connecting...' : 'Offline'}</span>
+          : !streamEnded && (
+            <span
+              className="text-xs px-2.5 py-1 rounded-full font-semibold"
+              style={{ background: 'rgba(0,0,0,0.6)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              {status === 'connecting' ? 'Connecting...' : 'Offline'}
+            </span>
+          )
         }
       </div>
 
-      {/* Viewer count */}
+      {/* ── Viewer count (top-right, hides when controls show) ── */}
       {isLive && !streamEnded && (
-        <div className="absolute top-4 right-4 z-10 flex items-center gap-1.5 text-xs font-medium text-white px-2.5 py-1.5 rounded-full" style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.1)' }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" opacity="0.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+        <div
+          className="absolute top-3 right-3 z-10 flex items-center gap-1.5 text-xs font-medium text-white px-2.5 py-1.5 rounded-full"
+          style={{
+            background: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            transition: 'opacity 0.2s',
+            opacity: showControls ? 0 : 1,
+            pointerEvents: 'none',
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" opacity="0.8">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+          </svg>
           {displayedViewers} watching
         </div>
       )}
 
-      {/* Seller: Go Live button */}
+      {/* ── Bottom control bar (hover reveal) ── */}
+      {!streamEnded && (
+        <div
+          className="absolute bottom-0 left-0 right-0 z-20 flex items-center gap-3 px-4 py-3"
+          style={{
+            background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0) 100%)',
+            transition: 'opacity 0.25s ease',
+            opacity: showControls || isFullscreen ? 1 : 0,
+            pointerEvents: showControls || isFullscreen ? 'auto' : 'none',
+          }}
+        >
+          {/* Viewer count in bar */}
+          {isLive && (
+            <div className="flex items-center gap-1.5 text-white/70 text-xs font-medium">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+              </svg>
+              {displayedViewers}
+            </div>
+          )}
+
+          {/* Spacer */}
+          <div style={{ flex: 1 }} />
+
+          {/* Volume controls (viewer only) */}
+          {role === 'viewer' && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setVolume(v => v === 0 ? 1 : 0)}
+                className="text-white/80 hover:text-white transition-colors"
+                title={volume === 0 ? 'Unmute' : 'Mute'}
+              >
+                <VolumeIcon />
+              </button>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.02"
+                value={volume}
+                onChange={handleVolumeChange}
+                style={{
+                  width: '80px',
+                  accentColor: '#f59e0b',
+                  cursor: 'pointer',
+                  height: '4px',
+                }}
+                title="Volume"
+              />
+            </div>
+          )}
+
+          {/* Fullscreen button */}
+          <button
+            onClick={toggleFullscreen}
+            className="text-white/80 hover:text-white transition-colors ml-1"
+            title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+          >
+            {isFullscreen ? (
+              /* Exit fullscreen icon */
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+                <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+                <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+              </svg>
+            ) : (
+              /* Enter fullscreen icon */
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+                <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+                <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+              </svg>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* ── Seller: Go Live button ── */}
       {role === 'seller' && !autoStart && !broadcasting && !streamEnded && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/40 z-20">
           <button onClick={startBroadcast} disabled={status !== 'connected'} className="btn-primary text-base px-8 py-3.5 gap-2 disabled:opacity-50">

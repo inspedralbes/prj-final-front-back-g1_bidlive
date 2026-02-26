@@ -139,33 +139,34 @@ export default function LiveAuctionVideo() {
             </header>
 
             {/* ── Main layout ─────────────────────────────────────────────── */}
-            <main className="flex-1 grid overflow-hidden" style={{ gridTemplateColumns: '1fr 360px' }}>
-                {/* Left: video + bidding */}
-                <div className="flex flex-col overflow-y-auto scroll-area p-5 gap-5">
+            <main className="flex-1 grid overflow-hidden" style={{ gridTemplateColumns: '1fr 380px' }}>
+                {/* Left: video fills the column */}
+                <div className="flex items-center justify-center overflow-hidden" style={{ background: '#000' }}>
                     <VideoPlayer auctionId={id} role="viewer" viewerCount={viewerCount} externalWs={wsHook} />
-                    <BiddingHUD
-                        currentBid={latestBid}
-                        placeBid={placeBid}
-                        disabled={status !== 'connected' || auctionEnded}
-                    />
-                    <div className="rounded-2xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                        <div className="flex items-center gap-2 mb-3">
-                            <span className="badge-live"><span className="live-dot" /> Auction #{id}</span>
-                        </div>
-                        <p className="text-gray-500 text-sm">
-                            Place your bid above to participate. All bids appear in the live chat in real-time.
-                        </p>
-                    </div>
                 </div>
 
-                {/* Right: chat */}
-                <ChatSidebar
-                    auctionId={id}
-                    role="viewer"
-                    externalMessages={messages}
-                    externalSend={sendMessage}
-                    externalStatus={status}
-                />
+                {/* Right: bidding + chat stacked */}
+                <div className="flex flex-col h-full overflow-hidden" style={{ borderLeft: '1px solid var(--border)' }}>
+                    {/* Bidding HUD — always visible, never pushed out */}
+                    <div className="shrink-0 p-4 overflow-y-auto scroll-area" style={{ borderBottom: '1px solid var(--border)', maxHeight: '45%' }}>
+                        <BiddingHUD
+                            currentBid={latestBid}
+                            placeBid={placeBid}
+                            disabled={status !== 'connected' || auctionEnded}
+                        />
+                    </div>
+
+                    {/* Chat — fills remaining space with internal scroll */}
+                    <div className="flex-1 min-h-0 overflow-hidden">
+                        <ChatSidebar
+                            auctionId={id}
+                            role="viewer"
+                            externalMessages={messages}
+                            externalSend={sendMessage}
+                            externalStatus={status}
+                        />
+                    </div>
+                </div>
             </main>
         </div>
     );

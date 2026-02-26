@@ -96,7 +96,7 @@ export default function ChatSidebar({
 
     return (
         <div
-            className="flex flex-col h-full"
+            className="flex flex-col h-full min-h-0"
             style={{
                 background: 'var(--bg-surface)',
                 borderLeft: '1px solid var(--border)',
@@ -118,7 +118,7 @@ export default function ChatSidebar({
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto scroll-area py-2">
+            <div className="flex-1 min-h-0 overflow-y-auto scroll-area py-2">
                 {messages.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full gap-3 px-6 text-center">
                         <div className="w-12 h-12 rounded-full flex items-center justify-center"
