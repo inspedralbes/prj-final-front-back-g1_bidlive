@@ -1,16 +1,22 @@
+require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 const authController = require("./controllers/authController");
 const profileController = require("./controllers/profileController");
+const paymentController = require("./controllers/paymentController");
 const authMiddleware = require("./authMiddleware");
 const User = require("./models/User");
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 
 // Serve uploaded avatars as static files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -64,12 +70,17 @@ const initDB = async (retries = 5, delay = 5000) => {
 app.post("/register", authController.register);
 app.post("/login", authController.login);
 app.post("/google", authController.googleLogin);
-app.put("/profile/:id", authController.updateProfile);
 
 // Profile routes
 app.get("/profile/:id", profileController.getProfile);
+app.put("/profile/:id", authMiddleware, authController.updateProfile); // Usar el del authController o profileController según corresponda
 app.put("/profile", authMiddleware, profileController.updateProfile);
 app.post("/profile/avatar", authMiddleware, ...profileController.uploadAvatar);
+
+// Payment routes
+app.post("/payment/create-checkout-session", authMiddleware, paymentController.createCheckoutSession);
+app.get("/payment/confirm-session/:sessionId", paymentController.confirmSession);
+app.post("/payment/webhook", paymentController.webhook);
 
 // Avatar upload: POST /auth/profile/:id/avatar  (multipart, field = "avatar")
 app.post(

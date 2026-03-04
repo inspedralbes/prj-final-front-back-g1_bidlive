@@ -35,6 +35,45 @@ export default function Header() {
     const [menuOpen, setMenuOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const userMenuRef = useRef(null);
+    const [isRecharging, setIsRecharging] = useState(false);
+    const [rechargeAmount, setRechargeAmount] = useState('');
+    const [rechargeError, setRechargeError] = useState('');
+    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+
+    const handleRechargeSubmit = async (e) => {
+        e.preventDefault();
+        setRechargeError('');
+        const amount = parseFloat(rechargeAmount);
+
+        if (!amount || isNaN(amount) || amount <= 0) {
+            setRechargeError('Introduce un importe válido');
+            return;
+        }
+
+        setIsProcessingPayment(true);
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auth/payment/create-checkout-session`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ amount }),
+            });
+            const data = await res.json();
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                setRechargeError(data.error || data.message || "Error al crear sesión");
+            }
+        } catch (err) {
+            console.error("Payment error:", err);
+            setRechargeError("Error de conexión");
+        } finally {
+            setIsProcessingPayment(false);
+        }
+    };
 
     const handleLogout = () => {
         logout();
@@ -145,19 +184,66 @@ export default function Header() {
                                         >
                                             My Profile
                                         </Link>
+
+                                        {!isRecharging ? (
+                                            <button
+                                                onClick={() => setIsRecharging(true)}
+                                                className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-amber-400 hover:text-amber-300 hover:bg-white/5 transition-colors"
+                                            >
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                                                    <path d="M12 5v14M5 12h14" />
+                                                </svg>
+                                                Añadir Dinero
+                                            </button>
+                                        ) : (
+                                            <div className="px-4 py-3 bg-white/5 border-y border-white/5">
+                                                <form onSubmit={handleRechargeSubmit} className="space-y-2">
+                                                    <div className="relative">
+                                                        <input
+                                                            autoFocus
+                                                            type="number"
+                                                            placeholder="0.00"
+                                                            value={rechargeAmount}
+                                                            onChange={(e) => setRechargeAmount(e.target.value)}
+                                                            className="w-full bg-[#08080f] border border-white/10 rounded-lg py-1.5 pl-7 pr-3 text-sm text-white focus:outline-none focus:border-amber-500/50 transition-colors"
+                                                            disabled={isProcessingPayment}
+                                                        />
+                                                        <span className="absolute left-2.5 top-1.5 text-gray-500 text-sm">€</span>
+                                                    </div>
+                                                    
+                                                    {rechargeError && (
+                                                        <p className="text-[10px] text-red-400 leading-tight">{rechargeError}</p>
+                                                    )}
+
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            type="submit"
+                                                            disabled={isProcessingPayment}
+                                                            className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-[#08080f] font-bold py-1.5 rounded-lg text-xs transition-colors"
+                                                        >
+                                                            {isProcessingPayment ? '...' : 'Añadir'}
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setIsRecharging(false);
+                                                                setRechargeError('');
+                                                                setRechargeAmount('');
+                                                            }}
+                                                            className="flex-1 bg-white/10 hover:bg-white/20 text-white py-1.5 rounded-lg text-xs transition-colors"
+                                                        >
+                                                            Cancelar
+                                                        </button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        )}
                                         <Link
                                             to="/seller"
                                             onClick={() => setUserMenuOpen(false)}
                                             className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
                                         >
                                             Dashboard
-                                        </Link>
-                                        <Link
-                                            to="/profile"
-                                            onClick={() => setUserMenuOpen(false)}
-                                            className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
-                                        >
-                                            My Profile
                                         </Link>
                                         <Link
                                             to="/create-puja"
