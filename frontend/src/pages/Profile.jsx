@@ -36,17 +36,67 @@ const Profile = () => {
     });
     const [saving, setSaving] = useState(false);
 
-    const [recharging, setRecharging] = useState(false);
-    const [rechargeAmount, setRechargeAmount] = useState(10);
+    // --- Edit panel state ---
+    const [editOpen, setEditOpen] = useState(false);
+    const [editUsername, setEditUsername] = useState('');
+    const [editBio, setEditBio] = useState('');
+    const [saveStatus, setSaveStatus] = useState('idle'); // idle | saving | saved | error
+    const [saveError, setSaveError] = useState('');
+    const [profile, setProfile] = useState(null);
+
+    useEffect(() => {
+        // Handle payment notifications
+        const params = new URLSearchParams(window.location.search);
+        const paymentStatus = params.get('payment');
+        const sessionId = params.get('session_id');
+
+        console.log("Payment redirect detected:", { paymentStatus, sessionId });
+
+        if (paymentStatus === 'success' && sessionId) {
+            const confirmPayment = async () => {
+                console.log("Confirming payment with session:", sessionId);
+                try {
+                    const res = await fetch(`${API}/auth/payment/confirm-session/${sessionId}`);
+                    const data = await res.json();
+                    console.log("Confirmation response:", data);
+                    if (res.ok) {
+                        alert(`¡Pago de ${data.amount}€ realizado con éxito!`);
+                        window.location.reload();
+                    } else {
+                        console.error("Payment confirmation failed:", data);
+                    }
+                } catch (err) {
+                    console.error("Confirmation fetch error:", err);
+                }
+            };
+            confirmPayment();
+            // Clean URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        } else if (paymentStatus === 'cancel') {
+            alert('El pago ha sido cancelado.');
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, []);
 
     useEffect(() => {
         if (!user) return;
         const fetchUserAuctions = async () => {
             try {
-                const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auction/pujas/user/${user.id}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setMyAuctions(data);
+                const token = localStorage.getItem('token');
+                const [profileRes, auctionsRes] = await Promise.all([
+                    fetch(`${API}/auth/profile/${user.id}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    }),
+                    fetch(`${API}/auction/pujas/user/${user.id}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    }),
+                ]);
+                if (profileRes.ok) {
+                    const p = await profileRes.json();
+                    setProfile(p);
+                    setEditUsername(p.username || '');
+                    setEditBio(p.bio || '');
+                    if (p.avatar_url) setAvatarPreview(`${API}${p.avatar_url}`);
                 }
             } catch (error) {
                 console.error("Error fetching user auctions:", error);
@@ -339,7 +389,7 @@ const Profile = () => {
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-green-400 font-black text-xl">
-                                        $0
+                                        {profile?.wallet_balance || 0}€
                                     </div>
                                     <div className="flex flex-col text-left">
                                         <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Saldo</span>

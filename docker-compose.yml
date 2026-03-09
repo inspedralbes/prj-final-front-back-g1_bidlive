@@ -67,6 +67,10 @@ services:
       - DB_NAME=${DB_DATABASE}
       - PORT=${PORT_AUTH_SERVICE}
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - BACKEND_URL=${BACKEND_URL}
     volumes:
       - ./backend/auth-service:/app
       - /app/node_modules

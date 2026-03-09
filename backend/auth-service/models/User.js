@@ -29,12 +29,15 @@ const User = {
     try {
       await db.query("ALTER TABLE users ADD COLUMN total_sales INT DEFAULT 0");
     } catch (_) { /* column already exists */ }
+    try {
+      await db.query("ALTER TABLE users ADD COLUMN wallet_balance DECIMAL(10,2) DEFAULT 0.00");
+    } catch (_) { /* column already exists */ }
   },
 
   create: async (username, email, password) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const sql =
-      "INSERT INTO users (username, email, password) VALUES (?, ?, ?)";
+      "INSERT INTO users (username, email, password, wallet_balance) VALUES (?, ?, ?, 0.00)";
     return db.query(sql, [username, email, hashedPassword]);
   },
 
@@ -48,7 +51,7 @@ const User = {
   },
 
   findById: async (id) => {
-    const sql = "SELECT id, username, email, avatar_url, billing_address, payment_method FROM users WHERE id = ?";
+    const sql = "SELECT id, username, email, avatar_url, billing_address, payment_method, wallet_balance FROM users WHERE id = ?";
     const result = await db.query(sql, [id]);
     const rows = Array.isArray(result[0]) ? result[0] : result;
     return rows && rows.length > 0 ? rows[0] : null;
@@ -79,6 +82,11 @@ const User = {
   updateProfile: async (id, { username, avatar_url, billing_address, payment_method }) => {
     const sql = "UPDATE users SET username = ?, avatar_url = ?, billing_address = ?, payment_method = ? WHERE id = ?";
     return db.query(sql, [username, avatar_url, billing_address, payment_method, id]);
+  },
+
+  addMoney: async (userId, amount) => {
+    const sql = "UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?";
+    return db.query(sql, [amount, userId]);
   },
 };
 

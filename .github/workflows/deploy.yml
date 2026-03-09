@@ -28,6 +28,8 @@ jobs:
             cd ${{ secrets.DEPLOY_PATH }}
 
             # 2. Actualizar el codigo
+            git fetch origin main
+            git reset --hard origin/main
             git pull origin main
 
             # 3. Escribir .env.production sin espacios extra (evita bugs de parseo)
