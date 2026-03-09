@@ -1,4 +1,9 @@
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const Stripe = require("stripe");
+// Lazily get stripe so missing key doesn't crash at load time
+const getStripe = () => {
+  if (!process.env.STRIPE_SECRET_KEY) throw new Error("STRIPE_SECRET_KEY is not configured");
+  return Stripe(process.env.STRIPE_SECRET_KEY);
+};
 const User = require("../models/User");
 
 const paymentController = {
@@ -11,7 +16,7 @@ const paymentController = {
         return res.status(400).json({ message: "Invalid amount" });
       }
 
-      const session = await stripe.checkout.sessions.create({
+      const session = await getStripe().checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: [
           {
@@ -42,9 +47,9 @@ const paymentController = {
         code: err.code,
         param: err.param
       });
-      res.status(500).json({ 
-        message: "Error de Stripe", 
-        error: err.message 
+      res.status(500).json({
+        message: "Error de Stripe",
+        error: err.message
       });
     }
   },
@@ -52,7 +57,7 @@ const paymentController = {
   confirmSession: async (req, res) => {
     try {
       const { sessionId } = req.params;
-      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      const session = await getStripe().checkout.sessions.retrieve(sessionId);
 
       if (session.payment_status === "paid") {
         const userId = session.metadata.userId;
@@ -60,7 +65,7 @@ const paymentController = {
 
         // Aquí podrías añadir una lógica para no duplicar pagos si el usuario refresca
         await User.addMoney(userId, amount);
-        
+
         res.json({ success: true, amount, balance: amount }); // Simplificado
       } else {
         res.status(400).json({ success: false, message: "Payment not completed" });
@@ -76,7 +81,7 @@ const paymentController = {
     let event;
 
     try {
-      event = stripe.webhooks.constructEvent(
+      event = getStripe().webhooks.constructEvent(
         req.rawBody,
         sig,
         process.env.STRIPE_WEBHOOK_SECRET

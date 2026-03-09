@@ -4,7 +4,8 @@ const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 const authController = require("./controllers/authController");
-const walletController = require("./controllers/walletController");
+const paymentController = require("./controllers/paymentController");
+const profileController = require("./controllers/profileController");
 const User = require("./models/User");
 const authMiddleware = require("./middleware/authMiddleware");
 
@@ -12,10 +13,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Webhook must be before express.json() to get raw body
-app.post("/webhook", express.raw({ type: "application/json" }), walletController.handleWebhook);
-
-// Webhook must be before express.json() to get raw body
-app.post("/webhook", express.raw({ type: "application/json" }), walletController.handleWebhook);
+app.post("/webhook", express.raw({ type: "application/json" }), paymentController.webhook);
 
 app.use(express.json({
   verify: (req, res, buf) => {
@@ -74,15 +72,24 @@ const initDB = async (retries = 5, delay = 5000) => {
 // ── Routes ───────────────────────────────────────────────────────────────────
 app.post("/register", authController.register);
 app.post("/login", authController.login);
+app.post("/google", authController.googleLogin);
 
 // Wallet routes
-app.post("/wallet/recharge", authMiddleware, walletController.createRechargeSession);
-app.get("/wallet/balance", authMiddleware, walletController.getBalance);
-app.post("/google", authController.googleLogin);
+app.post("/wallet/recharge", authMiddleware, paymentController.createCheckoutSession);
+app.get("/wallet/balance", authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({ balance: user.wallet_balance ?? 0 });
+  } catch (err) {
+    console.error("Get balance error:", err);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
 
 // Profile routes
 app.get("/profile/:id", profileController.getProfile);
-app.put("/profile/:id", authMiddleware, authController.updateProfile); // Usar el del authController o profileController según corresponda
+app.put("/profile/:id", authMiddleware, authController.updateProfile);
 app.put("/profile", authMiddleware, profileController.updateProfile);
 app.post("/profile/avatar", authMiddleware, ...profileController.uploadAvatar);
 
