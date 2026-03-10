@@ -22,6 +22,8 @@ const Profile = () => {
 
     const [myAuctions, setMyAuctions] = useState([]);
     const [walletBalance, setWalletBalance] = useState(0);
+    const [rechargeAmount, setRechargeAmount] = useState(50);
+    const [recharging, setRecharging] = useState(false);
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [avatarUploading, setAvatarUploading] = useState(false);

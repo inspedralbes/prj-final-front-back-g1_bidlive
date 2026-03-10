@@ -80,7 +80,7 @@ app.get("/wallet/balance", authMiddleware, async (req, res) => {
   try {
     const user = await User.findById(req.user.userId);
     if (!user) return res.status(404).json({ message: "User not found" });
-    res.json({ balance: user.wallet_balance ?? 0 });
+    res.json({ balance: user.wallet_balance ?? 0, wallet: user.wallet_balance ?? 0 });
   } catch (err) {
     console.error("Get balance error:", err);
     res.status(500).json({ message: "Internal server error" });
