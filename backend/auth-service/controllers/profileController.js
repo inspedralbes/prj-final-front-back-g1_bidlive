@@ -65,7 +65,7 @@ const profileController = {
                 return res.status(409).json({ message: "Username already taken" });
             }
 
-            await User.updateProfile(userId, { username: username.trim(), bio: bio || "" });
+            await User.updateBasicProfile(userId, { username: username.trim(), bio: bio || "" });
 
             const updatedUser = await User.findById(userId);
             res.json({ message: "Profile updated", user: updatedUser });

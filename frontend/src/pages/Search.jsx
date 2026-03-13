@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Header from '../components/layout/Header';
 import { usePujas } from '../hooks/usePujas';
 import { useCategories } from '../hooks/useCategories';
+import FavoriteButton from '../components/common/FavoriteButton';
 
 const getReputationStars = (sales) => {
     if (!sales || sales === 0) return { stars: 0, label: "New" };
@@ -20,59 +21,57 @@ const statusColor = (status) => {
 };
 
 const AuctionCard = ({ auction }) => (
-    <Link
-        to={`/auction/video/${auction.id}`}
-        className="group block rounded-xl overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-xl"
-        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
-    >
-        <div className="relative aspect-video overflow-hidden" style={{ background: '#1a1a2e' }}>
-            {auction.img ? (
-                <img src={auction.img} alt={auction.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    onError={e => { e.target.style.display = 'none'; }} />
-            ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
-                </div>
-            )}
-            {auction.status === 'live' && (
-                <div className="absolute top-3 left-3 badge-live">
-                    <span className="live-dot" /> LIVE
-                </div>
-            )}
-            {auction.category && auction.category !== 'Sin categoría' && (
-                <div className="absolute top-3 right-3 flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full"
-                    style={{ background: 'rgba(245,158,11,0.9)', color: '#08080f' }}>
-                    {auction.categoryIcon && (
-                        <span className="material-symbols-outlined" style={{ fontSize: '12px' }}>{auction.categoryIcon}</span>
-                    )}
-                    {auction.category}
-                </div>
-            )}
-            <div className="absolute bottom-0 left-0 right-0 p-3"
-                style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)' }}>
-                <p className="text-amber-400 font-black text-lg">{auction.bid || '$0'}</p>
-            </div>
-        </div>
-        <div className="p-4">
-            <h3 className="text-white font-semibold text-sm line-clamp-1 mb-2">{auction.title}</h3>
-            <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                    <span className="text-gray-400 text-xs font-medium">{auction.seller}</span>
-                    <div className="flex items-center gap-0.5 mt-0.5">
-                        {[...Array(5)].map((_, i) => (
-                            <span key={i} className={`material-symbols-outlined text-[10px] ${i < getReputationStars(auction.sellerTotalSales || 0).stars ? 'text-amber-400' : 'text-slate-600'}`} style={{ fontVariationSettings: "'FILL' 1" }}>
-                                star
-                            </span>
-                        ))}
+    <div className="relative group">
+        <FavoriteButton 
+            pujaId={auction.id} 
+            className="absolute top-3 right-3 z-20 bg-black/40 backdrop-blur-md text-white hover:text-red-500 p-2 rounded-xl border border-white/10 transition-all hover:scale-110" 
+        />
+        <Link
+            to={`/auction/video/${auction.id}`}
+            className="block rounded-xl overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-xl h-full"
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
+        >
+            <div className="relative aspect-video overflow-hidden" style={{ background: '#1a1a2e' }}>
+                {auction.img ? (
+                    <img src={auction.img} alt={auction.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        onError={e => { e.target.style.display = 'none'; }} />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
                     </div>
+                )}
+                {auction.status === 'live' && (
+                    <div className="absolute top-3 left-3 badge-live">
+                        <span className="live-dot" /> LIVE
+                    </div>
+                )}
+                {/* Removed redundant category badge and added bidding info overlay */}
+                <div className="absolute bottom-0 left-0 right-0 p-3"
+                    style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)' }}>
+                    <p className="text-amber-400 font-black text-lg">{auction.bid || '$0'}</p>
                 </div>
-                <span className="text-xs px-2 py-0.5 rounded-full font-medium"
-                    style={{ color: statusColor(auction.status), background: `${statusColor(auction.status)}15`, border: `1px solid ${statusColor(auction.status)}30` }}>
-                    {auction.status || 'active'}
-                </span>
             </div>
-        </div>
-    </Link>
+            <div className="p-4">
+                <h3 className="text-white font-semibold text-sm line-clamp-1 mb-2 group-hover:text-amber-400 transition-colors">{auction.title}</h3>
+                <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                        <span className="text-gray-400 text-xs font-medium">{auction.seller}</span>
+                        <div className="flex items-center gap-0.5 mt-0.5">
+                            {[...Array(5)].map((_, i) => (
+                                <span key={i} className={`material-symbols-outlined text-[10px] ${i < getReputationStars(auction.sellerTotalSales || 0).stars ? 'text-amber-400' : 'text-slate-600'}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                                    star
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                        style={{ color: statusColor(auction.status), background: `${statusColor(auction.status)}15`, border: `1px solid ${statusColor(auction.status)}30` }}>
+                        {auction.status || 'active'}
+                    </span>
+                </div>
+            </div>
+        </Link>
+    </div>
 );
 
 const SkeletonCard = () => (

@@ -159,7 +159,7 @@ export default function SellerLiveVideo() {
 
   // One shared WS connection for the seller
   const { status, messages, viewerCount, sendMessage, sendSignal, setSignalHandler } =
-    useWebSocket(id, username, 'seller');
+    useWebSocket(id, username, 'seller', user?.id);
 
   const localRef = useRef(null);
   const streamRef = useRef(null);
@@ -300,16 +300,26 @@ export default function SellerLiveVideo() {
     peersRef.current.forEach(({ pc }) => pc.close());
     peersRef.current.clear();
 
+    // Find the last bid to declare the winner
+    const lastBidMsg = [...messages].reverse().find(m => m.type === 'BID_PLACED');
+    const winnerId = lastBidMsg?.payload?.userId || null;
+    const finalPrice = lastBidMsg?.payload?.amount || 0;
+
     try {
       await fetch(`${API_URL}/auction/pujas/${id}/end`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { 
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ winnerId, finalPrice })
       });
+      console.log(`[Seller] Auction ended. Winner: ${winnerId}, Final Price: ${finalPrice}`);
     } catch (err) {
       console.error('[Seller] endLive API error (non-critical):', err);
     }
 
-    sendSignal('END_AUCTION', { auctionId: id });
+    sendSignal('END_AUCTION', { auctionId: id, winnerId, finalPrice });
     setTimeout(() => navigate('/seller'), 600);
   };
 

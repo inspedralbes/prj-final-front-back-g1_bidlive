@@ -12,7 +12,7 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 const PORT = process.env.PORT || 3002;
 
-// { auctionId: { seller: ws|null, viewers: Map<sessionId, ws> } }
+// { auctionId: { seller: ws|null, viewers: Map<sessionId, ws>, mutedUsers: Map<username, expireTimeMs> } }
 const rooms = new Map();
 
 const sendJson = (ws, data) => {
@@ -26,6 +26,25 @@ const broadcastViewerCount = (room) => {
     room.viewers.forEach(v => sendJson(v, msg));
 };
 
+const isUserMuted = (room, username, ws) => {
+    if (room.mutedUsers.has(username)) {
+        const expireTime = room.mutedUsers.get(username);
+        if (Date.now() < expireTime) {
+            sendJson(ws, {
+                type: "SYSTEM",
+                payload: {
+                    message: "Está silenciado temporalmente y no puede realizar esta acción.",
+                    timestamp: new Date().toISOString()
+                }
+            });
+            return true;
+        } else {
+            room.mutedUsers.delete(username);
+        }
+    }
+    return false;
+};
+
 wss.on("connection", (ws) => {
     ws.sessionId = randomUUID();
     sendJson(ws, { type: "SESSION_INIT", payload: { sessionId: ws.sessionId } });
@@ -36,12 +55,13 @@ wss.on("connection", (ws) => {
 
             switch (type) {
                 case "JOIN_ROOM": {
-                    const { auctionId, username, role } = payload;
+                    const { auctionId, username, role, userId } = payload;
                     ws.auctionId = auctionId;
                     ws.username = username;
+                    ws.userId = userId;
                     ws.role = role === "seller" ? "seller" : "viewer";
 
-                    if (!rooms.has(auctionId)) rooms.set(auctionId, { seller: null, viewers: new Map() });
+                    if (!rooms.has(auctionId)) rooms.set(auctionId, { seller: null, viewers: new Map(), mutedUsers: new Map() });
                     const room = rooms.get(auctionId);
 
                     if (ws.role === "seller") {
@@ -58,16 +78,61 @@ wss.on("connection", (ws) => {
                 case "CHAT_MESSAGE": {
                     const room = rooms.get(ws.auctionId);
                     if (!room) break;
-                    const msg = { type: "CHAT_MESSAGE", payload: { username: ws.username || "Anonymous", message: payload.message, timestamp: new Date().toISOString(), senderId: ws.role } };
+
+                    const username = ws.username || "Anonymous";
+                    if (isUserMuted(room, username, ws)) break;
+
+                    const msg = { type: "CHAT_MESSAGE", payload: { id: randomUUID(), username: username, message: payload.message, timestamp: new Date().toISOString(), senderId: ws.role } };
                     if (room.seller) sendJson(room.seller, msg);
                     room.viewers.forEach(v => sendJson(v, msg));
+                    break;
+                }
+
+                case "DELETE_MESSAGE": {
+                    const room = rooms.get(ws.auctionId);
+                    if (!room || ws.role !== "seller") break;
+                    // Broadcast DELETE_MESSAGE with the target messageId
+                    const delMsg = { type: "MESSAGE_DELETED", payload: { messageId: payload.messageId } };
+                    console.log(`[Room ${ws.auctionId}] Moderation: Seller deleted message ${payload.messageId}`);
+                    if (room.seller) sendJson(room.seller, delMsg);
+                    room.viewers.forEach(v => sendJson(v, delMsg));
+                    break;
+                }
+
+                case "MUTE_USER": {
+                    const room = rooms.get(ws.auctionId);
+                    if (!room || ws.role !== "seller") break;
+
+                    const targetUsername = payload.username;
+                    const durationMs = (payload.durationMinutes || 5) * 60 * 1000;
+                    room.mutedUsers.set(targetUsername, Date.now() + durationMs);
+
+                    console.log(`[Room ${ws.auctionId}] Moderation: Seller muted user ${targetUsername} for ${payload.durationMinutes} minutes`);
+
+                    // Notify everyone (so ChatSidebar can handle local UI if username matches)
+                    const muteMsg = { type: "USER_MUTED", payload: { username: targetUsername, durationMinutes: payload.durationMinutes } };
+                    if (room.seller) sendJson(room.seller, muteMsg);
+                    room.viewers.forEach(v => sendJson(v, muteMsg));
                     break;
                 }
 
                 case "PLACE_BID": {
                     const room = rooms.get(ws.auctionId);
                     if (!room) break;
-                    const msg = { type: "BID_PLACED", payload: { username: ws.username || "Anonymous", amount: payload.amount, timestamp: new Date().toISOString() } };
+
+                    const username = ws.username || "Anonymous";
+                    if (isUserMuted(room, username, ws)) break;
+
+                    const msg = { 
+                        type: "BID_PLACED", 
+                        payload: { 
+                            id: randomUUID(), 
+                            username: username, 
+                            userId: ws.userId, 
+                            amount: payload.amount, 
+                            timestamp: new Date().toISOString() 
+                        } 
+                    };
                     if (room.seller) sendJson(room.seller, msg);
                     room.viewers.forEach(v => sendJson(v, msg));
                     break;
@@ -139,7 +204,7 @@ wss.on("connection", (ws) => {
                     const room = rooms.get(ws.auctionId);
                     if (!room || ws.role !== "seller") break;
                     console.log(`[Room ${ws.auctionId}] END_AUCTION → broadcasting AUCTION_ENDED`);
-                    const endMsg = { type: "AUCTION_ENDED", payload: { auctionId: ws.auctionId } };
+                    const endMsg = { type: "AUCTION_ENDED", payload: { auctionId: ws.auctionId, ...payload } };
                     if (room.seller) sendJson(room.seller, endMsg);
                     room.viewers.forEach(v => sendJson(v, endMsg));
                     break;

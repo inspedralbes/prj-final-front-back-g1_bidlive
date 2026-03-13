@@ -9,7 +9,7 @@ const User = require("../models/User");
 const paymentController = {
   createCheckoutSession: async (req, res) => {
     try {
-      const { amount } = req.body;
+      const { amount, auctionId } = req.body;
       const userId = req.user.userId;
 
       if (!amount || amount <= 0) {
@@ -36,6 +36,7 @@ const paymentController = {
         cancel_url: `${process.env.FRONTEND_URL || "http://localhost:5173"}/profile?payment=cancel`,
         metadata: {
           userId: userId.toString(),
+          auctionId: auctionId ? auctionId.toString() : "",
         },
       });
 
@@ -61,12 +62,14 @@ const paymentController = {
 
       if (session.payment_status === "paid") {
         const userId = session.metadata.userId;
+        const auctionId = session.metadata.auctionId;
         const amount = session.amount_total / 100;
 
-        // Aquí podrías añadir una lógica para no duplicar pagos si el usuario refresca
-        await User.addMoney(userId, amount);
+        if (!auctionId) {
+          await User.addMoney(userId, amount);
+        }
 
-        res.json({ success: true, amount, balance: amount }); // Simplificado
+        res.json({ success: true, amount, balance: amount, wallet: amount }); // Simplificado
       } else {
         res.status(400).json({ success: false, message: "Payment not completed" });
       }
@@ -95,11 +98,23 @@ const paymentController = {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       const userId = session.metadata.userId;
+      const auctionId = session.metadata.auctionId;
       const amount = session.amount_total / 100; // Volver a euros
 
       try {
-        await User.addMoney(userId, amount);
-        console.log(`✅ Success: Wallet of user ${userId} updated with ${amount}€`);
+        if (!auctionId) {
+          await User.addMoney(userId, amount);
+          console.log(`✅ Success: Wallet of user ${userId} updated with ${amount}€`);
+        } else {
+          console.log(`✅ Success: Auction ${auctionId} paid via Stripe by user ${userId}`);
+          // Notify auction service
+          const auctionUrl = process.env.AUCTION_SERVICE_URL || 'http://auction-service:3001';
+          await fetch(`${auctionUrl}/pujas/${auctionId}/mark-paid`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ secret: process.env.INTERNAL_SECRET || 'bidlive_secret' })
+          });
+        }
       } catch (err) {
         console.error("Database update error in webhook:", err);
         return res.status(500).send("Database error");
@@ -107,6 +122,27 @@ const paymentController = {
     }
 
     res.json({ received: true });
+  },
+
+  payWithWallet: async (req, res) => {
+    try {
+      const { amount } = req.body;
+      const userId = req.user.userId;
+
+      if (!amount || amount <= 0) {
+        return res.status(400).json({ message: "Importe inválido" });
+      }
+
+      const success = await User.subtractMoney(userId, amount);
+      if (success) {
+        res.json({ success: true, message: "Pago realizado con éxito desde la billetera" });
+      } else {
+        res.status(400).json({ success: false, message: "Saldo insuficiente en la billetera" });
+      }
+    } catch (err) {
+      console.error("Pay with wallet error:", err);
+      res.status(500).json({ message: "Error al procesar el pago con billetera" });
+    }
   },
 };
 

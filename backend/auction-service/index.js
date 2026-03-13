@@ -100,6 +100,16 @@ app.post('/pujas/:id/end', pujaController.endPuja);
 app.get('/pujas/user/:userId', pujaController.getPujasByUser);
 app.get('/pujas/live', pujaController.getPujas); // Reusing getPujas for now
 
+// Favorites Endpoints
+app.post('/favorites', pujaController.toggleFavorite);
+app.get('/favorites/:userId', pujaController.getFavorites);
+app.get('/favorites/:userId/:pujaId/check', pujaController.checkFavorite);
+
+// Payments Endpoints
+app.get('/payments/:userId', pujaController.getPayments);
+app.post('/pujas/:id/pay', pujaController.processPayment);
+app.post('/pujas/:id/mark-paid', pujaController.markPaid);
+
 
 // Global Error Handler
 app.use((err, req, res, next) => {

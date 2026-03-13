@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { usePujas } from '../../hooks/usePujas';
+import FavoriteButton from '../common/FavoriteButton';
 
 const getReputationStars = (sales) => {
     if (!sales || sales === 0) return { stars: 0, label: "New" };
@@ -66,9 +67,12 @@ const AuctionCard = ({ auction }) => {
 
             {/* Bottom info */}
             <div className="p-4">
-                <h3 className="text-white font-semibold text-sm leading-snug line-clamp-1 mb-1">
-                    {auction.title}
-                </h3>
+                <div className="flex justify-between items-start gap-2 mb-1">
+                    <h3 className="text-white font-semibold text-sm leading-snug line-clamp-1">
+                        {auction.title}
+                    </h3>
+                    <FavoriteButton pujaId={auction.id} className="text-gray-400 hover:text-amber-400" />
+                </div>
                 <div className="flex items-center gap-2">
                     <div className="w-5 h-5 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-[10px] text-amber-400 font-bold">
                         {(auction.seller || 'S')[0].toUpperCase()}

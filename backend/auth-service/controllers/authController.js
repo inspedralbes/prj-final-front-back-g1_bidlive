@@ -52,7 +52,7 @@ const authController = {
       const token = jwt.sign(
         { userId: user.id, username: user.username },
         JWT_SECRET,
-        { expiresIn: "1h" },
+        { expiresIn: "7d" },
       );
 
       res.json({
@@ -95,7 +95,7 @@ const authController = {
       const token = jwt.sign(
         { userId: user.id, username: user.username },
         JWT_SECRET,
-        { expiresIn: "1h" }
+        { expiresIn: "7d" }
       );
 
       res.json({
@@ -113,7 +113,7 @@ const authController = {
       const { id } = req.params;
       const { username, avatar_url, billing_address, payment_method } = req.body;
 
-      await User.updateProfile(id, { username, avatar_url, billing_address, payment_method });
+      await User.updateFullProfile(id, { username, avatar_url, billing_address, payment_method });
       const updatedUser = await User.findById(id);
 
       res.json({
@@ -145,7 +145,7 @@ const authController = {
       const user = await User.findById(id);
       if (!user) return res.status(404).json({ message: "User not found" });
 
-      await User.updateProfile(id, {
+      await User.updateFullProfile(id, {
         username: user.username,
         avatar_url: avatarUrl,
         billing_address: user.billing_address,

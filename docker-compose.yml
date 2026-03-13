@@ -61,6 +61,7 @@ services:
     build:
       context: ./backend/auth-service
     environment:
+      - CHOKIDAR_USEPOLLING=true
       - DB_HOST=db
       - DB_USER=${DB_USER}
       - DB_PASS=${DB_PASSWORD}
@@ -71,6 +72,8 @@ services:
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
       - FRONTEND_URL=${FRONTEND_URL}
       - BACKEND_URL=${BACKEND_URL}
+      - AUCTION_SERVICE_URL=http://auction-service:3001
+      - INTERNAL_SECRET=bidlive_secret
     volumes:
       - ./backend/auth-service:/app
       - /app/node_modules
@@ -85,12 +88,15 @@ services:
     build:
       context: ./backend/auction-service
     environment:
+      - CHOKIDAR_USEPOLLING=true
       - DB_HOST=db
       - DB_USER=${DB_USER}
       - DB_PASS=${DB_PASSWORD}
       - DB_NAME=${DB_DATABASE}
       - PORT=${PORT_AUCTION_SERVICE}
       - SERVICE_PREFIX=/auction
+      - AUTH_SERVICE_URL=http://auth-service:3000
+      - INTERNAL_SECRET=bidlive_secret
     volumes:
       - ./backend/auction-service:/app
       - /app/node_modules
@@ -104,6 +110,7 @@ services:
     build:
       context: ./backend/bidding-service
     environment:
+      - CHOKIDAR_USEPOLLING=true
       - PORT=${PORT_BIDDING_SERVICE}
       - DB_HOST=db
       - DB_USER=${DB_USER}

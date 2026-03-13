@@ -8,19 +8,50 @@ const formatTime = (iso) => {
     } catch { return ''; }
 };
 
-const MessageItem = ({ msg }) => {
+const MessageItem = ({ msg, isSeller, onDelete, onMute }) => {
     const isBid = msg.type === 'BID_PLACED';
+    const isChat = msg.type === 'CHAT_MESSAGE';
+    const isSystem = msg.type === 'SYSTEM';
+
     return (
         <div
-            className={`flex flex-col gap-0.5 px-4 py-2.5 group animate-slide-right ${isBid ? 'animate-bid-flash rounded-lg' : ''}`}
+            className={`flex flex-col gap-0.5 px-4 py-2.5 group relative animate-slide-right 
+                ${isBid ? 'animate-bid-flash rounded-lg' : ''}
+                ${isSystem ? 'bg-red-500/10 border-l-2 border-red-500/50' : ''}`}
             style={isBid ? { background: 'rgba(245,158,11,0.07)' } : {}}
         >
+            {/* Moderation Actions overlay (Seller only) */}
+            {isSeller && isChat && (
+                <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 bg-black/60 rounded-md p-1 backdrop-blur-sm shadow-xl z-10">
+                    <button
+                        onClick={() => onDelete(msg.payload.id)}
+                        title="Eliminar mensaje"
+                        className="p-1 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded transition-colors"
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                        </svg>
+                    </button>
+                    <button
+                        onClick={() => onMute(msg.payload.username)}
+                        title={`Silenciar a ${msg.payload.username} (5 min)`}
+                        className="p-1 hover:bg-orange-500/20 text-gray-400 hover:text-orange-400 rounded transition-colors"
+                    >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
+                        </svg>
+                    </button>
+                </div>
+            )}
+
             <div className="flex items-center gap-2">
                 {isBid ? (
                     <span className="badge-amber text-[11px]">
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
                         BID
                     </span>
+                ) : isSystem ? (
+                    <span className="text-xs font-bold text-red-500">Sistema</span>
                 ) : (
                     <span className="text-xs font-bold text-amber-400">{msg.payload?.username || 'Anonymous'}</span>
                 )}
@@ -33,6 +64,8 @@ const MessageItem = ({ msg }) => {
                     ${Number(msg.payload?.amount).toLocaleString()}
                     <span className="text-gray-500 text-xs font-normal ml-2">by {msg.payload?.username}</span>
                 </p>
+            ) : isSystem ? (
+                <p className="text-red-300 text-xs italic break-words">{msg.payload?.message}</p>
             ) : (
                 <p className="text-gray-300 text-sm leading-snug break-words">{msg.payload?.message}</p>
             )}
@@ -59,6 +92,7 @@ export default function ChatSidebar({
 }) {
     const { user } = useAuth();
     const username = user?.username || user?.email || 'Anonymous';
+    const isSeller = role === 'seller';
 
     const internal = useWebSocket(
         externalMessages ? null : auctionId,
@@ -69,6 +103,8 @@ export default function ChatSidebar({
     const messages = externalMessages ?? internal.messages;
     const sendMessage = externalSend ?? internal.sendMessage;
     const status = externalStatus ?? internal.status;
+    const deleteMessage = internal.deleteMessage;
+    const muteUser = internal.muteUser;
 
     const [input, setInput] = useState('');
     const bottomRef = useRef(null);
@@ -130,7 +166,15 @@ export default function ChatSidebar({
                         <p className="text-gray-600 text-sm">No messages yet.<br />Start the conversation!</p>
                     </div>
                 ) : (
-                    messages.map((msg, i) => <MessageItem key={i} msg={msg} />)
+                    messages.map((msg, i) => (
+                        <MessageItem
+                            key={msg.payload?.id || i}
+                            msg={msg}
+                            isSeller={isSeller}
+                            onDelete={deleteMessage}
+                            onMute={muteUser}
+                        />
+                    ))
                 )}
                 <div ref={bottomRef} />
             </div>

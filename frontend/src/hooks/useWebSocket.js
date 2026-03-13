@@ -16,17 +16,19 @@ const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8080/bidding/';
  *  - viewerCount: number
  *  - auctionEnded: bool — true when AUCTION_ENDED is received
  *  - sendMessage(message): send a CHAT_MESSAGE
- *  - placeBid(amount): send a PLACE_BID
  *  - sendSignal(type, payload): send any raw WS message (used by VideoPlayer)
  *  - setSignalHandler(fn): register a callback for WebRTC signaling messages
+ *  - deleteMessage(messageId): ask server to delete a message (seller only)
+ *  - muteUser(username, durationMinutes): ask server to mute a user (seller only)
  *  - ws: ref to the raw WebSocket (for advanced use)
  */
-export const useWebSocket = (auctionId, username, role = 'viewer') => {
+export const useWebSocket = (auctionId, username, role = 'viewer', userId = null) => {
     const [status, setStatus] = useState('disconnected');
     const [sessionId, setSessionId] = useState(null);
     const [messages, setMessages] = useState([]);
     const [viewerCount, setViewerCount] = useState(0);
     const [auctionEnded, setAuctionEnded] = useState(false);
+    const [endData, setEndData] = useState(null);
 
     const ws = useRef(null);
     const pingIntervalRef = useRef(null);
@@ -55,7 +57,7 @@ export const useWebSocket = (auctionId, username, role = 'viewer') => {
             setStatus('connected');
             socket.send(JSON.stringify({
                 type: 'JOIN_ROOM',
-                payload: { auctionId, username, role },
+                payload: { auctionId, username, role, userId },
             }));
 
             // Keep-alive ping every 30s to prevent Nginx idle timeout
@@ -87,8 +89,22 @@ export const useWebSocket = (auctionId, username, role = 'viewer') => {
                         setViewerCount(data.payload?.count ?? 0);
                         break;
 
+                    case 'MESSAGE_DELETED':
+                        setMessages(prev => prev.filter(m => m.payload.id !== data.payload.messageId));
+                        break;
+
+                    case 'USER_MUTED':
+                        if (data.payload.username === username) {
+                            setMessages(prev => [...prev, {
+                                type: 'SYSTEM',
+                                payload: { message: `Has sido silenciado temporalmente por el moderador durante ${data.payload.durationMinutes || 5} minutos.`, timestamp: new Date().toISOString() }
+                            }]);
+                        }
+                        break;
+
                     case 'AUCTION_ENDED':
                         setAuctionEnded(true);
+                        setEndData(data.payload);
                         // Also forward to VideoPlayer so it can clean up WebRTC resources
                         signalHandlerRef.current?.(data);
                         break;
@@ -134,7 +150,7 @@ export const useWebSocket = (auctionId, username, role = 'viewer') => {
             if (pingIntervalRef.current) { clearInterval(pingIntervalRef.current); pingIntervalRef.current = null; }
             socket.close();
         };
-    }, [auctionId, username, role]);
+    }, [auctionId, username, role, userId]);
 
     const sendMessage = useCallback((message) => {
         if (ws.current?.readyState === WebSocket.OPEN) {
@@ -144,13 +160,25 @@ export const useWebSocket = (auctionId, username, role = 'viewer') => {
 
     const placeBid = useCallback((amount) => {
         if (ws.current?.readyState === WebSocket.OPEN) {
-            ws.current.send(JSON.stringify({ type: 'PLACE_BID', payload: { amount } }));
+            ws.current.send(JSON.stringify({ type: 'PLACE_BID', payload: { amount, userId } }));
         }
-    }, []);
+    }, [userId]);
 
     const sendSignal = useCallback((type, payload) => {
         if (ws.current?.readyState === WebSocket.OPEN) {
             ws.current.send(JSON.stringify({ type, payload }));
+        }
+    }, []);
+
+    const deleteMessage = useCallback((messageId) => {
+        if (ws.current?.readyState === WebSocket.OPEN) {
+            ws.current.send(JSON.stringify({ type: 'DELETE_MESSAGE', payload: { messageId } }));
+        }
+    }, []);
+
+    const muteUser = useCallback((targetUsername, durationMinutes = 5) => {
+        if (ws.current?.readyState === WebSocket.OPEN) {
+            ws.current.send(JSON.stringify({ type: 'MUTE_USER', payload: { username: targetUsername, durationMinutes } }));
         }
     }, []);
 
@@ -160,10 +188,13 @@ export const useWebSocket = (auctionId, username, role = 'viewer') => {
         messages,
         viewerCount,
         auctionEnded,
+        endData,
         sendMessage,
         placeBid,
         sendSignal,
         setSignalHandler,
+        deleteMessage,
+        muteUser,
         ws,
     };
 };

@@ -16,6 +16,17 @@ const sql = `
     )
 `;
 
+const favoritesSql = `
+    CREATE TABLE IF NOT EXISTS favorites (
+        user_id    INT NOT NULL,
+        puja_id    INT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, puja_id),
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (puja_id) REFERENCES pujas(id) ON DELETE CASCADE
+    )
+`;
+
 const Puja = {
     createTable: async () => {
         // Ejecutamos CREATE TABLE primero
@@ -33,6 +44,8 @@ const Puja = {
                 image_url VARCHAR(2048),
                 seller_id INT NOT NULL,
                 status ENUM('live', 'upcoming', 'ended') DEFAULT 'upcoming',
+                winner_id INT DEFAULT NULL,
+                payment_status ENUM('none', 'pending', 'paid') DEFAULT 'none',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
@@ -43,6 +56,11 @@ const Puja = {
         try { await db.query("ALTER TABLE pujas ADD COLUMN reserve_price DECIMAL(10, 2)"); } catch (e) { }
         try { await db.query("ALTER TABLE pujas ADD COLUMN duration VARCHAR(50) DEFAULT '1 Hour'"); } catch (e) { }
         try { await db.query("ALTER TABLE pujas ADD COLUMN mode ENUM('video', 'photo') DEFAULT 'video'"); } catch (e) { }
+        try { await db.query("ALTER TABLE pujas ADD COLUMN winner_id INT DEFAULT NULL"); } catch (e) { }
+        try { await db.query("ALTER TABLE pujas ADD COLUMN payment_status ENUM('none', 'pending', 'paid') DEFAULT 'none'"); } catch (e) { }
+
+        // Create favorites table
+        await db.query(favoritesSql);
 
         return true;
     },
@@ -74,6 +92,9 @@ const Puja = {
         if (status) {
             conditions.push('p.status = ?');
             params.push(status);
+        } else {
+            // By default, do not show ended auctions in the general feed/explorer
+            conditions.push("p.status != 'ended'");
         }
 
         if (search) {
@@ -123,6 +144,63 @@ const Puja = {
 
     updateStatus: async (id, status) => {
         const sql = 'UPDATE pujas SET status = ? WHERE id = ?';
+        return db.query(sql, [status, id]);
+    },
+
+    // --- Favorites Logic ---
+    addFavorite: async (userId, pujaId) => {
+        const sql = 'INSERT IGNORE INTO favorites (user_id, puja_id) VALUES (?, ?)';
+        return db.query(sql, [userId, pujaId]);
+    },
+
+    removeFavorite: async (userId, pujaId) => {
+        const sql = 'DELETE FROM favorites WHERE user_id = ? AND puja_id = ?';
+        return db.query(sql, [userId, pujaId]);
+    },
+
+    isFavorite: async (userId, pujaId) => {
+        const sql = 'SELECT 1 FROM favorites WHERE user_id = ? AND puja_id = ?';
+        const rows = await db.query(sql, [userId, pujaId]);
+        return rows.length > 0;
+    },
+
+    findFavoritesByUser: async (userId) => {
+        const sql = `
+            SELECT p.*, u.username as seller_username 
+            FROM favorites f
+            JOIN pujas p ON f.puja_id = p.id
+            LEFT JOIN users u ON p.seller_id = u.id
+            WHERE f.user_id = ?
+            ORDER BY f.created_at DESC
+        `;
+        return db.query(sql, [userId]);
+    },
+
+    // --- Winner & Payment Logic ---
+    endWithWinner: async (id, winnerId, finalPrice) => {
+        // If there's a winner, status is 'pending', else 'none'
+        const paymentStatus = winnerId ? 'pending' : 'none';
+        const sql = `
+            UPDATE pujas 
+            SET status = 'ended', winner_id = ?, current_price = ?, payment_status = ? 
+            WHERE id = ?
+        `;
+        return db.query(sql, [winnerId, finalPrice, paymentStatus, id]);
+    },
+
+    findPaymentsByWinner: async (userId) => {
+        const sql = `
+            SELECT p.*, u.username as seller_username 
+            FROM pujas p
+            LEFT JOIN users u ON p.seller_id = u.id
+            WHERE p.winner_id = ? AND p.status = 'ended'
+            ORDER BY p.created_at DESC
+        `;
+        return db.query(sql, [userId]);
+    },
+
+    updatePaymentStatus: async (id, status) => {
+        const sql = 'UPDATE pujas SET payment_status = ? WHERE id = ?';
         return db.query(sql, [status, id]);
     }
 };

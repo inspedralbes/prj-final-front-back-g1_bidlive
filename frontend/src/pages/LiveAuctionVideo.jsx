@@ -5,6 +5,7 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import ChatSidebar from '../components/auction/ChatSidebar';
 import BiddingHUD from '../components/auction/BiddingHUD';
 import VideoPlayer from '../components/auction/VideoPlayer';
+import NotificationToast from '../components/common/NotificationToast';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -18,12 +19,14 @@ export default function LiveAuctionVideo() {
     const [auctionStatus, setAuctionStatus] = useState(null);
 
     // ── 2. WS hook — pass null while verifying to avoid premature connection ─
-    const wsHook = useWebSocket(auctionStatus !== null ? id : null, username, 'viewer');
-    const { status, messages, viewerCount, sendMessage, placeBid, auctionEnded } = wsHook;
+    const wsHook = useWebSocket(auctionStatus !== null ? id : null, username, 'viewer', user?.id);
+    const { status, messages, viewerCount, sendMessage, placeBid, auctionEnded, endData } = wsHook;
 
     // ── 3. UI state ────────────────────────────────────────────────────────
     const [showEndedPopup, setShowEndedPopup] = useState(false);
     const [countdown, setCountdown] = useState(5);
+    const [toast, setToast] = useState(null);
+    const [isWinning, setIsWinning] = useState(false);
 
     // ── 4. Fetch auction status on mount (redirect if ended) ───────────────
     useEffect(() => {
@@ -56,18 +59,73 @@ export default function LiveAuctionVideo() {
     }, [auctionEnded, navigate]);
 
     // Current bid from BID_PLACED messages
-    const latestBid = messages
+    const latestBidMsg = messages
         .filter(m => m.type === 'BID_PLACED')
-        .reduce((acc, m) => Math.max(acc, Number(m.payload?.amount) || 0), 0);
+        .slice(-1)[0]; // Get the very last one
+
+    const latestBid = Number(latestBidMsg?.payload?.amount) || 0;
+
+    // Logic to update winning status and trigger toast
+    useEffect(() => {
+        if (!latestBidMsg) return;
+
+        const bidder = latestBidMsg.payload.username;
+        const wasWinning = isWinning;
+        const nowWinning = bidder === username;
+
+        setIsWinning(nowWinning);
+
+        if (wasWinning && !nowWinning) {
+            setToast({ message: '¡Has sido superado!', type: 'warning' });
+        }
+    }, [latestBidMsg, username]);
+
+    const [paymentMethod, setPaymentMethod] = useState(null); // 'wallet' or 'stripe'
+    const [paying, setPaying] = useState(false);
+    const isFinalWinner = endData?.winnerId === user?.id;
 
     // ── Loading screen — placed AFTER all hooks ────────────────────────────
     if (auctionStatus === null) {
         return (
-            <div className="h-screen flex items-center justify-center" style={{ background: 'var(--bg-base)' }}>
-                <div className="text-gray-500 text-sm">Loading auction...</div>
+            <div className="h-screen flex items-center justify-center font-inter" style={{ background: 'var(--bg-base)' }}>
+                <div className="flex flex-col items-center gap-4">
+                    <div className="loading-spinner w-8 h-8 border-3 border-amber-500/30 border-t-amber-500" />
+                    <div className="text-gray-500 text-xs font-bold tracking-widest uppercase animate-pulse">Cargando subasta...</div>
+                </div>
             </div>
         );
     }
+
+    const handlePayment = async (method) => {
+        setPaying(true);
+        try {
+            const resp = await fetch(`${API_URL}/auction/pujas/${id}/pay`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${localStorage.getItem('token')}` 
+                },
+                body: JSON.stringify({ method })
+            });
+            const data = await resp.json();
+            
+            if (resp.ok) {
+                if (method === 'stripe' && data.url) {
+                    window.location.href = data.url;
+                } else {
+                    setToast({ message: '¡Pago realizado con éxito!', type: 'success' });
+                    setTimeout(() => navigate('/profile'), 1500);
+                }
+            } else {
+                setToast({ message: data.message || 'Error al procesar el pago', type: 'error' });
+            }
+        } catch (err) {
+            console.error('Payment error:', err);
+            setToast({ message: 'Error de conexión al procesar el pago', type: 'error' });
+        } finally {
+            setPaying(false);
+        }
+    };
 
     return (
         <div
@@ -76,47 +134,109 @@ export default function LiveAuctionVideo() {
         >
             {/* ── Auction Ended Popup ──────────────────────────────────────── */}
             {showEndedPopup && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center"
-                    style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(12px)' }}>
+                <div className="absolute inset-0 z-50 flex items-center justify-center font-inter"
+                    style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(16px)' }}>
                     <div
-                        className="flex flex-col items-center gap-6 rounded-3xl p-10 text-center max-w-sm w-full mx-4"
+                        className="flex flex-col items-center gap-6 rounded-3xl p-10 text-center max-w-sm w-full mx-4 animate-scale-in"
                         style={{
                             background: 'var(--bg-card)',
                             border: '1px solid var(--border)',
                             boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
                         }}
                     >
-                        {/* Icon */}
-                        <div className="w-16 h-16 rounded-full flex items-center justify-center"
-                            style={{ background: 'rgba(239,68,68,0.12)', border: '1.5px solid rgba(239,68,68,0.25)' }}>
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="1.8" strokeLinecap="round">
-                                <path d="M18.36 6.64A9 9 0 1 1 5.64 19.36" />
-                                <line x1="18.36" y1="18.36" x2="5.64" y2="5.64" />
-                            </svg>
-                        </div>
-
-                        {/* Text */}
-                        <div>
-                            <h2 className="text-white font-black text-2xl mb-2">Live Finalizado</h2>
-                            <p className="text-gray-400 text-sm leading-relaxed">
-                                El vendedor ha terminado la transmisión en directo.<br />
-                                Gracias por participar.
-                            </p>
-                        </div>
-
-                        {/* Countdown */}
-                        <div className="flex flex-col items-center gap-1">
-                            <span className="text-4xl font-black text-amber-400">{countdown}</span>
-                            <span className="text-gray-500 text-xs">Redirigiendo a inicio...</span>
-                        </div>
-
-                        {/* Manual redirect */}
-                        <button
-                            onClick={() => navigate('/')}
-                            className="btn-primary w-full py-3"
-                        >
-                            Ir a inicio ahora
-                        </button>
+                        {isFinalWinner ? (
+                            <>
+                                {/* Winner Icon */}
+                                <div className="w-20 h-20 rounded-full flex items-center justify-center mb-2"
+                                    style={{ background: 'rgba(245,158,11,0.15)', border: '2px solid rgba(245,158,11,0.4)', boxShadow: '0 0 20px rgba(245,158,11,0.2)' }}>
+                                    <span className="material-symbols-outlined text-amber-400" style={{ fontSize: '40px', fontVariationSettings: "'FILL' 1" }}>trophy</span>
+                                </div>
+                                <div>
+                                    <h2 className="text-white font-black text-3xl mb-1">¡HAS GANADO!</h2>
+                                    <p className="text-amber-400 font-bold text-lg mb-4">${endData?.finalPrice}</p>
+                                </div>
+                                
+                                {!paymentMethod ? (
+                                    <div className="flex flex-col gap-3 w-full">
+                                        <p className="text-gray-400 text-xs uppercase font-bold tracking-widest mb-1">Selecciona método de pago</p>
+                                        <button 
+                                            onClick={() => setPaymentMethod('wallet')}
+                                            className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all w-full group text-left"
+                                        >
+                                            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-black transition-all">
+                                                <span className="material-symbols-outlined">account_balance_wallet</span>
+                                            </div>
+                                            <div>
+                                                <p className="text-white font-bold text-sm">Mi Billetera</p>
+                                                <p className="text-gray-500 text-[10px]">Pagar con saldo interno</p>
+                                            </div>
+                                        </button>
+                                        <button 
+                                            onClick={() => handlePayment('stripe')}
+                                            className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all w-full group text-left"
+                                        >
+                                            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-500 group-hover:bg-indigo-500 group-hover:text-white transition-all">
+                                                <span className="material-symbols-outlined">credit_card</span>
+                                            </div>
+                                            <div>
+                                                <p className="text-white font-bold text-sm">Tarjeta bancaria</p>
+                                                <p className="text-gray-500 text-[10px]">Pago seguro vía Stripe</p>
+                                            </div>
+                                        </button>
+                                        <button onClick={() => navigate('/profile')} className="btn-ghost py-3 w-full text-xs mt-2">
+                                            Pagar más tarde
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-4 w-full animate-fade-in">
+                                        <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20 text-center">
+                                            <p className="text-gray-400 text-xs mb-1">Confirmar pago desde</p>
+                                            <p className="text-white font-bold">Mi Billetera</p>
+                                        </div>
+                                        <button 
+                                            onClick={() => handlePayment('wallet')}
+                                            disabled={paying}
+                                            className="btn-primary py-3.5 w-full flex items-center justify-center gap-2"
+                                        >
+                                            {paying ? <div className="loading-spinner w-4 h-4 border-2" /> : (
+                                                <>
+                                                    <span className="material-symbols-outlined text-sm">payments</span>
+                                                    Confirmar Pago
+                                                </>
+                                            )}
+                                        </button>
+                                        <button onClick={() => setPaymentMethod(null)} disabled={paying} className="text-gray-500 text-xs font-bold hover:text-white transition-colors">
+                                            Cambiar método
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                {/* Ended Icon */}
+                                <div className="w-16 h-16 rounded-full flex items-center justify-center"
+                                    style={{ background: 'rgba(259,68,68,0.12)', border: '1.5px solid rgba(239,68,68,0.25)' }}>
+                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="1.8" strokeLinecap="round">
+                                        <path d="M18.36 6.64A9 9 0 1 1 5.64 19.36" />
+                                        <line x1="18.36" y1="18.36" x2="5.64" y2="5.64" />
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h2 className="text-white font-black text-2xl mb-2">Live Finalizado</h2>
+                                    <p className="text-gray-400 text-sm leading-relaxed">
+                                        El vendedor ha terminado la transmisión en directo.<br />
+                                        Gracias por participar.
+                                    </p>
+                                </div>
+                                <div className="flex flex-col items-center gap-1">
+                                    <span className="text-4xl font-black text-amber-400">{countdown}</span>
+                                    <span className="text-gray-500 text-xs">Redirigiendo a inicio...</span>
+                                </div>
+                                <button onClick={() => navigate('/')} className="btn-primary w-full py-3">
+                                    Ir a inicio ahora
+                                </button>
+                            </>
+                        )}
                     </div>
                 </div>
             )}
@@ -153,6 +273,7 @@ export default function LiveAuctionVideo() {
                             currentBid={latestBid}
                             placeBid={placeBid}
                             disabled={status !== 'connected' || auctionEnded}
+                            status={latestBid > 0 ? (isWinning ? 'winning' : 'outbid') : 'none'}
                         />
                     </div>
 
@@ -168,6 +289,15 @@ export default function LiveAuctionVideo() {
                     </div>
                 </div>
             </main>
+
+            {/* ── Toast Notifications ────────────────────────────────────── */}
+            {toast && (
+                <NotificationToast 
+                    message={toast.message} 
+                    type={toast.type} 
+                    onClose={() => setToast(null)} 
+                />
+            )}
         </div>
     );
 }

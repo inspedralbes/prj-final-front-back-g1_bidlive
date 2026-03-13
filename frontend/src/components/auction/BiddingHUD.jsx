@@ -7,7 +7,7 @@ import React, { useState } from 'react';
  *   placeBid     function(amount)  – from useWebSocket
  *   disabled     bool              – when not connected
  */
-export default function BiddingHUD({ currentBid = 0, placeBid, disabled = false }) {
+export default function BiddingHUD({ currentBid = 0, placeBid, disabled = false, status = 'none' }) {
     const current = typeof currentBid === 'string'
         ? parseFloat(currentBid.replace(/[^0-9.]/g, '')) || 0
         : Number(currentBid) || 0;
@@ -44,16 +44,30 @@ export default function BiddingHUD({ currentBid = 0, placeBid, disabled = false 
         <div className="rounded-2xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
             {/* Current bid */}
             <div className="flex items-center justify-between mb-5">
-                <div>
+                <div key={current} className="animate-bid-flash rounded-lg p-1 -m-1 transition-colors">
                     <p className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1">Current bid</p>
                     <p className="text-white font-black text-4xl">${current.toLocaleString()}</p>
                 </div>
-                {lastBid && (
-                    <div className="text-right">
-                        <p className="text-gray-600 text-xs mb-1">Your last bid</p>
-                        <p className="text-amber-400 font-bold text-lg">${lastBid.toLocaleString()}</p>
-                    </div>
-                )}
+                <div className="flex flex-col items-end gap-2">
+                    {status === 'winning' && (
+                        <div className="badge-live" style={{ background: 'rgba(34, 197, 94, 0.15)', borderColor: 'rgba(34, 197, 94, 0.3)', color: '#22c55e' }}>
+                            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                            GANANDO
+                        </div>
+                    )}
+                    {status === 'outbid' && (
+                        <div className="badge-live" style={{ background: 'rgba(245, 158, 11, 0.15)', borderColor: 'rgba(245, 158, 11, 0.3)', color: '#f59e0b' }}>
+                            <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                            SUPERADO
+                        </div>
+                    )}
+                    {lastBid && (
+                        <div className="text-right">
+                            <p className="text-gray-600 text-xs mb-1">Your last bid</p>
+                            <p className="text-amber-400 font-bold text-lg">${lastBid.toLocaleString()}</p>
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Quick bid buttons */}

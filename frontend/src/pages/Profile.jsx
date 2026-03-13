@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import Header from '../components/layout/Header';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
+import FavoriteButton from '../components/common/FavoriteButton';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -21,12 +22,19 @@ const Profile = () => {
     const { user, updateUser } = useAuth();
 
     const [myAuctions, setMyAuctions] = useState([]);
+    const [myFavorites, setMyFavorites] = useState([]);
+    const [myPayments, setMyPayments] = useState([]);
     const [walletBalance, setWalletBalance] = useState(0);
+    const [activeTab, setActiveTab] = useState('pujas');
+    const [selectedPaymentAuction, setSelectedPaymentAuction] = useState(null); // Auction being paid
+    const [paying, setPaying] = useState(false);
     const [loading, setLoading] = useState(true);
     const [isEditing, setIsEditing] = useState(false);
     const [avatarUploading, setAvatarUploading] = useState(false);
     const [avatarPreview, setAvatarPreview] = useState(null);
     const avatarInputRef = React.useRef(null);
+    const [rechargeAmount, setRechargeAmount] = useState(50);
+    const [recharging, setRecharging] = useState(false);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -44,66 +52,43 @@ const Profile = () => {
     const [saveError, setSaveError] = useState('');
     const [profile, setProfile] = useState(null);
 
-    useEffect(() => {
-        // Handle payment notifications
-        const params = new URLSearchParams(window.location.search);
-        const paymentStatus = params.get('payment');
-        const sessionId = params.get('session_id');
-
-        console.log("Payment redirect detected:", { paymentStatus, sessionId });
-
-        if (paymentStatus === 'success' && sessionId) {
-            const confirmPayment = async () => {
-                console.log("Confirming payment with session:", sessionId);
-                try {
-                    const res = await fetch(`${API}/auth/payment/confirm-session/${sessionId}`);
-                    const data = await res.json();
-                    console.log("Confirmation response:", data);
-                    if (res.ok) {
-                        alert(`¡Pago de ${data.amount}€ realizado con éxito!`);
-                        window.location.reload();
-                    } else {
-                        console.error("Payment confirmation failed:", data);
-                    }
-                } catch (err) {
-                    console.error("Confirmation fetch error:", err);
-                }
-            };
-            confirmPayment();
-            // Clean URL
-            window.history.replaceState({}, document.title, window.location.pathname);
-        } else if (paymentStatus === 'cancel') {
-            alert('El pago ha sido cancelado.');
-            window.history.replaceState({}, document.title, window.location.pathname);
+    const fetchUserAuctions = async () => {
+        if (!user) return;
+        try {
+            const token = localStorage.getItem('token');
+            const [profileRes, auctionsRes, favoritesRes, paymentsRes] = await Promise.all([
+                fetch(`${API}/auth/profile/${user.id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                }),
+                fetch(`${API}/auction/pujas/user/${user.id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                }),
+                fetch(`${API}/auction/favorites/${user.id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                }),
+                fetch(`${API}/auction/payments/${user.id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                }),
+            ]);
+            if (profileRes.ok) {
+                const p = await profileRes.json();
+                setProfile(p);
+                setEditUsername(p.username || '');
+                setEditBio(p.bio || '');
+                if (p.avatar_url) setAvatarPreview(`${API}${p.avatar_url}`);
+            }
+            if (auctionsRes.ok) setMyAuctions(await auctionsRes.json());
+            if (favoritesRes.ok) setMyFavorites(await favoritesRes.json());
+            if (paymentsRes.ok) setMyPayments(await paymentsRes.json());
+        } catch (error) {
+            console.error("Error fetching user data:", error);
+        } finally {
+            setLoading(false);
         }
-    }, []);
+    };
 
     useEffect(() => {
         if (!user) return;
-        const fetchUserAuctions = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                const [profileRes, auctionsRes] = await Promise.all([
-                    fetch(`${API}/auth/profile/${user.id}`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    }),
-                    fetch(`${API}/auction/pujas/user/${user.id}`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    }),
-                ]);
-                if (profileRes.ok) {
-                    const p = await profileRes.json();
-                    setProfile(p);
-                    setEditUsername(p.username || '');
-                    setEditBio(p.bio || '');
-                    if (p.avatar_url) setAvatarPreview(`${API}${p.avatar_url}`);
-                }
-            } catch (error) {
-                console.error("Error fetching user auctions:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
 
         const fetchWalletBalance = async () => {
             if (!user) return;
@@ -124,13 +109,44 @@ const Profile = () => {
         fetchWalletBalance();
 
         // Handle stripe redirect params
-        const query = new URLSearchParams(window.location.search);
-        if (query.get("success")) {
-            alert("Wallet recharged successfully!");
-        }
-        if (query.get("canceled")) {
-            alert("Recharge canceled.");
-        }
+        const handlePaymentRedirect = async () => {
+            const query = new URLSearchParams(window.location.search);
+            const success = query.get("success") || query.get("payment") === "success";
+            const sessionId = query.get("session_id");
+
+            if (success) {
+                if (sessionId) {
+                    try {
+                        const token = localStorage.getItem('token');
+                        const resp = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auth/payment/confirm-session/${sessionId}`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        if (resp.ok) {
+                            alert("¡Saldo recargado con éxito!");
+                            fetchWalletBalance();
+                            fetchUserAuctions();
+                        }
+                    } catch (err) {
+                        console.error("Error confirming session:", err);
+                    }
+                } else {
+                    alert("¡Pago realizado con éxito!");
+                    fetchWalletBalance();
+                    fetchUserAuctions();
+                }
+                // Clean URL
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+
+            if (query.get("canceled") || query.get("payment") === "cancel") {
+                alert("Operación cancelada.");
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        };
+
+        fetchUserAuctions();
+        fetchWalletBalance();
+        handlePaymentRedirect();
     }, [user]);
 
     const handleRecharge = async () => {
@@ -380,20 +396,26 @@ const Profile = () => {
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-indigo-400 font-black text-xl">
-                                        0
+                                        <div className="flex flex-col items-center">
+                                            <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
+                                                star
+                                            </span>
+                                            <span className="text-[10px] leading-none">{getReputationStars(profile?.total_sales).stars}</span>
+                                        </div>
                                     </div>
                                     <div className="flex flex-col text-left">
-                                        <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Total</span>
-                                        <span className="text-white font-medium">Pujas Realizadas</span>
+                                        <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Reputación</span>
+                                        <span className="text-white font-medium">{getReputationStars(profile?.total_sales).label}</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                    <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-green-400 font-black text-xl">
-                                        {profile?.wallet_balance || 0}€
+                                    <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-green-400 font-black text-xl flex-col">
+                                        <span className="text-[10px] text-gray-500 font-normal leading-none mb-0.5">Ventas</span>
+                                        <span className="leading-none">{profile?.total_sales || 0}</span>
                                     </div>
                                     <div className="flex flex-col text-left">
                                         <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Saldo</span>
-                                        <span className="text-white font-medium">Actual</span>
+                                        <span className="text-white font-medium">{profile?.wallet_balance || 0}€</span>
                                     </div>
                                 </div>
                             </div>
@@ -453,70 +475,273 @@ const Profile = () => {
 
                 {/* Content Section */}
                 <div className="space-y-6 mt-12">
-                    <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                        <h2 className="text-3xl font-black text-white flex items-center gap-3">
-                            <span className="text-amber-500">⚡</span> Mis Subastas
-                        </h2>
-                        <div className="flex gap-2">
-                            <button className="px-4 py-2 rounded-lg bg-white/10 text-white text-sm font-bold border border-white/5">Activas</button>
-                            <button className="px-4 py-2 rounded-lg text-gray-400 text-sm font-bold hover:text-white transition-colors">Pasadas</button>
-                        </div>
+                    <div className="flex items-center gap-6 border-b border-white/10 mb-8">
+                        <button 
+                            onClick={() => setActiveTab('pujas')}
+                            className={`pb-4 text-sm font-bold uppercase tracking-wider transition-all relative ${activeTab === 'pujas' ? 'text-amber-500' : 'text-gray-500 hover:text-white'}`}
+                        >
+                            Subastas creadas
+                            {activeTab === 'pujas' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500" />}
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('favorites')}
+                            className={`pb-4 text-sm font-bold uppercase tracking-wider transition-all relative ${activeTab === 'favorites' ? 'text-amber-500' : 'text-gray-500 hover:text-white'}`}
+                        >
+                            Mis Favoritos
+                            {activeTab === 'favorites' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500" />}
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('payments')}
+                            className={`pb-4 text-sm font-bold uppercase tracking-wider transition-all relative ${activeTab === 'payments' ? 'text-amber-500' : 'text-gray-500 hover:text-white'}`}
+                        >
+                            Mis Compras
+                            {activeTab === 'payments' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500" />}
+                        </button>
                     </div>
 
                     {loading ? (
                         <div className="flex justify-center py-20">
                             <div className="w-12 h-12 border-4 border-amber-500/30 border-t-amber-500 rounded-full animate-spin"></div>
                         </div>
-                    ) : myAuctions.length > 0 ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {myAuctions.map(auction => (
-                                <Link to={`/auction/photo/${auction.id}`} key={auction.id} className="group bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 hover:border-white/20 transition-all shadow-xl backdrop-blur-sm flex flex-col">
-                                    <div className="h-48 relative overflow-hidden bg-[#0a0a14]">
-                                        {auction.image_url ? (
-                                            <img src={auction.image_url} alt={auction.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-4xl opacity-20">🔨</div>
-                                        )}
-                                        <div className="absolute inset-0 bg-gradient-to-t from-[#08080f] via-transparent to-transparent opacity-80" />
-                                        <div className="absolute top-4 right-4">
-                                            <span className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest shadow-lg backdrop-blur-md ${auction.status === 'live' ? 'bg-red-500/80 text-white border border-red-500/50' :
-                                                auction.status === 'upcoming' ? 'bg-amber-500/80 text-black border border-amber-500/50' :
-                                                    'bg-white/20 text-white border border-white/10'
-                                                }`}>
-                                                {auction.status === 'live' ? 'En Vivo' : auction.status === 'upcoming' ? 'Próximamente' : 'Cerrada'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="p-6 flex-1 flex flex-col">
-                                        <h3 className="font-bold text-xl text-white mb-2 line-clamp-1 group-hover:text-amber-400 transition-colors">{auction.title}</h3>
-                                        <p className="text-sm text-gray-400 line-clamp-2 mb-6 flex-1">{auction.description}</p>
-                                        <div className="flex justify-between items-end">
-                                            <div>
-                                                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Puja Actual</p>
-                                                <p className="font-black text-2xl text-white tracking-tight">${auction.current_price || auction.starting_price}</p>
-                                            </div>
-                                            <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-black transition-all">
-                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </Link>
-                            ))}
-                        </div>
                     ) : (
-                        <div className="bg-white/5 border border-dashed border-white/20 rounded-3xl p-16 text-center backdrop-blur-sm">
-                            <div className="w-24 h-24 mx-auto mb-6 bg-white/5 rounded-full flex items-center justify-center text-4xl border border-white/10">
-                                🌟
-                            </div>
-                            <h3 className="text-2xl font-bold text-white mb-3">Tu escaparate está vacío</h3>
-                            <p className="text-gray-400 max-w-md mx-auto mb-8 text-lg">Aún no has publicado ningún artículo para subastar. Empieza a vender tus piezas exclusivas con la comunidad.</p>
-                            <Link to="/create-puja" className="inline-block px-8 py-4 bg-amber-500 text-black rounded-xl font-black hover:bg-amber-400 hover:shadow-[0_0_20px_rgba(251,191,36,0.4)] transition-all">
-                                Crear tu primera subasta
-                            </Link>
-                        </div>
+                        <>
+                            {activeTab === 'pujas' && (
+                                myAuctions.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                                        {myAuctions.map(auction => (
+                                            <Link to={`/auction/photo/${auction.id}`} key={auction.id} className="group bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 hover:border-white/20 transition-all shadow-xl backdrop-blur-sm flex flex-col">
+                                                <div className="h-48 relative overflow-hidden bg-[#0a0a14]">
+                                                    {auction.image_url ? (
+                                                        <img src={auction.image_url} alt={auction.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center text-4xl opacity-20">🔨</div>
+                                                    )}
+                                                    <div className="absolute inset-0 bg-gradient-to-t from-[#08080f] via-transparent to-transparent opacity-80" />
+                                                    <div className="absolute top-4 right-4">
+                                                        <span className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest shadow-lg backdrop-blur-md ${auction.status === 'live' ? 'bg-red-500/80 text-white border border-red-500/50' :
+                                                            auction.status === 'upcoming' ? 'bg-amber-500/80 text-black border border-amber-500/50' :
+                                                                'bg-white/20 text-white border border-white/10'
+                                                            }`}>
+                                                            {auction.status === 'live' ? 'En Vivo' : auction.status === 'upcoming' ? 'Próximamente' : 'Cerrada'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="p-6 flex-1 flex flex-col">
+                                                    <h3 className="font-bold text-xl text-white mb-2 line-clamp-1 group-hover:text-amber-400 transition-colors">{auction.title}</h3>
+                                                    <p className="text-sm text-gray-400 line-clamp-2 mb-6 flex-1">{auction.description}</p>
+                                                    <div className="flex justify-between items-end">
+                                                        <div>
+                                                            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Puja Actual</p>
+                                                            <p className="font-black text-2xl text-white tracking-tight">${auction.current_price?.toLocaleString() || auction.starting_price?.toLocaleString()}</p>
+                                                        </div>
+                                                        <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-black transition-all">
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </Link>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="bg-white/5 border border-dashed border-white/20 rounded-3xl p-16 text-center backdrop-blur-sm animate-fade-in">
+                                        <div className="w-24 h-24 mx-auto mb-6 bg-white/5 rounded-full flex items-center justify-center text-4xl border border-white/10">🌟</div>
+                                        <h3 className="text-2xl font-bold text-white mb-3">Tu escaparate está vacío</h3>
+                                        <p className="text-gray-400 max-w-md mx-auto mb-8 text-lg">Aún no has terminado ninguna subasta.</p>
+                                        <Link to="/create-puja" className="inline-block px-8 py-4 bg-amber-500 text-black rounded-xl font-black hover:bg-amber-400 transition-all">Crear subasta</Link>
+                                    </div>
+                                )
+                            )}
+
+                            {activeTab === 'favorites' && (
+                                myFavorites.length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                                        {myFavorites.map(auction => {
+                                            const isLive = auction.status === 'live';
+                                            const linkBase = isLive ? 'video' : 'photo';
+                                            return (
+                                                <div key={auction.id} className="relative group">
+                                                    <FavoriteButton 
+                                                        pujaId={auction.id} 
+                                                        className="absolute top-4 left-4 z-20" 
+                                                    />
+                                                    <Link to={`/auction/${linkBase}/${auction.id}`} className="block bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:bg-white/10 hover:border-white/20 transition-all shadow-xl backdrop-blur-sm flex flex-col h-full">
+                                                        <div className="h-48 relative overflow-hidden bg-[#0a0a14]">
+                                                            {auction.image_url ? (
+                                                                <img src={auction.image_url} alt={auction.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                                            ) : (
+                                                                <div className="w-full h-full flex items-center justify-center text-4xl opacity-20">hammer</div>
+                                                            )}
+                                                            <div className="absolute inset-0 bg-gradient-to-t from-[#08080f] via-transparent to-transparent opacity-80" />
+                                                        </div>
+                                                        <div className="p-6 flex-1 flex flex-col">
+                                                            <h3 className="font-bold text-xl text-white mb-2 line-clamp-1 group-hover:text-amber-400 transition-colors">{auction.title}</h3>
+                                                            <p className="text-sm text-gray-400 line-clamp-2 mb-6 flex-1">{auction.description}</p>
+                                                            <div className="flex justify-between items-end">
+                                                                <div>
+                                                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Precio actual</p>
+                                                                    <p className="font-black text-2xl text-white tracking-tight">${auction.current_price?.toLocaleString()}</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </Link>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="bg-white/5 border border-dashed border-white/20 rounded-3xl p-16 text-center backdrop-blur-sm animate-fade-in">
+                                        <div className="w-20 h-20 mx-auto mb-6 bg-white/5 rounded-full flex items-center justify-center text-3xl border border-white/10">❤️</div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Aún no tienes favoritos</h3>
+                                        <p className="text-gray-400 max-w-sm mx-auto mb-6">Guarda las subastas que te interesen.</p>
+                                        <Link to="/explore" className="inline-block px-6 py-3 bg-white/10 text-white rounded-xl font-bold hover:bg-white/20 transition-all">Explorar subastas</Link>
+                                    </div>
+                                )
+                            )}
+
+                            {activeTab === 'payments' && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
+                                    {myPayments.length > 0 ? (
+                                        myPayments.map(p => (
+                                            <div key={p.id} className="group relative rounded-2xl overflow-hidden bg-white/5 border border-white/10 hover:border-amber-500/30 transition-all duration-300">
+                                                <div className="aspect-[16/10] overflow-hidden relative bg-[#0a0a14]">
+                                                    {p.image_url ? (
+                                                        <img src={p.image_url} alt={p.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                                                    ) : <div className="w-full h-full flex items-center justify-center text-4xl opacity-20">🔨</div>}
+                                                    <div className="absolute top-3 right-3">
+                                                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md shadow-lg ${p.payment_status === 'paid' ? 'bg-emerald-500/80 text-white' : 'bg-amber-500/80 text-white'}`}>
+                                                            {p.payment_status === 'paid' ? 'Pagado' : 'Pendiente'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="p-5">
+                                                    <h3 className="text-white font-bold text-lg mb-1 truncate">{p.title}</h3>
+                                                    <p className="text-gray-500 text-xs mb-4">Vendedor: {p.seller_username}</p>
+                                                    <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/5">
+                                                        <div>
+                                                            <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-0.5">Precio Final</p>
+                                                            <p className="text-xl font-black text-white">${p.current_price?.toLocaleString()}</p>
+                                                        </div>
+                                                        {p.payment_status === 'pending' ? (
+                                                            <button 
+                                                                onClick={() => setSelectedPaymentAuction(p)}
+                                                                className="btn-primary py-2 px-6 text-sm flex items-center gap-2"
+                                                            >
+                                                                <span className="material-symbols-outlined text-sm">payments</span>
+                                                                Pagar
+                                                            </button>
+                                                        ) : (
+                                                            <div className="text-emerald-400 flex items-center gap-1.5 font-bold text-sm">
+                                                                <span className="material-symbols-outlined text-lg">check_circle</span>
+                                                                Completado
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="col-span-full py-20 flex flex-col items-center justify-center text-center bg-white/5 rounded-3xl border border-dashed border-white/10 animate-fade-in">
+                                            <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4 text-3xl">🛍️</div>
+                                            <h3 className="text-white font-bold text-xl mb-2">No tienes compras</h3>
+                                            <p className="text-gray-500 max-w-xs mx-auto text-sm">Aún no has ganado ninguna subasta.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             </main>
+
+            {/* Payment Selection Modal */}
+            {selectedPaymentAuction && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md animate-fade-in">
+                    <div className="bg-[#121218] border border-white/10 p-8 rounded-3xl max-w-sm w-full shadow-2xl animate-scale-in text-center">
+                        <div className="w-16 h-16 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-6">
+                            <span className="material-symbols-outlined text-amber-500 text-3xl">payments</span>
+                        </div>
+                        <h3 className="text-xl font-bold text-white mb-2">Finalizar Pago</h3>
+                        <p className="text-gray-500 text-sm mb-6">{selectedPaymentAuction.title}</p>
+                        <div className="text-3xl font-black text-white mb-8">${selectedPaymentAuction.current_price?.toLocaleString()}</div>
+                        
+                        <div className="flex flex-col gap-4">
+                            <button 
+                                disabled={paying}
+                                onClick={async () => {
+                                    setPaying(true);
+                                    try {
+                                        const resp = await fetch(`${API}/auction/pujas/${selectedPaymentAuction.id}/pay`, {
+                                            method: 'POST',
+                                            headers: { 
+                                                'Content-Type': 'application/json',
+                                                Authorization: `Bearer ${localStorage.getItem('token')}` 
+                                            },
+                                            body: JSON.stringify({ method: 'wallet' })
+                                        });
+                                        const data = await resp.json();
+                                        if (resp.ok) {
+                                            setSelectedPaymentAuction(null);
+                                            fetchUserAuctions();
+                                            alert('¡Pago realizado con éxito!');
+                                        } else {
+                                            alert(data.message || 'Error al pagar');
+                                        }
+                                    } catch (err) { console.error(err); }
+                                    finally { setPaying(false); }
+                                }}
+                                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all w-full text-left group"
+                            >
+                                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-black transition-all">
+                                    <span className="material-symbols-outlined">account_balance_wallet</span>
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-white font-bold text-sm">Mi Billetera</p>
+                                    <p className="text-gray-500 text-[10px]">Saldo disponible: ${walletBalance}</p>
+                                </div>
+                            </button>
+
+                            <button 
+                                disabled={paying}
+                                onClick={async () => {
+                                    setPaying(true);
+                                    try {
+                                        const resp = await fetch(`${API}/auction/pujas/${selectedPaymentAuction.id}/pay`, {
+                                            method: 'POST',
+                                            headers: { 
+                                                'Content-Type': 'application/json',
+                                                Authorization: `Bearer ${localStorage.getItem('token')}` 
+                                            },
+                                            body: JSON.stringify({ method: 'stripe' })
+                                        });
+                                        const data = await resp.json();
+                                        if (resp.ok && data.url) {
+                                            window.location.href = data.url;
+                                        }
+                                    } catch (err) { console.error(err); }
+                                    finally { setPaying(false); }
+                                }}
+                                className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all w-full text-left group"
+                            >
+                                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 group-hover:bg-indigo-500 group-hover:text-white transition-all">
+                                    <span className="material-symbols-outlined">credit_card</span>
+                                </div>
+                                <div className="flex-1">
+                                    <p className="text-white font-bold text-sm">Tarjeta bancaria</p>
+                                    <p className="text-gray-500 text-[10px]">Stripe Secure Payment</p>
+                                </div>
+                            </button>
+
+                            <button 
+                                onClick={() => setSelectedPaymentAuction(null)}
+                                disabled={paying}
+                                className="mt-4 text-gray-500 text-sm font-bold hover:text-white transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

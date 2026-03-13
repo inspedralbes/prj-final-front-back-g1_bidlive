@@ -51,7 +51,7 @@ const User = {
   },
 
   findById: async (id) => {
-    const sql = "SELECT id, username, email, avatar_url, billing_address, payment_method, wallet_balance FROM users WHERE id = ?";
+    const sql = "SELECT id, username, email, avatar_url, billing_address, payment_method, wallet_balance, reputation_score, total_sales FROM users WHERE id = ?";
     const result = await db.query(sql, [id]);
     const rows = Array.isArray(result[0]) ? result[0] : result;
     return rows && rows.length > 0 ? rows[0] : null;
@@ -64,7 +64,7 @@ const User = {
     return rows && rows.length > 0 ? rows[0] : null;
   },
 
-  updateProfile: async (id, { username, bio }) => {
+  updateBasicProfile: async (id, { username, bio }) => {
     const sql = "UPDATE users SET username = ?, bio = ? WHERE id = ?";
     return db.query(sql, [username, bio, id]);
   },
@@ -79,7 +79,7 @@ const User = {
     return bcrypt.compare(password, hash);
   },
 
-  updateProfile: async (id, { username, avatar_url, billing_address, payment_method }) => {
+  updateFullProfile: async (id, { username, avatar_url, billing_address, payment_method }) => {
     const sql = "UPDATE users SET username = ?, avatar_url = ?, billing_address = ?, payment_method = ? WHERE id = ?";
     return db.query(sql, [username, avatar_url, billing_address, payment_method, id]);
   },
@@ -87,6 +87,14 @@ const User = {
   addMoney: async (userId, amount) => {
     const sql = "UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?";
     return db.query(sql, [amount, userId]);
+  },
+
+  subtractMoney: async (userId, amount) => {
+    const sql = "UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ? AND wallet_balance >= ?";
+    const result = await db.query(sql, [amount, userId, amount]);
+    // result[0].affectedRows might be nested depending on mysql2 version/wrapper
+    const affectedRows = result[0]?.affectedRows ?? result.affectedRows;
+    return affectedRows > 0;
   },
 };
 
