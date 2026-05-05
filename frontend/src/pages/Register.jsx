@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { GoogleLogin } from '@react-oauth/google';
 
 const GlowOrb = ({ className }) => (
@@ -13,6 +14,7 @@ export default function Register() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const { register, googleLogin } = useAuth();
+    const { t } = useLanguage();
     const navigate = useNavigate();
 
     const set = (field) => (e) => setForm(prev => ({ ...prev, [field]: e.target.value }));
@@ -77,17 +79,17 @@ export default function Register() {
 
                 <div className="z-10 space-y-6">
                     <h1 className="text-5xl font-black leading-tight text-white">
-                        Join the world's<br />
-                        <span className="text-amber-400">fastest growing</span><br />
-                        auction platform.
+                        {t('register.title1')}<br />
+                        <span className="text-amber-400">{t('register.title2')}</span><br />
+                        {t('register.title3')}
                     </h1>
                     <p className="text-gray-400 text-lg max-w-sm leading-relaxed">
-                        Buy, sell and bid on unique items — all in real-time. Create your account in seconds.
+                        {t('register.subtitle')}
                     </p>
                 </div>
 
                 <div className="z-10 flex gap-8">
-                    {[['Free', 'Account creation'], ['Real-time', 'Bidding experience'], ['Secure', 'Transactions']].map(([val, label]) => (
+                    {[['Free', t('register.stat1')], ['Real-time', t('register.stat2')], ['Secure', t('register.stat3')]].map(([val, label]) => (
                         <div key={label}>
                             <p className="text-amber-400 text-2xl font-black">{val}</p>
                             <p className="text-gray-500 text-xs mt-0.5">{label}</p>
@@ -109,8 +111,8 @@ export default function Register() {
 
                 <div className="w-full max-w-md animate-fade-in">
                     <div className="mb-8">
-                        <h2 className="text-3xl font-black text-white">Create your account</h2>
-                        <p className="text-gray-400 mt-2">Start bidding in seconds.</p>
+                        <h2 className="text-3xl font-black text-white">{t('register.create')}</h2>
+                        <p className="text-gray-400 mt-2">{t('register.createSub')}</p>
                     </div>
 
                     {error && (
@@ -122,22 +124,22 @@ export default function Register() {
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
-                            <label className="input-label">Username</label>
-                            <input className="input-field" type="text" placeholder="coolbidder99" value={form.username}
+                            <label className="input-label">{t('register.username')}</label>
+                            <input className="input-field" type="text" placeholder={t('register.userPlaceholder')} value={form.username}
                                 onChange={set('username')} required minLength={3} />
                         </div>
 
                         <div>
-                            <label className="input-label">Email address</label>
-                            <input className="input-field" type="email" placeholder="you@example.com" value={form.email}
+                            <label className="input-label">{t('register.email')}</label>
+                            <input className="input-field" type="email" placeholder={t('register.emailPlaceholder')} value={form.email}
                                 onChange={set('email')} required autoComplete="email" />
                         </div>
 
                         <div>
-                            <label className="input-label">Password</label>
+                            <label className="input-label">{t('register.pass')}</label>
                             <div className="relative">
                                 <input className="input-field pr-12" type={showPass ? 'text' : 'password'}
-                                    placeholder="Min. 6 characters" value={form.password}
+                                    placeholder={t('register.passPlaceholder')} value={form.password}
                                     onChange={set('password')} required minLength={6} autoComplete="new-password" />
                                 <button type="button" onClick={() => setShowPass(v => !v)}
                                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors" tabIndex={-1}>
@@ -160,12 +162,12 @@ export default function Register() {
                         </div>
 
                         <div>
-                            <label className="input-label">Confirm password</label>
+                            <label className="input-label">{t('register.confirm')}</label>
                             <input className="input-field" type={showPass ? 'text' : 'password'}
-                                placeholder="Repeat your password" value={form.confirm}
+                                placeholder={t('register.confirmPlaceholder')} value={form.confirm}
                                 onChange={set('confirm')} required autoComplete="new-password" />
                             {form.confirm && form.confirm !== form.password && (
-                                <p className="text-xs text-red-400 mt-1">Passwords don't match</p>
+                                <p className="text-xs text-red-400 mt-1">{t('register.passMismatch')}</p>
                             )}
                         </div>
 
@@ -173,7 +175,7 @@ export default function Register() {
                             className="btn-primary w-full py-3 text-base mt-2">
                             {loading ? (
                                 <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /></svg>
-                            ) : 'Create account'}
+                            ) : t('register.btnCreate')}
                         </button>
                     </form>
 
@@ -183,7 +185,7 @@ export default function Register() {
                                 <div className="w-full border-t border-gray-700"></div>
                             </div>
                             <div className="relative flex justify-center text-sm">
-                                <span className="px-2 bg-[#08080f] text-gray-400">Or continue with</span>
+                                <span className="px-2 bg-[#08080f] text-gray-400">{t('register.or')}</span>
                             </div>
                         </div>
 
@@ -211,9 +213,9 @@ export default function Register() {
 
                     <div className="mt-8 text-center">
                         <p className="text-gray-500 text-sm">
-                            Already have an account?{' '}
+                            {t('register.hasAccount')}{' '}
                             <Link to="/login" className="text-amber-400 font-semibold hover:text-amber-300 transition-colors">
-                                Sign in
+                                {t('register.signIn')}
                             </Link>
                         </p>
                     </div>

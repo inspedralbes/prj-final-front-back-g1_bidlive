@@ -16,28 +16,31 @@ import Profile from "./pages/Profile";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
+import { LanguageProvider } from "./context/LanguageContext";
 
 function App() {
   return (
     <Router>
       <AuthProvider>
-        <Routes>
-          {/* Public routes */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
+        <LanguageProvider>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
 
-          {/* Protected routes */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/" element={<Home />} />
-            <Route path="/explore" element={<Search />} />
-            <Route path="/auction/video/:id" element={<LiveAuctionVideo />} />
-            <Route path="/seller" element={<SellerDashboard />} />
-            <Route path="/seller/live/video/:id" element={<SellerLiveVideo />} />
-            <Route path="/create-puja" element={<CreatePuja />} />
-            <Route path="/profile" element={<Profile />} />
-          </Route>
-        </Routes>
+            {/* Protected routes */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/" element={<Home />} />
+              <Route path="/explore" element={<Search />} />
+              <Route path="/auction/video/:id" element={<LiveAuctionVideo />} />
+              <Route path="/seller" element={<SellerDashboard />} />
+              <Route path="/seller/live/video/:id" element={<SellerLiveVideo />} />
+              <Route path="/create-puja" element={<CreatePuja />} />
+              <Route path="/profile" element={<Profile />} />
+            </Route>
+          </Routes>
+        </LanguageProvider>
       </AuthProvider>
     </Router>
   );

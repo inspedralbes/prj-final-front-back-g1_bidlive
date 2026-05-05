@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { usePujas } from '../../hooks/usePujas';
+import { useLanguage } from '../../context/LanguageContext';
 
 const statusColor = (status) => {
     if (status === 'live') return { text: '#ef4444', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.2)' };
@@ -22,15 +23,16 @@ const SkeletonRow = () => (
 
 export default function ActiveListings() {
     const { data: allAuctions, loading, error } = usePujas();
+    const { t } = useLanguage();
     // Only show live and upcoming auctions — ended ones are hidden from viewers
     const auctions = allAuctions.filter(a => a.status !== 'ended');
 
     return (
         <section>
             <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-black text-white">All auctions</h2>
+                <h2 className="text-2xl font-black text-white">{t('activeListings.title')}</h2>
                 <Link to="/explore" className="text-sm text-amber-400 hover:text-amber-300 transition-colors font-medium flex items-center gap-1">
-                    Browse all
+                    {t('activeListings.browseAll')}
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                 </Link>
             </div>
@@ -44,16 +46,16 @@ export default function ActiveListings() {
 
                 {error && !loading && (
                     <div className="p-8 text-center">
-                        <p className="text-gray-500 text-sm">Failed to load auctions. Is the backend running?</p>
+                        <p className="text-gray-500 text-sm">{t('activeListings.error')}</p>
                     </div>
                 )}
 
                 {!loading && !error && auctions.length === 0 && (
                     <div className="p-12 text-center">
-                        <p className="text-gray-400 font-medium">No auctions yet</p>
-                        <p className="text-gray-600 text-sm mt-1">Be the first to create one!</p>
+                        <p className="text-gray-400 font-medium">{t('activeListings.emptyTitle')}</p>
+                        <p className="text-gray-600 text-sm mt-1">{t('activeListings.emptySub')}</p>
                         <Link to="/create-puja" className="btn-primary mt-5 inline-flex text-sm px-6 py-2.5">
-                            Create auction
+                            {t('activeListings.createBtn')}
                         </Link>
                     </div>
                 )}
@@ -63,10 +65,10 @@ export default function ActiveListings() {
                         {/* Header row */}
                         <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3 border-b"
                             style={{ borderColor: 'var(--border)', background: 'rgba(255,255,255,0.02)' }}>
-                            <span className="col-span-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Item</span>
-                            <span className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Seller</span>
-                            <span className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</span>
-                            <span className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Bid</span>
+                            <span className="col-span-5 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('activeListings.colItem')}</span>
+                            <span className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('activeListings.colSeller')}</span>
+                            <span className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('activeListings.colStatus')}</span>
+                            <span className="col-span-2 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">{t('activeListings.colBid')}</span>
                             <span className="col-span-1" />
                         </div>
 
@@ -104,7 +106,7 @@ export default function ActiveListings() {
                                         {/* Status */}
                                         <div className="hidden md:flex col-span-2 items-center">
                                             <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ color: col.text, background: col.bg, border: `1px solid ${col.border}` }}>
-                                                {a.status === 'live' ? '● Live' : a.status || 'active'}
+                                                {a.status === 'live' ? `● ${t('activeListings.statusLive')}` : a.status || 'active'}
                                             </span>
                                         </div>
 
@@ -119,7 +121,7 @@ export default function ActiveListings() {
                                                 to={`/auction/video/${a.id}`}
                                                 className="btn-primary text-xs py-2 px-3 gap-1"
                                             >
-                                                {a.status === 'live' ? 'Join' : 'View'}
+                                                {a.status === 'live' ? t('activeListings.actionJoin') : t('activeListings.actionView')}
                                             </Link>
                                         </div>
                                     </div>

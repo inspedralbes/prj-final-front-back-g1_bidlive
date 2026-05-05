@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import Header from '../components/layout/Header';
 import { usePujas } from '../hooks/usePujas';
 import { useCategories } from '../hooks/useCategories';
+import { useLanguage } from '../context/LanguageContext';
 
 const getReputationStars = (sales) => {
     if (!sales || sales === 0) return { stars: 0, label: "New" };
@@ -86,6 +87,7 @@ const SkeletonCard = () => (
 );
 
 export default function Search() {
+    const { t } = useLanguage();
     const [searchParams, setSearchParams] = useSearchParams();
     const [input, setInput] = useState(searchParams.get('q') || '');
     const [query, setQuery] = useState(searchParams.get('q') || '');
@@ -152,7 +154,7 @@ export default function Search() {
                 {/* Search bar */}
                 <div className="max-w-2xl mx-auto mb-10">
                     <h1 className="text-4xl font-black text-white text-center mb-8">
-                        Explore <span className="text-amber-400">auctions</span>
+                        {t('search.title1')}<span className="text-amber-400">{t('search.title2')}</span>
                     </h1>
                     <form onSubmit={handleSearch} className="flex gap-3">
                         <div className="relative flex-1">
@@ -163,12 +165,12 @@ export default function Search() {
                             <input
                                 className="input-field pl-11"
                                 type="text"
-                                placeholder="Search by item name..."
+                                placeholder={t('search.searchPlaceholder')}
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                             />
                         </div>
-                        <button type="submit" className="btn-primary px-6">Search</button>
+                        <button type="submit" className="btn-primary px-6">{t('search.searchBtn')}</button>
                     </form>
                 </div>
 
@@ -184,7 +186,7 @@ export default function Search() {
                                     : { background: 'rgba(255,255,255,0.07)', color: '#9ca3af', border: '1px solid rgba(255,255,255,0.1)' }
                             }
                         >
-                            All
+                            {t('search.allBtn')}
                         </button>
                         {categories.map(cat => (
                             <button
@@ -208,8 +210,8 @@ export default function Search() {
                 <div className="flex items-center justify-between mb-5">
                     <p className="text-gray-400 text-sm">
                         {loading
-                            ? 'Searching...'
-                            : `${auctions.length} auction${auctions.length !== 1 ? 's' : ''} found${activeCategoryName ? ` in "${activeCategoryName}"` : ''}${query ? ` for "${query}"` : ''}`}
+                            ? t('search.searching')
+                            : `${auctions.length} ${auctions.length !== 1 ? t('search.found') : t('search.foundSingle')}${activeCategoryName ? ` ${t('search.inCategory')} "${activeCategoryName}"` : ''}${query ? ` ${t('search.forQuery')} "${query}"` : ''}`}
                     </p>
                     {hasFilters && (
                         <button
@@ -217,7 +219,7 @@ export default function Search() {
                             className="text-xs text-gray-500 hover:text-gray-300 transition-colors flex items-center gap-1"
                         >
                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
-                            Clear all filters
+                            {t('search.clearAll')}
                         </button>
                     )}
                 </div>
@@ -231,7 +233,7 @@ export default function Search() {
 
                 {error && !loading && (
                     <div className="rounded-xl p-8 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                        <p className="text-gray-500 text-sm">Unable to load auctions. Please try again.</p>
+                        <p className="text-gray-500 text-sm">{t('search.error')}</p>
                     </div>
                 )}
 
@@ -241,17 +243,17 @@ export default function Search() {
                             style={{ background: 'rgba(245,158,11,0.1)' }}>
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(245,158,11,0.6)" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
                         </div>
-                        <p className="text-gray-400 font-medium text-lg">No auctions found</p>
+                        <p className="text-gray-400 font-medium text-lg">{t('search.noTitle')}</p>
                         <p className="text-gray-600 text-sm mt-2">
-                            {hasFilters ? 'No results for the current filters.' : 'Be the first to create an auction!'}
+                            {hasFilters ? t('search.noSubFiltered') : t('search.noSubEmpty')}
                         </p>
                         {hasFilters ? (
                             <button onClick={clearAll} className="btn-primary mt-6 inline-flex text-sm px-6 py-2.5">
-                                Clear filters
+                                {t('search.clearBtn')}
                             </button>
                         ) : (
                             <Link to="/create-puja" className="btn-primary mt-6 inline-flex text-sm px-6 py-2.5">
-                                Create auction
+                                {t('search.createBtn')}
                             </Link>
                         )}
                     </div>
