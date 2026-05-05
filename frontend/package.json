@@ -7,10 +7,12 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "api:generate": "openapi-typescript ../openspec/specs/auth-spec.yaml -o ./src/api/auth-schema.d.ts && openapi-typescript ../openspec/specs/auction-spec.yaml -o ./src/api/auction-schema.d.ts && openapi-typescript ../openspec/specs/bidding-spec.yaml -o ./src/api/bidding-schema.d.ts"
   },
   "dependencies": {
     "@react-oauth/google": "^0.13.4",
+    "axios": "^1.16.0",
     "clsx": "^2.1.1",
     "jwt-decode": "^4.0.0",
     "react": "^19.2.0",
@@ -21,6 +23,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@openapitools/openapi-generator-cli": "^2.32.0",
     "@tailwindcss/vite": "^4.0.0",
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
@@ -30,6 +33,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "openapi-typescript": "^7.13.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
     "vite": "^7.2.4"

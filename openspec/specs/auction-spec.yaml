@@ -1,0 +1,270 @@
+openapi: 3.0.3
+info:
+  title: BidLife Auction Service API
+  description: Gestión de subastas, categorías y favoritos para BidLife.
+  version: 1.0.0
+servers:
+  - url: /auctions
+    description: Base URL (gateway /auctions)
+
+tags:
+  - name: Categories
+    description: Gestión de categorías de subastas
+  - name: Auctions
+    description: Operaciones principales de subastas
+  - name: Favorites
+    description: Gestión de favoritos del usuario
+  - name: Payments
+    description: Procesamiento de pagos de subastas
+
+components:
+  schemas:
+    Category:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        slug: { type: string }
+
+    Puja:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        category: { type: string }
+        current_price: { type: number }
+        starting_price: { type: number }
+        image_url: { type: string }
+        seller_id: { type: integer }
+        status:
+          type: string
+          enum: [upcoming, live, ended]
+        winner_id: { type: integer, nullable: true }
+        payment_status:
+          type: string
+          enum: [pending, paid]
+
+    FormattedPuja:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        img: { type: string }
+        seller: { type: string }
+        sellerId: { type: integer }
+        sellerReputation: { type: number }
+        sellerTotalSales: { type: number }
+        sellerImg: { type: string }
+        category: { type: string }
+        currentPrice: { type: number }
+        bid: { type: string }
+        viewers: { type: integer }
+        status: { type: string }
+
+paths:
+  /categories:
+    get:
+      tags: [Categories]
+      operationId: getCategories
+      summary: Obtener todas las categorías
+      responses:
+        '200':
+          description: Lista de categorías
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+
+  /pujas:
+    get:
+      tags: [Auctions]
+      operationId: listAuctions
+      summary: Listar subastas con filtros
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: categoryId
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Lista de subastas formateadas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FormattedPuja'
+    post:
+      tags: [Auctions]
+      operationId: createAuction
+      summary: Crear una nueva subasta
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [title, startingPrice, sellerId]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                category: { type: string }
+                reservePrice: { type: number }
+                duration: { type: integer }
+                mode: { type: string }
+                startingPrice: { type: number }
+                sellerId: { type: integer }
+                image:
+                  type: string
+                  format: binary
+      responses:
+        '201':
+          description: Subasta creada
+
+  /pujas/{id}:
+    get:
+      tags: [Auctions]
+      operationId: getAuctionDetails
+      summary: Obtener detalles de una subasta
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Detalles de la subasta
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Puja'
+
+  /pujas/{id}/start:
+    post:
+      tags: [Auctions]
+      operationId: startAuction
+      summary: Iniciar subasta (cambiar a live)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Subasta iniciada
+
+  /pujas/{id}/end:
+    post:
+      tags: [Auctions]
+      operationId: endAuction
+      summary: Finalizar subasta y declarar ganador
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                winnerId: { type: integer }
+                finalPrice: { type: number }
+      responses:
+        '200':
+          description: Subasta finalizada
+
+  /pujas/user/{userId}:
+    get:
+      tags: [Auctions]
+      operationId: listAuctionsBySeller
+      summary: Listar subastas de un vendedor
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Lista de subastas del usuario
+
+  /favorites:
+    post:
+      tags: [Favorites]
+      operationId: toggleFavorite
+      summary: Alternar favorito
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, pujaId]
+              properties:
+                userId: { type: integer }
+                pujaId: { type: integer }
+      responses:
+        '200':
+          description: Estado del favorito actualizado
+
+  /favorites/{userId}:
+    get:
+      tags: [Favorites]
+      operationId: getFavoritesByUser
+      summary: Obtener favoritos de un usuario
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Lista de favoritos
+
+  /payments/{userId}:
+    get:
+      tags: [Payments]
+      operationId: getPaymentsByWinner
+      summary: Obtener pagos pendientes/realizados de un ganador
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Lista de subastas ganadas y su estado de pago
+
+  /pujas/{id}/pay:
+    post:
+      tags: [Payments]
+      operationId: processAuctionPayment
+      summary: Procesar pago de una subasta ganada
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [method]
+              properties:
+                method:
+                  type: string
+                  enum: [wallet, stripe]
+      responses:
+        '200':
+          description: Pago procesado o redirección a Stripe

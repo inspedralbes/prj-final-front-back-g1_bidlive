@@ -6,6 +6,11 @@ const Puja = require('./models/Puja');
 const Category = require('./models/Category');
 const pujaController = require('./controllers/pujaController');
 const categoryController = require('./controllers/categoryController');
+const swaggerUi = require('swagger-ui-express');
+const YAML = require('yamljs');
+const OpenApiValidator = require('express-openapi-validator');
+
+const openApiSpec = YAML.load(path.join(__dirname, "../../openspec/specs/auction-spec.yaml"));
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -13,6 +18,18 @@ const port = process.env.PORT || 3001;
 
 // app.use(cors());
 app.use(express.json());
+
+// ── OpenAPI / Swagger ────────────────────────────────────────────────────────
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
+
+app.use(
+    OpenApiValidator.middleware({
+        apiSpec: path.join(__dirname, "../../openspec/specs/auction-spec.yaml"),
+        validateRequests: true,
+        validateResponses: false,
+        ignorePaths: (path) => path.includes('/uploads'),
+    })
+);
 
 // Configure Multer for file uploads
 const multer = require('multer');

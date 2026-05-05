@@ -1,0 +1,287 @@
+openapi: 3.0.3
+info:
+  title: BidLife Auth Service API
+  description: Servicio de autenticación, perfiles y billetera para la plataforma BidLife.
+  version: 1.0.0
+servers:
+  - url: /auth
+    description: Base URL (precedida por el gateway)
+
+tags:
+  - name: Auth
+    description: Operaciones de autenticación (Login/Registro)
+  - name: Profile
+    description: Gestión de perfiles de usuario
+  - name: Wallet
+    description: Gestión de saldo y pagos
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+        avatar_url:
+          type: string
+          nullable: true
+        wallet_balance:
+          type: number
+        bio:
+          type: string
+          nullable: true
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+paths:
+  /register:
+    post:
+      tags: [Auth]
+      operationId: registerUser
+      summary: Registrar un nuevo usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, email, password]
+              properties:
+                username: { type: string }
+                email: { type: string, format: email }
+                password: { type: string, minLength: 6 }
+      responses:
+        '201':
+          description: Usuario creado exitosamente
+        '400':
+          description: Datos inválidos
+        '409':
+          description: El usuario ya existe
+
+  /login:
+    post:
+      tags: [Auth]
+      operationId: loginUser
+      summary: Iniciar sesión con email y contraseña
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Credenciales inválidas
+
+  /google:
+    post:
+      tags: [Auth]
+      operationId: googleLogin
+      summary: Iniciar sesión con Google
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token]
+              properties:
+                token: { type: string }
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /profile/{id}:
+    get:
+      tags: [Profile]
+      operationId: getUserProfile
+      summary: Obtener perfil público de un usuario
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Datos del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '404':
+          description: Usuario no encontrado
+    put:
+      tags: [Profile]
+      operationId: updateProfileById
+      summary: Actualizar perfil (id en path)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string }
+                avatar_url: { type: string }
+                billing_address: { type: string }
+                payment_method: { type: string }
+      responses:
+        '200':
+          description: Perfil actualizado
+
+  /profile:
+    put:
+      tags: [Profile]
+      operationId: updateOwnProfile
+      summary: Actualizar perfil propio (username y bio)
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username: { type: string }
+                bio: { type: string }
+      responses:
+        '200':
+          description: Perfil actualizado
+
+  /profile/avatar:
+    post:
+      tags: [Profile]
+      operationId: uploadAvatar
+      summary: Subir avatar del usuario
+      security:
+        - bearerAuth: []
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                avatar:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Avatar actualizado
+
+  /wallet/balance:
+    get:
+      tags: [Wallet]
+      operationId: getWalletBalance
+      summary: Obtener balance de la billetera
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Balance actual
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  wallet: { type: number }
+                  balance: { type: number }
+
+  /wallet/recharge:
+    post:
+      tags: [Wallet]
+      operationId: rechargeWallet
+      summary: Crear sesión de Stripe para recarga
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { type: number }
+                auctionId: { type: string }
+      responses:
+        '200':
+          description: Sesión creada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  url: { type: string }
+
+  /wallet/pay:
+    post:
+      tags: [Wallet]
+      operationId: payFromWallet
+      summary: Pagar con el saldo de la billetera
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { type: number }
+      responses:
+        '200':
+          description: Pago exitoso
+        '400':
+          description: Saldo insuficiente
+
+  /payment/confirm-session/{sessionId}:
+    get:
+      tags: [Wallet]
+      operationId: confirmPaymentSession
+      summary: Confirmar estado de una sesión de pago
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Estado del pago

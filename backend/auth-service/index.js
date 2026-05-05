@@ -8,6 +8,11 @@ const paymentController = require("./controllers/paymentController");
 const profileController = require("./controllers/profileController");
 const User = require("./models/User");
 const authMiddleware = require("./middleware/authMiddleware");
+const swaggerUi = require("swagger-ui-express");
+const YAML = require("yamljs");
+const OpenApiValidator = require("express-openapi-validator");
+
+const openApiSpec = YAML.load(path.join(__dirname, "../../openspec/specs/auth-spec.yaml"));
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -23,6 +28,18 @@ app.use(express.json({
 
 // Serve uploaded avatars as static files
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// ── OpenAPI / Swagger ────────────────────────────────────────────────────────
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(openApiSpec));
+
+app.use(
+  OpenApiValidator.middleware({
+    apiSpec: path.join(__dirname, "../../openspec/specs/auth-spec.yaml"),
+    validateRequests: true,
+    validateResponses: false, // Set to true if you want to strictly validate responses too
+    ignorePaths: (path) => path.includes("/webhook") || path.includes("/uploads"),
+  }),
+);
 
 // ── Avatar uploads ──────────────────────────────────────────────────────────
 const avatarDir = path.join(__dirname, "uploads", "avatars");
