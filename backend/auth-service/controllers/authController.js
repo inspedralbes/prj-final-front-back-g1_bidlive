@@ -128,7 +128,11 @@ const authController = {
 
   uploadAvatar: async (req, res) => {
     try {
-      const { id } = req.params;
+      // Use the authenticated userId from the JWT token (set by authMiddleware)
+      // Fall back to the URL param only as a secondary option
+      const id = (req.user && req.user.userId) ? req.user.userId : req.params.id;
+
+      console.log(`[uploadAvatar] userId from token: ${req.user?.userId}, param id: ${req.params.id}, using: ${id}`);
 
       if (!req.file) {
         return res.status(400).json({ message: "No image file provided" });
