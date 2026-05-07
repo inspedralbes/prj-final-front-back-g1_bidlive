@@ -282,7 +282,7 @@ export default function Search() {
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(245,158,11,0.6)" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
                         </div>
                         <p className="text-gray-400 font-medium text-lg">
-                            {searchType === 'auctions' ? '{t('search.noTitle')}' : 'No sellers found'}
+                            {searchType === 'auctions' ? t('search.noTitle') : 'No sellers found'}
                         </p>
                         <p className="text-gray-600 text-sm mt-2">
                             {query ? `Try searching for something else.` : (searchType === 'auctions' ? 'Be the first to create an auction!' : 'Be the first seller!')}

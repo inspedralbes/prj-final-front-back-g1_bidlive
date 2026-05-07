@@ -42,8 +42,6 @@ const Profile = () => {
     const [avatarUploading, setAvatarUploading] = useState(false);
     const [avatarPreview, setAvatarPreview] = useState(null);
     const avatarInputRef = React.useRef(null);
-    const [rechargeAmount, setRechargeAmount] = useState(50);
-    const [recharging, setRecharging] = useState(false);
     const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
 
     // Form state
