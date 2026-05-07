@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useChat } from '../../hooks/useChat';
+import NotificationBell from '../common/NotificationBell';
 import { useLanguage } from '../../context/LanguageContext';
 
 const FlagCA = () => (
@@ -31,13 +33,13 @@ const Logo = () => (
     </Link>
 );
 
-const NavLink = ({ to, children, active }) => (
+const NavLink = ({ to, children, active, className = "" }) => (
     <Link
         to={to}
         className={`text-sm font-medium transition-colors px-1 py-0.5 ${active
             ? 'text-amber-400'
             : 'text-gray-400 hover:text-white'
-            }`}
+            } ${className}`}
     >
         {children}
     </Link>
@@ -45,6 +47,7 @@ const NavLink = ({ to, children, active }) => (
 
 export default function Header() {
     const { user, logout } = useAuth();
+    const chatData = useChat();
     const { language, setLanguage, t } = useLanguage();
     const navigate = useNavigate();
     const location = useLocation();
@@ -126,9 +129,18 @@ export default function Header() {
 
                 {/* Nav links — desktop */}
                 <nav className="hidden md:flex items-center gap-6">
-                    <NavLink to="/" active={isActive('/')}>{t('nav.home')}</NavLink>
-                    <NavLink to="/explore" active={isActive('/explore')}>{t('nav.explore')}</NavLink>
-                    {user && <NavLink to="/seller" active={isActive('/seller')}>{t('nav.dashboard')}</NavLink>}
+                    <NavLink to="/" active={isActive('/')}>Home</NavLink>
+                    <NavLink to="/explore" active={isActive('/explore') && !location.search.includes('type=sellers')}>Explore</NavLink>
+                    <NavLink to="/explore?type=sellers" active={location.search.includes('type=sellers')}>Sellers</NavLink>
+                    {user && (
+                        <NavLink to="/messages" active={location.pathname.startsWith('/messages')} className="relative">
+                            Messages
+                            {chatData.totalUnread > 0 && (
+                                <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                            )}
+                        </NavLink>
+                    )}
+                    {user && <NavLink to="/seller" active={isActive('/seller')}>Dashboard</NavLink>}
                 </nav>
 
                 {/* Right */}
@@ -136,7 +148,7 @@ export default function Header() {
                     {/* Language Switcher */}
                     <div className="flex items-center gap-2 border-r border-white/10 pr-3 mr-1">
                         <button onClick={() => setLanguage('es')} className={`text-[15px] transition-transform ${language === 'es' ? 'scale-125 opacity-100 grayscale-0' : 'opacity-50 grayscale hover:grayscale-0 hover:opacity-100'} cursor-pointer`} title="Español">🇪🇸</button>
-                        <button onClick={() => setLanguage('ca')} className={`transition-transform flex items-center justify-center ${language === 'ca' ? 'scale-125 opacity-100 grayscale-0' : 'opacity-50 grayscale hover:grayscale-0 hover:opacity-100'} cursor-pointer`} title="Català" style={{width: '20px', height: '20px'}}><FlagCA /></button>
+                        <button onClick={() => setLanguage('ca')} className={`transition-transform flex items-center justify-center ${language === 'ca' ? 'scale-125 opacity-100 grayscale-0' : 'opacity-50 grayscale hover:grayscale-0 hover:opacity-100'} cursor-pointer`} title="Català" style={{ width: '20px', height: '20px' }}><FlagCA /></button>
                         <button onClick={() => setLanguage('en')} className={`text-[15px] transition-transform ${language === 'en' ? 'scale-125 opacity-100 grayscale-0' : 'opacity-50 grayscale hover:grayscale-0 hover:opacity-100'} cursor-pointer`} title="English">🇬🇧</button>
                     </div>
 
@@ -162,11 +174,13 @@ export default function Header() {
                                 {t('nav.newauction')}
                             </Link>
 
+                            <NotificationBell />
+
                             {/* User avatar dropdown */}
                             <div className="relative" ref={userMenuRef}>
                                 <button
                                     onClick={() => setUserMenuOpen(v => !v)}
-                                    className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-amber-400 border border-amber-500/30 hover:border-amber-500/60 transition-colors cursor-pointer select-none overflow-hidden"
+                                    className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-amber-400 border border-amber-500/30 hover:border-amber-500/60 transition-colors cursor-pointer select-none overflow-hidden relative"
                                     style={{ background: 'rgba(245,158,11,0.12)' }}
                                 >
                                     {user.avatar_url ? (
@@ -207,6 +221,18 @@ export default function Header() {
                                         >
                                             {t('nav.profile')}
                                         </Link>
+                                        <Link
+                                            to="/messages"
+                                            onClick={() => setUserMenuOpen(false)}
+                                            className="flex items-center justify-between px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                Messages
+                                            </div>
+                                            {chatData.totalUnread > 0 && (
+                                                <span className="w-2 h-2 bg-red-500 rounded-full" />
+                                            )}
+                                        </Link>
 
                                         {!isRecharging ? (
                                             <button
@@ -233,7 +259,7 @@ export default function Header() {
                                                         />
                                                         <span className="absolute left-2.5 top-1.5 text-gray-500 text-sm">€</span>
                                                     </div>
-                                                    
+
                                                     {rechargeError && (
                                                         <p className="text-[10px] text-red-400 leading-tight">{rechargeError}</p>
                                                     )}
@@ -314,22 +340,27 @@ export default function Header() {
                     {[
                         { to: '/', label: t('nav.home') },
                         { to: '/explore', label: t('nav.explore') },
+                        { to: '/explore?type=sellers', label: 'Sellers' },
                         ...(user ? [
-                            { to: '/profile', label: t('nav.profile') },
-                            { to: '/seller', label: t('nav.dashboard') },
-                            { to: '/create-puja', label: t('nav.newauction') },
+                            { to: '/profile', label: 'My profile' },
+                            { to: '/messages', label: 'Messages', badge: chatData.totalUnread > 0 },
+                            { to: '/seller', label: 'Dashboard' },
+                            { to: '/create-puja', label: 'New auction' },
                         ] : [
                             { to: '/login', label: t('nav.signin') },
                             { to: '/register', label: t('nav.getstarted') },
                         ])
-                    ].map(({ to, label }, index) => (
+                    ].map(({ to, label, badge }) => (
                         <Link
                             key={`${to}-${index}`}
                             to={to}
                             onClick={() => setMenuOpen(false)}
-                            className="block px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                            className="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
                         >
                             {label}
+                            {badge && (
+                                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                            )}
                         </Link>
                     ))}
                     {user && (

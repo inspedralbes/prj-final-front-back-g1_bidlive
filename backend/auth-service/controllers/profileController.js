@@ -65,7 +65,7 @@ const profileController = {
                 return res.status(409).json({ message: "Username already taken" });
             }
 
-            await User.updateProfile(userId, { username: username.trim(), bio: bio || "" });
+            await User.updateBasicProfile(userId, { username: username.trim(), bio: bio || "" });
 
             const updatedUser = await User.findById(userId);
             res.json({ message: "Profile updated", user: updatedUser });
@@ -108,6 +108,23 @@ const profileController = {
             }
         },
     ],
+
+    // GET /profile/search — search users by name or bio
+    searchUsers: async (req, res) => {
+        try {
+            const { q, limit, offset } = req.query;
+            let users;
+            if (q && q.trim() !== "") {
+                users = await User.search(q, limit, offset);
+            } else {
+                users = await User.getTopSellers(limit);
+            }
+            res.json(users);
+        } catch (err) {
+            console.error("searchUsers error:", err);
+            res.status(500).json({ message: "Internal server error" });
+        }
+    },
 };
 
 module.exports = profileController;

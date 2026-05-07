@@ -6,6 +6,13 @@ const Puja = require('./models/Puja');
 const Category = require('./models/Category');
 const pujaController = require('./controllers/pujaController');
 const categoryController = require('./controllers/categoryController');
+const swaggerUi = require('swagger-ui-express');
+const YAML = require('yamljs');
+const OpenApiValidator = require('express-openapi-validator');
+const { startClosureWorker } = require('./services/closureService');
+const authMiddleware = require('./middleware/authMiddleware');
+
+const openApiSpec = YAML.load(process.env.OPENAPI_SPEC_PATH || path.join(__dirname, "../../openspec/specs/auction-spec.yaml"));
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -13,6 +20,18 @@ const port = process.env.PORT || 3001;
 
 // app.use(cors());
 app.use(express.json());
+
+// ── OpenAPI / Swagger ────────────────────────────────────────────────────────
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
+
+app.use(
+    OpenApiValidator.middleware({
+        apiSpec: process.env.OPENAPI_SPEC_PATH || path.join(__dirname, "../../openspec/specs/auction-spec.yaml"),
+        validateRequests: true,
+        validateResponses: false,
+        ignorePaths: (path) => path.includes('/uploads'),
+    })
+);
 
 // Configure Multer for file uploads
 const multer = require('multer');
@@ -83,6 +102,7 @@ const initDB = async (retries = 5, delay = 5000) => {
 };
 
 initDB();
+startClosureWorker();
 
 app.get('/', (req, res) => {
     res.send('Auction Service is running');
@@ -97,8 +117,20 @@ app.get('/pujas', pujaController.getPujas);
 app.get('/pujas/:id', pujaController.getPujaById)
 app.post('/pujas/:id/start', pujaController.startPuja);
 app.post('/pujas/:id/end', pujaController.endPuja);
+app.post('/pujas/:id/bid', pujaController.recordBid);
+app.patch('/pujas/:id/extend', pujaController.extendEndTime);
 app.get('/pujas/user/:userId', pujaController.getPujasByUser);
 app.get('/pujas/live', pujaController.getPujas); // Reusing getPujas for now
+
+// Favorites Endpoints
+app.post('/favorites', pujaController.toggleFavorite);
+app.get('/favorites/:userId', pujaController.getFavorites);
+app.get('/favorites/:userId/:pujaId/check', pujaController.checkFavorite);
+
+// Payments Endpoints
+app.get('/payments/:userId', authMiddleware, pujaController.getPayments);
+app.post('/pujas/:id/pay', authMiddleware, pujaController.processPayment);
+app.post('/pujas/:id/mark-paid', pujaController.markPaid);
 
 
 // Global Error Handler

@@ -1,12 +1,22 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { usePujas } from '../../hooks/usePujas';
+import FavoriteButton from '../common/FavoriteButton';
 import { useLanguage } from '../../context/LanguageContext';
 
 const statusColor = (status) => {
     if (status === 'live') return { text: '#ef4444', bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.2)' };
     if (status === 'active') return { text: '#22c55e', bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.2)' };
     return { text: '#9ca3af', bg: 'rgba(156,163,175,0.1)', border: 'rgba(156,163,175,0.2)' };
+};
+
+const getReputationStars = (sales) => {
+    if (!sales || sales === 0) return { stars: 0, label: "New" };
+    if (sales <= 5) return { stars: 1, label: "Beginner" };
+    if (sales <= 15) return { stars: 2, label: "Regular" };
+    if (sales <= 30) return { stars: 3, label: "Reliable" };
+    if (sales <= 50) return { stars: 4, label: "Outstanding" };
+    return { stars: 5, label: "Top" };
 };
 
 const SkeletonRow = () => (
@@ -99,8 +109,15 @@ export default function ActiveListings() {
                                         </div>
 
                                         {/* Seller - desktop */}
-                                        <div className="hidden md:block col-span-2">
-                                            <p className="text-gray-400 text-sm truncate">{a.seller}</p>
+                                        <div className="hidden md:flex flex-col col-span-2">
+                                            <p className="text-gray-400 text-sm truncate leading-tight">{a.seller}</p>
+                                            <div className="flex items-center gap-0.5 mt-0.5">
+                                                {[...Array(5)].map((_, i) => (
+                                                    <span key={i} className={`material-symbols-outlined text-[10px] ${i < getReputationStars(a.sellerTotalSales || 0).stars ? 'text-amber-400' : 'text-slate-600'}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                                                        star
+                                                    </span>
+                                                ))}
+                                            </div>
                                         </div>
 
                                         {/* Status */}
@@ -116,7 +133,8 @@ export default function ActiveListings() {
                                         </div>
 
                                         {/* CTA */}
-                                        <div className="col-span-2 md:col-span-1 flex justify-end">
+                                        <div className="col-span-2 md:col-span-1 flex justify-end items-center gap-3">
+                                            <FavoriteButton pujaId={a.id} className="text-gray-500 hover:text-red-500" />
                                             <Link
                                                 to={`/auction/video/${a.id}`}
                                                 className="btn-primary text-xs py-2 px-3 gap-1"

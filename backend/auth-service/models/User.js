@@ -20,22 +20,37 @@ const User = {
             )
         `;
     await db.query(createSql);
-    // Migrate existing tables
-    const columns = [
-      { name: "avatar_url", type: "VARCHAR(500) DEFAULT NULL" },
-      { name: "bio", type: "TEXT DEFAULT NULL" },
-      { name: "reputation_score", type: "INT DEFAULT 0" },
-      { name: "total_sales", type: "INT DEFAULT 0" },
-      { name: "wallet_balance", type: "DECIMAL(10,2) DEFAULT 0.00" },
-      { name: "billing_address", type: "VARCHAR(255) DEFAULT NULL" },
-      { name: "payment_method", type: "VARCHAR(255) DEFAULT NULL" }
-    ];
+    // Migrate existing tables that may not have avatar_url or bio
+    try {
+      await db.query("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(500) DEFAULT NULL");
+    } catch (_) { /* column already exists */ }
+    try {
+      await db.query("ALTER TABLE users ADD COLUMN bio TEXT DEFAULT NULL");
+    } catch (_) { /* column already exists */ }
+    try {
+      await db.query("ALTER TABLE users ADD COLUMN reputation_score INT DEFAULT 0");
+    } catch (_) { /* column already exists */ }
+    try {
+      await db.query("ALTER TABLE users ADD COLUMN total_sales INT DEFAULT 0");
+    } catch (_) { /* column already exists */ }
+    try {
+      await db.query("ALTER TABLE users ADD COLUMN total_bids INT DEFAULT 0");
+    } catch (_) { /* column already exists */ }
+    try {
+      await db.query("ALTER TABLE users ADD COLUMN wallet_balance DECIMAL(10,2) DEFAULT 0.00");
+    } catch (_) { /* column already exists */ }
 
-    for (const col of columns) {
-      try {
-        await db.query(`ALTER TABLE users ADD COLUMN ${col.name} ${col.type}`);
-      } catch (_) { /* column already exists */ }
-    }
+    // Create payments table for idempotency
+    const paymentsSql = `
+        CREATE TABLE IF NOT EXISTS payments (
+            id VARCHAR(255) PRIMARY KEY,
+            user_id INT NOT NULL,
+            amount DECIMAL(10,2) NOT NULL,
+            status VARCHAR(50) DEFAULT 'completed',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `;
+    await db.query(paymentsSql);
   },
 
   create: async (username, email, password) => {
@@ -53,7 +68,7 @@ const User = {
   },
 
   findById: async (id) => {
-    const sql = "SELECT id, username, email, avatar_url, bio, billing_address, payment_method, wallet_balance, reputation_score, total_sales FROM users WHERE id = ?";
+    const sql = "SELECT id, username, email, avatar_url, billing_address, payment_method, wallet_balance, reputation_score as reputation, total_sales, total_bids, bio FROM users WHERE id = ?";
     const result = await db.query(sql, [id]);
     const rows = Array.isArray(result[0]) ? result[0] : result;
     return rows && rows.length > 0 ? rows[0] : null;
@@ -66,21 +81,9 @@ const User = {
     return rows && rows.length > 0 ? rows[0] : null;
   },
 
-  updateProfile: async (id, data) => {
-    const fields = [];
-    const values = [];
-
-    if (data.username !== undefined) { fields.push("username = ?"); values.push(data.username); }
-    if (data.avatar_url !== undefined) { fields.push("avatar_url = ?"); values.push(data.avatar_url); }
-    if (data.bio !== undefined) { fields.push("bio = ?"); values.push(data.bio); }
-    if (data.billing_address !== undefined) { fields.push("billing_address = ?"); values.push(data.billing_address); }
-    if (data.payment_method !== undefined) { fields.push("payment_method = ?"); values.push(data.payment_method); }
-
-    if (fields.length === 0) return;
-
-    const sql = `UPDATE users SET ${fields.join(", ")} WHERE id = ?`;
-    values.push(id);
-    return db.query(sql, values);
+  updateBasicProfile: async (id, { username, bio }) => {
+    const sql = "UPDATE users SET username = ?, bio = ? WHERE id = ?";
+    return db.query(sql, [username, bio, id]);
   },
 
   updateAvatar: async (id, avatarUrl) => {
@@ -93,9 +96,62 @@ const User = {
     return bcrypt.compare(password, hash);
   },
 
+  updateFullProfile: async (id, { username, bio, avatar_url, billing_address, payment_method }) => {
+    const sql = "UPDATE users SET username = ?, bio = ?, avatar_url = ?, billing_address = ?, payment_method = ? WHERE id = ?";
+    return db.query(sql, [username, bio, avatar_url, billing_address, payment_method, id]);
+  },
+
   addMoney: async (userId, amount) => {
     const sql = "UPDATE users SET wallet_balance = wallet_balance + ? WHERE id = ?";
     return db.query(sql, [amount, userId]);
+  },
+
+  subtractMoney: async (userId, amount) => {
+    const sql = "UPDATE users SET wallet_balance = wallet_balance - ? WHERE id = ? AND wallet_balance >= ?";
+    const result = await db.query(sql, [amount, userId, amount]);
+    // result[0].affectedRows might be nested depending on mysql2 version/wrapper
+    const affectedRows = result[0]?.affectedRows ?? result.affectedRows;
+    return affectedRows > 0;
+  },
+
+  isPaymentProcessed: async (sessionId) => {
+    const sql = "SELECT id FROM payments WHERE id = ?";
+    const result = await db.query(sql, [sessionId]);
+    const rows = Array.isArray(result[0]) ? result[0] : result;
+    return rows && rows.length > 0;
+  },
+
+  markPaymentProcessed: async (sessionId, userId, amount) => {
+    const sql = "INSERT INTO payments (id, user_id, amount) VALUES (?, ?, ?)";
+    return db.query(sql, [sessionId, userId, amount]);
+  },
+
+  search: async (query, limit = 20, offset = 0) => {
+    const q = `%${query}%`;
+    const sql = `
+      SELECT u.id, u.username, u.avatar_url, u.bio, u.reputation_score as reputation, u.total_sales,
+      (SELECT COUNT(*) FROM followers WHERE seller_id = u.id) as followers_count
+      FROM users u
+      WHERE u.username LIKE ? OR u.bio LIKE ?
+      ORDER BY u.reputation_score DESC, u.total_sales DESC
+      LIMIT ? OFFSET ?
+    `;
+    const result = await db.query(sql, [q, q, parseInt(limit), parseInt(offset)]);
+    const rows = Array.isArray(result[0]) ? result[0] : result;
+    return rows;
+  },
+
+  getTopSellers: async (limit = 20) => {
+    const sql = `
+      SELECT u.id, u.username, u.avatar_url, u.bio, u.reputation_score as reputation, u.total_sales,
+      (SELECT COUNT(*) FROM followers WHERE seller_id = u.id) as followers_count
+      FROM users u
+      ORDER BY u.reputation_score DESC, u.total_sales DESC
+      LIMIT ?
+    `;
+    const result = await db.query(sql, [parseInt(limit)]);
+    const rows = Array.isArray(result[0]) ? result[0] : result;
+    return rows;
   },
 };
 

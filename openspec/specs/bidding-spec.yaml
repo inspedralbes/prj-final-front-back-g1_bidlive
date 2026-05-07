@@ -1,0 +1,24 @@
+openapi: 3.0.3
+info:
+  title: BidLife Bidding Service API
+  description: |
+    Este servicio es principalmente **WebSocket**. No tiene endpoints REST significativos.
+    La conexión se realiza mediante `ws://[host]:3002`.
+    
+    Mensajes principales (WebSocket):
+    - `JOIN_ROOM`: Unirse a una subasta.
+    - `PLACE_BID`: Realizar una puja.
+    - `CHAT_MESSAGE`: Enviar mensaje al chat.
+    - `SELLER_LIVE`: Iniciar streaming (WebRTC).
+  version: 1.0.0
+servers:
+  - url: /bidding
+    description: Base URL (gateway /bidding)
+
+paths:
+  /:
+    get:
+      summary: Health check del servicio
+      responses:
+        '200':
+          description: El servicio está funcionando

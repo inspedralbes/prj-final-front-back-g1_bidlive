@@ -6,14 +6,16 @@ const cors = require("cors");
 const { randomUUID } = require("crypto");
 
 const app = express();
-app.use(cors());
+// app.use(cors());
 
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 const PORT = process.env.PORT || 3002;
 
-// { auctionId: { seller: ws|null, viewers: Map<sessionId, ws> } }
+// { auctionId: { seller: ws|null, viewers: Map<sessionId, ws>, mutedUsers: Map<username, expireTimeMs> } }
 const rooms = new Map();
+// { userId: Set<ws> }  -- A user can have multiple sockets open
+const userSockets = new Map();
 
 const sendJson = (ws, data) => {
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
@@ -26,22 +28,86 @@ const broadcastViewerCount = (room) => {
     room.viewers.forEach(v => sendJson(v, msg));
 };
 
+const createAndSendNotification = async (userId, title, message, type, link) => {
+    try {
+        const AUTH_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:3000';
+        const INTERNAL_SECRET = process.env.INTERNAL_SECRET || 'bidlive_secret';
+        const BIDDING_URL = process.env.BIDDING_SERVICE_URL || 'http://bidding-service:3002';
+
+        // 1. Persist in Auth Service
+        await fetch(`${AUTH_URL}/notifications/internal`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                internal_secret: INTERNAL_SECRET,
+                user_id: userId,
+                title,
+                message,
+                type,
+                link
+            })
+        });
+
+        // 2. Deliver via WebSockets if connected
+        const sockets = userSockets.get(userId);
+        if (sockets && sockets.size > 0) {
+            const wsMsg = { 
+                type: "NOTIFICATION", 
+                payload: { title, message, type, link, timestamp: new Date().toISOString() } 
+            };
+            sockets.forEach(s => sendJson(s, wsMsg));
+        }
+    } catch (err) {
+        console.error('[NotificationHelper] Failed to process notification:', err.message);
+    }
+};
+
+const isUserMuted = (room, username, ws) => {
+    if (room.mutedUsers.has(username)) {
+        const expireTime = room.mutedUsers.get(username);
+        if (Date.now() < expireTime) {
+            sendJson(ws, {
+                type: "SYSTEM",
+                payload: {
+                    message: "Está silenciado temporalmente y no puede realizar esta acción.",
+                    timestamp: new Date().toISOString()
+                }
+            });
+            return true;
+        } else {
+            room.mutedUsers.delete(username);
+        }
+    }
+    return false;
+};
+
 wss.on("connection", (ws) => {
     ws.sessionId = randomUUID();
     sendJson(ws, { type: "SESSION_INIT", payload: { sessionId: ws.sessionId } });
 
-    ws.on("message", (raw) => {
+    ws.on("message", async (raw) => {
         try {
             const { type, payload } = JSON.parse(raw);
 
             switch (type) {
+                case "REGISTER_USER": {
+                    const { userId } = payload;
+                    if (!userId) break;
+                    ws.userId = userId;
+                    if (!userSockets.has(userId)) userSockets.set(userId, new Set());
+                    userSockets.get(userId).add(ws);
+                    console.log(`[Global] User ${userId} registered socket ${ws.sessionId}`);
+                    break;
+                }
+
                 case "JOIN_ROOM": {
-                    const { auctionId, username, role } = payload;
+                    const { auctionId, username, role, userId } = payload;
                     ws.auctionId = auctionId;
                     ws.username = username;
+                    ws.userId = userId;
                     ws.role = role === "seller" ? "seller" : "viewer";
 
-                    if (!rooms.has(auctionId)) rooms.set(auctionId, { seller: null, viewers: new Map() });
+                    if (!rooms.has(auctionId)) rooms.set(auctionId, { seller: null, viewers: new Map(), mutedUsers: new Map() });
                     const room = rooms.get(auctionId);
 
                     if (ws.role === "seller") {
@@ -58,18 +124,167 @@ wss.on("connection", (ws) => {
                 case "CHAT_MESSAGE": {
                     const room = rooms.get(ws.auctionId);
                     if (!room) break;
-                    const msg = { type: "CHAT_MESSAGE", payload: { username: ws.username || "Anonymous", message: payload.message, timestamp: new Date().toISOString(), senderId: ws.role } };
+
+                    const username = ws.username || "Anonymous";
+                    if (isUserMuted(room, username, ws)) break;
+
+                    const msg = { type: "CHAT_MESSAGE", payload: { id: randomUUID(), username: username, message: payload.message, timestamp: new Date().toISOString(), senderId: ws.role } };
                     if (room.seller) sendJson(room.seller, msg);
                     room.viewers.forEach(v => sendJson(v, msg));
+                    break;
+                }
+
+                case "DELETE_MESSAGE": {
+                    const room = rooms.get(ws.auctionId);
+                    if (!room || ws.role !== "seller") break;
+                    // Broadcast DELETE_MESSAGE with the target messageId
+                    const delMsg = { type: "MESSAGE_DELETED", payload: { messageId: payload.messageId } };
+                    console.log(`[Room ${ws.auctionId}] Moderation: Seller deleted message ${payload.messageId}`);
+                    if (room.seller) sendJson(room.seller, delMsg);
+                    room.viewers.forEach(v => sendJson(v, delMsg));
+                    break;
+                }
+
+                case "MUTE_USER": {
+                    const room = rooms.get(ws.auctionId);
+                    if (!room || ws.role !== "seller") break;
+
+                    const targetUsername = payload.username;
+                    const durationMs = (payload.durationMinutes || 5) * 60 * 1000;
+                    room.mutedUsers.set(targetUsername, Date.now() + durationMs);
+
+                    console.log(`[Room ${ws.auctionId}] Moderation: Seller muted user ${targetUsername} for ${payload.durationMinutes} minutes`);
+
+                    // Notify everyone (so ChatSidebar can handle local UI if username matches)
+                    const muteMsg = { type: "USER_MUTED", payload: { username: targetUsername, durationMinutes: payload.durationMinutes } };
+                    if (room.seller) sendJson(room.seller, muteMsg);
+                    room.viewers.forEach(v => sendJson(v, muteMsg));
                     break;
                 }
 
                 case "PLACE_BID": {
                     const room = rooms.get(ws.auctionId);
                     if (!room) break;
-                    const msg = { type: "BID_PLACED", payload: { username: ws.username || "Anonymous", amount: payload.amount, timestamp: new Date().toISOString() } };
-                    if (room.seller) sendJson(room.seller, msg);
-                    room.viewers.forEach(v => sendJson(v, msg));
+                    if (!ws.userId) {
+                        sendJson(ws, { type: "ERROR", payload: { message: "Debes estar identificado para pujar." } });
+                        break;
+                    }
+
+                    const username = ws.username || "Anonymous";
+                    if (isUserMuted(room, username, ws)) break;
+
+                    const AUCTION_SERVICE_URL = process.env.AUCTION_SERVICE_URL || 'http://auction-service:3001';
+                    const AUTH_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:3000';
+                    const INTERNAL_SECRET = process.env.INTERNAL_SECRET || 'bidlive_secret';
+
+                    try {
+                        // 1. Validaciones en paralelo (Precio actual y Saldo)
+                        const [auctionRes, balanceRes] = await Promise.all([
+                            fetch(`${AUCTION_SERVICE_URL}/pujas/${ws.auctionId}`),
+                            fetch(`${AUTH_URL}/wallet/balance/${ws.userId}?secret=${INTERNAL_SECRET}`)
+                        ]);
+
+                        const auction = await auctionRes.json();
+                        const balanceData = await balanceRes.json();
+                        const balance = balanceData.balance || 0;
+
+                        // 1a. Cierre Estricto
+                        const now = new Date();
+                        const endTime = new Date(auction.end_time);
+                        if (now >= endTime || auction.status === 'ended') {
+                            sendJson(ws, { type: "ERROR", payload: { message: "La subasta ha finalizado." } });
+                            break;
+                        }
+
+                        // 1b. Validación de Saldo
+                        if (balance < payload.amount) {
+                            sendJson(ws, { type: "ERROR", payload: { message: "Saldo insuficiente. Recarga para poder pujar." } });
+                            break;
+                        }
+
+                        // 1c. Incrementos Dinámicos
+                        const currentPrice = Number(auction.current_price);
+                        const startingPrice = Number(auction.starting_price);
+                        const hasBids = auction.last_bidder_id !== null;
+
+                        let minIncrement = 1;
+                        if (currentPrice >= 500) minIncrement = 10;
+                        else if (currentPrice >= 100) minIncrement = 5;
+
+                        // Si no hay pujas, el mínimo es el precio de salida. 
+                        // Si hay pujas, el mínimo es precio actual + incremento.
+                        const minRequired = hasBids ? (currentPrice + minIncrement) : startingPrice;
+
+                        if (payload.amount < minRequired) {
+                            sendJson(ws, { 
+                                type: "ERROR", 
+                                payload: { 
+                                    message: `La puja mínima es de ${Math.ceil(minRequired)}€.` 
+                                } 
+                            });
+                            break;
+                        }
+
+                        // 2. Registrar puja
+                        const bidResp = await fetch(`${AUCTION_SERVICE_URL}/pujas/${ws.auctionId}/bid`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ bidderId: ws.userId, amount: payload.amount, secret: INTERNAL_SECRET })
+                        });
+                        const bidData = await bidResp.json();
+
+                        if (!bidData.success) {
+                            sendJson(ws, { type: "ERROR", payload: { message: "Error al registrar la puja." } });
+                            break;
+                        }
+
+                        // 3. Anti-sniping: Extender si queda menos de 60s
+                        const secondsLeft = (endTime - now) / 1000;
+                        if (secondsLeft < 60) {
+                            console.log(`[AntiSniping] Extending auction ${ws.auctionId} (+30s)`);
+                            const extResp = await fetch(`${AUCTION_SERVICE_URL}/pujas/${ws.auctionId}/extend`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ seconds: 30, secret: INTERNAL_SECRET })
+                            });
+                            const extData = await extResp.json();
+                            if (extData.success) {
+                                const extMsg = { 
+                                    type: "SYSTEM", 
+                                    payload: { message: "¡Emoción en el último minuto! Tiempo extendido +30s", timestamp: new Date().toISOString() } 
+                                };
+                                if (room.seller) sendJson(room.seller, extMsg);
+                                room.viewers.forEach(v => sendJson(v, extMsg));
+                                
+                                // Broadcast NEW_END_TIME
+                                const timeMsg = { type: "NEW_END_TIME", payload: { endTime: extData.newEndTime } };
+                                if (room.seller) sendJson(room.seller, timeMsg);
+                                room.viewers.forEach(v => sendJson(v, timeMsg));
+                            }
+                        }
+
+                        // 4. Notificar éxito y outbid
+                        const msg = { 
+                            type: "BID_PLACED", 
+                            payload: { id: randomUUID(), username, userId: ws.userId, amount: payload.amount, timestamp: new Date().toISOString() } 
+                        };
+                        if (room.seller) sendJson(room.seller, msg);
+                        room.viewers.forEach(v => sendJson(v, msg));
+
+                        if (bidData.previousBidderId && bidData.previousBidderId !== ws.userId) {
+                            createAndSendNotification(
+                                bidData.previousBidderId,
+                                '¡Han superado tu puja!',
+                                `Alguien ha pujado $${payload.amount} en la subasta #${ws.auctionId}.`,
+                                'outbid',
+                                `/auction/${ws.auctionId}`
+                            );
+                        }
+
+                    } catch (err) {
+                        console.error('[BiddingService] Bid Error:', err.message);
+                        sendJson(ws, { type: "ERROR", payload: { message: "Error procesando la puja." } });
+                    }
                     break;
                 }
 
@@ -139,7 +354,7 @@ wss.on("connection", (ws) => {
                     const room = rooms.get(ws.auctionId);
                     if (!room || ws.role !== "seller") break;
                     console.log(`[Room ${ws.auctionId}] END_AUCTION → broadcasting AUCTION_ENDED`);
-                    const endMsg = { type: "AUCTION_ENDED", payload: { auctionId: ws.auctionId } };
+                    const endMsg = { type: "AUCTION_ENDED", payload: { auctionId: ws.auctionId, ...payload } };
                     if (room.seller) sendJson(room.seller, endMsg);
                     room.viewers.forEach(v => sendJson(v, endMsg));
                     break;
@@ -158,6 +373,12 @@ wss.on("connection", (ws) => {
     });
 
     ws.on("close", () => {
+        if (ws.userId && userSockets.has(ws.userId)) {
+            const sockets = userSockets.get(ws.userId);
+            sockets.delete(ws);
+            if (sockets.size === 0) userSockets.delete(ws.userId);
+        }
+
         if (!ws.auctionId) return;
         const room = rooms.get(ws.auctionId);
         if (!room) return;
@@ -172,6 +393,62 @@ wss.on("connection", (ws) => {
         broadcastViewerCount(room);
         if (!room.seller && room.viewers.size === 0) { rooms.delete(ws.auctionId); console.log(`[Room ${ws.auctionId}] deleted (empty)`); }
     });
+});
+
+app.use(express.json());
+
+app.post("/broadcast", (req, res) => {
+    const { auctionId, type, payload, secret } = req.body;
+    if (secret !== (process.env.INTERNAL_SECRET || 'bidlive_secret')) {
+        return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    const room = rooms.get(auctionId);
+    if (room) {
+        const msg = { type, payload };
+        if (room.seller) sendJson(room.seller, msg);
+        room.viewers.forEach(v => sendJson(v, msg));
+        return res.json({ success: true });
+    }
+    res.status(404).json({ message: 'Room not found' });
+});
+
+app.post("/notify-user", (req, res) => {
+    const { userId, type, payload, secret } = req.body;
+    if (secret !== (process.env.INTERNAL_SECRET || 'bidlive_secret')) {
+        return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    const sockets = userSockets.get(userId);
+    if (sockets && sockets.size > 0) {
+        const msg = { type: type || 'NOTIFICATION', payload };
+        sockets.forEach(s => sendJson(s, msg));
+        return res.json({ success: true, delivered: sockets.size });
+    }
+    res.json({ success: false, message: 'User not connected' });
+});
+
+app.post("/notify-users", (req, res) => {
+    const { userIds, type, payload, secret } = req.body;
+    if (secret !== (process.env.INTERNAL_SECRET || 'bidlive_secret')) {
+        return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    if (!Array.isArray(userIds)) {
+        return res.status(400).json({ message: 'userIds must be an array' });
+    }
+
+    let deliveredCount = 0;
+    userIds.forEach(uid => {
+        const sockets = userSockets.get(uid);
+        if (sockets && sockets.size > 0) {
+            const msg = { type: type || 'NOTIFICATION', payload };
+            sockets.forEach(s => sendJson(s, msg));
+            deliveredCount += sockets.size;
+        }
+    });
+
+    res.json({ success: true, delivered: deliveredCount });
 });
 
 server.listen(PORT, () => console.log(`Bidding Service on port ${PORT}`));

@@ -1,0 +1,124 @@
+const Puja = require('../models/Puja');
+const db = require('../config/db');
+const { sendNotification } = require('../utils/notifications');
+
+const checkExpiredAuctions = async () => {
+    try {
+        const expired = await Puja.findExpired();
+        
+        for (const auction of expired) {
+            console.log(`[ClosureWorker] Closing auction ${auction.id}...`);
+            
+            // Declare winner (the last_bidder_id)
+            const winnerId = auction.last_bidder_id;
+            const finalPrice = auction.current_price;
+            
+            await Puja.endWithWinner(auction.id, winnerId, finalPrice);
+            
+            // --- Instant Settlement (New US-21-B logic) ---
+            if (winnerId) {
+                try {
+                    const authUrl = process.env.AUTH_SERVICE_URL || 'http://auth-service:3000';
+                    const internalSecret = process.env.INTERNAL_SECRET || 'bidlive_secret';
+
+                    // 1. Debit the winner
+                    const debitResp = await fetch(`${authUrl}/wallet/debit`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: winnerId, amount: finalPrice, secret: internalSecret })
+                    });
+
+                    if (debitResp.ok) {
+                        // 2. Credit the seller
+                        await fetch(`${authUrl}/wallet/credit`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: auction.seller_id, amount: finalPrice, secret: internalSecret })
+                        });
+
+                        // 3. Update auction payment status
+                        await Puja.updatePaymentStatus(auction.id, 'paid');
+                        console.log(`[ClosureWorker] Instant settlement successful for auction ${auction.id}.`);
+
+                        // 4. Update seller reputation
+                        await db.query(
+                            'UPDATE users SET reputation_score = reputation_score + 1, total_sales = total_sales + 1 WHERE id = ?',
+                            [auction.seller_id]
+                        );
+
+                        // 5. Notify Winner (Paid)
+                        sendNotification(
+                            winnerId,
+                            '¡Has ganado y pagado con éxito!',
+                            `Felicidades, has ganado "${auction.title}" por ${finalPrice}€. El pago se ha descontado de tu billetera automáticamente.`,
+                            'success',
+                            `/auction/${auction.id}`
+                        );
+                    } else {
+                        const debitData = await debitResp.json();
+                        console.error(`[ClosureWorker] Instant settlement failed (Insufficient funds) for winner ${winnerId}:`, debitData.message);
+
+                        // Fallback: Cancel auction and penalize
+                        await Puja.cancelForNonPayment(auction.id);
+                        await db.query('UPDATE users SET reputation_score = reputation_score - 10 WHERE id = ?', [winnerId]);
+
+                        sendNotification(
+                            winnerId,
+                            'Subasta cancelada: Saldo insuficiente',
+                            `Has ganado la subasta "${auction.title}", pero no tenías saldo suficiente para completar el pago automático. Tu reputación ha sido penalizada.`,
+                            'error',
+                            `/auction/${auction.id}`
+                        );
+
+                        sendNotification(
+                            auction.seller_id,
+                            'Venta fallida: Comprador sin saldo',
+                            `La venta de "${auction.title}" ha fallado porque el comprador no tenía saldo suficiente. La subasta ha sido cancelada.`,
+                            'error',
+                            `/auction/${auction.id}`
+                        );
+                    }
+                } catch (settleErr) {
+                    console.error('[ClosureWorker] Settlement logic failed:', settleErr.message);
+                }
+            } else {
+                // No winner: Notify Seller
+                sendNotification(
+                    auction.seller_id,
+                    'Subasta finalizada sin pujas',
+                    `Tu subasta "${auction.title}" ha terminado sin recibir ninguna puja.`,
+                    'info',
+                    `/auction/${auction.id}`
+                );
+            }
+
+            // Notify Bidding Service to broadcast AUCTION_ENDED
+            try {
+                const BIDDING_SERVICE_URL = process.env.BIDDING_SERVICE_URL || 'http://bidding-service:3002';
+                const INTERNAL_SECRET = process.env.INTERNAL_SECRET || 'bidlive_secret';
+                
+                await fetch(`${BIDDING_SERVICE_URL}/broadcast`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        auctionId: auction.id.toString(),
+                        type: 'AUCTION_ENDED',
+                        payload: { winnerId, finalPrice, auctionId: auction.id },
+                        secret: INTERNAL_SECRET
+                    })
+                });
+            } catch (broadcastErr) {
+                console.error('[ClosureWorker] Failed to notify bidding-service:', broadcastErr.message);
+            }
+        }
+    } catch (error) {
+        console.error('[ClosureWorker] Error checking expired auctions:', error);
+    }
+};
+
+const startClosureWorker = (intervalMs = 5000) => {
+    console.log(`[ClosureWorker] Started with interval ${intervalMs}ms`);
+    setInterval(checkExpiredAuctions, intervalMs);
+};
+
+module.exports = { startClosureWorker };

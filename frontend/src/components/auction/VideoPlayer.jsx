@@ -25,6 +25,7 @@ const ICE_SERVERS = [
 export default function VideoPlayer({
   auctionId, role = 'viewer', autoStart = false,
   viewerCount, onAuctionEnd, externalWs,
+  categoryIcon, categoryName
 }) {
   const { user } = useAuth();
   const username = user?.username || user?.email || 'Anonymous';
@@ -395,12 +396,15 @@ export default function VideoPlayer({
 
       {/* ── Viewer: waiting for stream ── */}
       {role === 'viewer' && !streamEnded && !hasStream && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none" style={{ opacity: 0.5 }}>
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5">
-            <path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" />
-          </svg>
-          <p className="text-white/40 text-sm mt-3 font-medium">
-            {status === 'connecting' ? 'Connecting...' : 'Waiting for stream...'}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <div className="w-24 h-24 rounded-3xl flex items-center justify-center mb-4" 
+               style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <span className="material-symbols-outlined text-amber-400/20" style={{ fontSize: '56px' }}>
+              {categoryIcon || 'videocam_off'}
+            </span>
+          </div>
+          <p className="text-white/30 text-xs font-bold uppercase tracking-[0.2em]">
+            {status === 'connecting' ? 'Connecting...' : `Waiting for ${categoryName || 'Stream'}...`}
           </p>
         </div>
       )}
