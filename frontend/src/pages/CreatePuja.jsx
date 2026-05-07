@@ -228,11 +228,10 @@ export default function CreatePuja() {
 
           {/* Starting price */}
           <div>
-            <label className="input-label">{t('create.price')}</label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
+            <label className="input-label">{t('create.price')} ($)</label>
+            <div>
               <input
-                className="input-field pl-8"
+                className="input-field"
                 type="number"
                 name="startingPrice"
                 value={formData.startingPrice}
