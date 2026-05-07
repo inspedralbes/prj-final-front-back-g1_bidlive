@@ -14,13 +14,17 @@ import CreatePuja from "./pages/CreatePuja";
 import SellerLiveVideo from "./pages/SellerLiveVideo";
 import Profile from "./pages/Profile";
 
+import Messages from "./pages/Messages";
+
 import ProtectedRoute from "./components/ProtectedRoute";
 import { AuthProvider } from "./context/AuthContext";
+import NotificationToastManager from "./components/common/NotificationToastManager";
 
 function App() {
   return (
     <Router>
       <AuthProvider>
+        <NotificationToastManager />
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
@@ -36,6 +40,9 @@ function App() {
             <Route path="/seller/live/video/:id" element={<SellerLiveVideo />} />
             <Route path="/create-puja" element={<CreatePuja />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/profile/:id" element={<Profile />} />
+            <Route path="/messages" element={<Messages />} />
+            <Route path="/messages/:id" element={<Messages />} />
           </Route>
         </Routes>
       </AuthProvider>

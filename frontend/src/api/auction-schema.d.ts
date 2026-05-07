@@ -196,6 +196,9 @@ export interface components {
             /** @enum {string} */
             status?: "upcoming" | "live" | "ended";
             winner_id?: number | null;
+            final_price?: number | null;
+            /** Format: date-time */
+            end_time?: string;
             /** @enum {string} */
             payment_status?: "pending" | "paid";
         };

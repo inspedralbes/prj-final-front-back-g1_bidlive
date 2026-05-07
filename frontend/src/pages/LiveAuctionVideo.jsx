@@ -6,6 +6,9 @@ import ChatSidebar from '../components/auction/ChatSidebar';
 import BiddingHUD from '../components/auction/BiddingHUD';
 import VideoPlayer from '../components/auction/VideoPlayer';
 import NotificationToast from '../components/common/NotificationToast';
+import PaymentSuccessOverlay from '../components/common/PaymentSuccessOverlay';
+import AuctionTimer from '../components/auction/AuctionTimer';
+import FollowButton from '../components/common/FollowButton';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -16,6 +19,7 @@ export default function LiveAuctionVideo() {
     const username = user?.username || user?.email || 'Anonymous';
 
     // ── 1. Access-check state (null = still verifying) ─────────────────────
+    const [auctionData, setAuctionData] = useState(null);
     const [auctionStatus, setAuctionStatus] = useState(null);
 
     // ── 2. WS hook — pass null while verifying to avoid premature connection ─
@@ -27,6 +31,10 @@ export default function LiveAuctionVideo() {
     const [countdown, setCountdown] = useState(5);
     const [toast, setToast] = useState(null);
     const [isWinning, setIsWinning] = useState(false);
+    const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
+    const [balance, setBalance] = useState(0);
+    const [endTime, setEndTime] = useState(null);
+    const [sellerInfo, setSellerInfo] = useState({ id: null, username: '' });
 
     // ── 4. Fetch auction status on mount (redirect if ended) ───────────────
     useEffect(() => {
@@ -35,13 +43,40 @@ export default function LiveAuctionVideo() {
         })
             .then(r => r.json())
             .then(data => {
+                setAuctionData(data);
                 if (data?.status === 'ended') {
                     navigate('/', { replace: true });
                 } else {
                     setAuctionStatus(data?.status ?? 'upcoming');
+                    setEndTime(data?.end_time);
+                    setSellerInfo({ id: data?.seller_id, username: data?.seller_username });
+                    
+                    // Check balance warning
+                    fetch(`${API_URL}/auth/wallet/balance`, {
+                        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                    })
+                        .then(r => r.json())
+                        .then(wallet => {
+                            setBalance(wallet.balance || 0);
+                            const currentP = Number(data.current_price) || Number(data.starting_price);
+                            if ((wallet.balance || 0) < currentP) {
+                                setToast({ 
+                                    message: `Aviso: Tu saldo ($${wallet.balance || 0}) es inferior a la puja mínima ($${currentP}). Recarga para participar.`, 
+                                    type: 'warning' 
+                                });
+                            }
+                        });
                 }
             })
             .catch(() => setAuctionStatus('upcoming'));
+
+        // Fetch balance
+        fetch(`${API_URL}/auth/wallet/balance`, {
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        })
+            .then(r => r.json())
+            .then(data => setBalance(data.balance || 0))
+            .catch(err => console.error('Error fetching balance:', err));
     }, [id, navigate]);
 
     // ── 5. Auction-ended popup + countdown ────────────────────────────────
@@ -63,7 +98,7 @@ export default function LiveAuctionVideo() {
         .filter(m => m.type === 'BID_PLACED')
         .slice(-1)[0]; // Get the very last one
 
-    const latestBid = Number(latestBidMsg?.payload?.amount) || 0;
+    const latestBid = Number(latestBidMsg?.payload?.amount) || Number(auctionData?.current_price) || Number(auctionData?.starting_price) || 0;
 
     // Logic to update winning status and trigger toast
     useEffect(() => {
@@ -79,6 +114,17 @@ export default function LiveAuctionVideo() {
             setToast({ message: '¡Has sido superado!', type: 'warning' });
         }
     }, [latestBidMsg, username]);
+
+    // Update endTime if NEW_END_TIME received
+    useEffect(() => {
+        const lastMsg = messages[messages.length - 1];
+        if (lastMsg?.type === 'NEW_END_TIME') {
+            setEndTime(lastMsg.payload.endTime);
+        }
+        if (lastMsg?.type === 'ERROR') {
+            setToast({ message: lastMsg.payload.message, type: 'error' });
+        }
+    }, [messages]);
 
     const [paymentMethod, setPaymentMethod] = useState(null); // 'wallet' or 'stripe'
     const [paying, setPaying] = useState(false);
@@ -113,8 +159,7 @@ export default function LiveAuctionVideo() {
                 if (method === 'stripe' && data.url) {
                     window.location.href = data.url;
                 } else {
-                    setToast({ message: '¡Pago realizado con éxito!', type: 'success' });
-                    setTimeout(() => navigate('/profile'), 1500);
+                    setShowSuccessOverlay(true);
                 }
             } else {
                 setToast({ message: data.message || 'Error al procesar el pago', type: 'error' });
@@ -252,8 +297,17 @@ export default function LiveAuctionVideo() {
                     </div>
                     Bid<span className="text-amber-400">Live</span>
                 </Link>
-                <div className="text-gray-500 text-sm font-medium truncate hidden sm:block max-w-xs">
-                    Auction #{id}
+                <div className="flex items-center gap-4">
+                    <div className="text-gray-500 text-sm font-medium truncate hidden sm:block max-w-xs">
+                        Auction #{id}
+                    </div>
+                    {sellerInfo.id && (
+                        <div className="flex items-center gap-3 pl-4 border-l border-white/10">
+                            <span className="text-xs text-gray-500 font-bold uppercase tracking-widest">Seller:</span>
+                            <span className="text-sm font-bold text-white">{sellerInfo.username || '...'}</span>
+                            <FollowButton sellerId={sellerInfo.id} />
+                        </div>
+                    )}
                 </div>
                 <Link to="/explore" className="btn-ghost text-xs py-1.5 px-3">← Browse</Link>
             </header>
@@ -262,7 +316,14 @@ export default function LiveAuctionVideo() {
             <main className="flex-1 grid overflow-hidden" style={{ gridTemplateColumns: '1fr 380px' }}>
                 {/* Left: video fills the column */}
                 <div className="flex items-center justify-center overflow-hidden" style={{ background: '#000' }}>
-                    <VideoPlayer auctionId={id} role="viewer" viewerCount={viewerCount} externalWs={wsHook} />
+                    <VideoPlayer 
+                        auctionId={id} 
+                        role="viewer" 
+                        viewerCount={viewerCount} 
+                        externalWs={wsHook} 
+                        categoryIcon={auctionData?.category_icon}
+                        categoryName={auctionData?.category_name}
+                    />
                 </div>
 
                 {/* Right: bidding + chat stacked */}
@@ -271,9 +332,12 @@ export default function LiveAuctionVideo() {
                     <div className="shrink-0 p-4 overflow-y-auto scroll-area" style={{ borderBottom: '1px solid var(--border)', maxHeight: '45%' }}>
                         <BiddingHUD
                             currentBid={latestBid}
+                            hasBids={!!latestBidMsg || (auctionData?.last_bidder_id !== null)}
                             placeBid={placeBid}
                             disabled={status !== 'connected' || auctionEnded}
                             status={latestBid > 0 ? (isWinning ? 'winning' : 'outbid') : 'none'}
+                            balance={balance}
+                            endTime={endTime}
                         />
                     </div>
 
@@ -297,6 +361,10 @@ export default function LiveAuctionVideo() {
                     type={toast.type} 
                     onClose={() => setToast(null)} 
                 />
+            )}
+            {/* Success Animation Overlay */}
+            {showSuccessOverlay && (
+                <PaymentSuccessOverlay onComplete={() => navigate('/profile')} />
             )}
         </div>
     );

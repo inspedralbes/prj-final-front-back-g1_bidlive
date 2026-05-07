@@ -41,6 +41,8 @@ components:
           type: string
           enum: [upcoming, live, ended]
         winner_id: { type: integer, nullable: true }
+        final_price: { type: number, nullable: true }
+        end_time: { type: string, format: date-time }
         payment_status:
           type: string
           enum: [pending, paid]

@@ -14,6 +14,8 @@ tags:
     description: Gestión de perfiles de usuario
   - name: Wallet
     description: Gestión de saldo y pagos
+  - name: Notifications
+    description: Gestión de notificaciones de usuario
 
 components:
   securitySchemes:
@@ -40,6 +42,16 @@ components:
         bio:
           type: string
           nullable: true
+        reputation:
+          type: number
+          description: Valor de 0 a 5 estrellas
+          default: 5.0
+        total_sales:
+          type: integer
+          default: 0
+        total_bids:
+          type: integer
+          default: 0
 
     AuthResponse:
       type: object
@@ -48,6 +60,29 @@ components:
           type: string
         user:
           $ref: '#/components/schemas/User'
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        title:
+          type: string
+        message:
+          type: string
+        type:
+          type: string
+          enum: [info, success, warning, error, outbid]
+        is_read:
+          type: boolean
+        link:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
 
 paths:
   /register:
@@ -120,6 +155,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
+
+  /profile/search:
+    get:
+      tags: [Profile]
+      operationId: searchUsers
+      summary: Buscar usuarios por nombre o biografía
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer, default: 0 }
+      responses:
+        '200':
+          description: Lista de usuarios encontrados
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
 
   /profile/{id}:
     get:
@@ -285,3 +345,70 @@ paths:
       responses:
         '200':
           description: Estado del pago
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      operationId: getNotifications
+      summary: Obtener lista de notificaciones del usuario
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de notificaciones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+
+  /notifications/{id}/read:
+    post:
+      tags: [Notifications]
+      operationId: markNotificationRead
+      summary: Marcar una notificación como leída
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Notificación actualizada
+
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      operationId: markAllNotificationsRead
+      summary: Marcar todas las notificaciones como leídas
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Notificaciones actualizadas
+
+  /notifications/internal:
+    post:
+      tags: [Notifications]
+      operationId: createInternalNotification
+      summary: Crear notificación (Uso interno entre microservicios)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [internal_secret, user_id, title, message]
+              properties:
+                internal_secret: { type: string }
+                user_id: { type: integer }
+                title: { type: string }
+                message: { type: string }
+                type: { type: string, enum: [info, success, warning, error, outbid] }
+                link: { type: string }
+      responses:
+        '201':
+          description: Notificación creada

@@ -186,6 +186,15 @@ export interface components {
             avatar_url?: string | null;
             wallet_balance?: number;
             bio?: string | null;
+            /**
+             * @description Valor de 0 a 5 estrellas
+             * @default 5
+             */
+            reputation: number;
+            /** @default 0 */
+            total_sales: number;
+            /** @default 0 */
+            total_bids: number;
         };
         AuthResponse: {
             token?: string;

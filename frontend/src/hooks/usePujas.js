@@ -23,7 +23,18 @@ export const usePujas = (filters = {}) => {
 
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const json = await res.json();
-            setData(Array.isArray(json) ? json : []);
+            const normalized = (Array.isArray(json) ? json : []).map(p => ({
+                ...p,
+                currentPrice: p.current_price ?? p.currentPrice ?? p.starting_price ?? p.startingPrice ?? 0,
+                startingPrice: p.starting_price ?? p.startingPrice ?? 0,
+                img: p.image_url || p.img || null,
+                categoryName: p.category_name || p.categoryName || 'General',
+                categoryIcon: p.category_icon || p.categoryIcon || 'category',
+                seller: p.seller_username || p.seller || `User ${p.seller_id}`,
+                sellerReputation: p.reputation_score ?? p.sellerReputation ?? 0,
+                sellerTotalSales: p.total_sales ?? p.sellerTotalSales ?? 0,
+            }));
+            setData(normalized);
         } catch (err) {
             console.error('[usePujas]', err);
             setError(err.message);
@@ -62,6 +73,8 @@ export const usePujasByUser = (userId) => {
                 currentPrice: p.current_price ?? p.currentPrice ?? p.starting_price ?? p.startingPrice ?? 0,
                 startingPrice: p.starting_price ?? p.startingPrice ?? 0,
                 img: p.image_url || p.img || null,
+                categoryName: p.category_name || p.categoryName || 'General',
+                categoryIcon: p.category_icon || p.categoryIcon || 'category',
                 seller: p.seller_username || p.seller || `User ${p.seller_id}`,
                 sellerReputation: p.reputation_score ?? p.sellerReputation ?? 0,
                 sellerTotalSales: p.total_sales ?? p.sellerTotalSales ?? 0,

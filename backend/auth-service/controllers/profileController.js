@@ -108,6 +108,23 @@ const profileController = {
             }
         },
     ],
+
+    // GET /profile/search — search users by name or bio
+    searchUsers: async (req, res) => {
+        try {
+            const { q, limit, offset } = req.query;
+            let users;
+            if (q && q.trim() !== "") {
+                users = await User.search(q, limit, offset);
+            } else {
+                users = await User.getTopSellers(limit);
+            }
+            res.json(users);
+        } catch (err) {
+            console.error("searchUsers error:", err);
+            res.status(500).json({ message: "Internal server error" });
+        }
+    },
 };
 
 module.exports = profileController;

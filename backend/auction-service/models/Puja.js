@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const util = require('util');
 
 const sql = `
     CREATE TABLE IF NOT EXISTS pujas (
@@ -43,9 +44,13 @@ const Puja = {
                 current_price DECIMAL(10, 2) DEFAULT 0.00,
                 image_url VARCHAR(2048),
                 seller_id INT NOT NULL,
-                status ENUM('live', 'upcoming', 'ended') DEFAULT 'upcoming',
+                status ENUM('live', 'upcoming', 'ended', 'cancelled_unpaid') DEFAULT 'upcoming',
                 winner_id INT DEFAULT NULL,
+                last_bidder_id INT DEFAULT NULL,
                 payment_status ENUM('none', 'pending', 'paid') DEFAULT 'none',
+                payment_deadline TIMESTAMP NULL DEFAULT NULL,
+                payment_reminder_sent BOOLEAN DEFAULT FALSE,
+                end_time TIMESTAMP NULL DEFAULT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         `);
@@ -57,7 +62,11 @@ const Puja = {
         try { await db.query("ALTER TABLE pujas ADD COLUMN duration VARCHAR(50) DEFAULT '1 Hour'"); } catch (e) { }
         try { await db.query("ALTER TABLE pujas ADD COLUMN mode ENUM('video', 'photo') DEFAULT 'video'"); } catch (e) { }
         try { await db.query("ALTER TABLE pujas ADD COLUMN winner_id INT DEFAULT NULL"); } catch (e) { }
-        try { await db.query("ALTER TABLE pujas ADD COLUMN payment_status ENUM('none', 'pending', 'paid') DEFAULT 'none'"); } catch (e) { }
+        try { await db.query("ALTER TABLE pujas ADD COLUMN last_bidder_id INT DEFAULT NULL"); } catch (e) { }
+        try { await db.query("ALTER TABLE pujas MODIFY COLUMN status ENUM('live', 'upcoming', 'ended', 'cancelled_unpaid') DEFAULT 'upcoming'"); } catch (e) { }
+        try { await db.query("ALTER TABLE pujas ADD COLUMN payment_deadline TIMESTAMP NULL DEFAULT NULL"); } catch (e) { }
+        try { await db.query("ALTER TABLE pujas ADD COLUMN payment_reminder_sent BOOLEAN DEFAULT FALSE"); } catch (e) { }
+        try { await db.query("ALTER TABLE pujas ADD COLUMN end_time TIMESTAMP NULL DEFAULT NULL"); } catch (e) { }
 
         // Create favorites table
         await db.query(favoritesSql);
@@ -82,9 +91,11 @@ const Puja = {
 
     findAll: async (status = null, search = null, categoryId = null) => {
         let query = `
-            SELECT p.*, u.username as seller_username, u.reputation_score, u.total_sales 
+            SELECT p.*, u.username as seller_username, u.reputation_score, u.total_sales,
+                   c.name AS category_name, c.icon AS category_icon
             FROM pujas p 
             LEFT JOIN users u ON p.seller_id = u.id
+            LEFT JOIN categories c ON p.category_id = c.id
         `;
         const params = [];
         const conditions = [];
@@ -147,6 +158,41 @@ const Puja = {
         return db.query(sql, [status, id]);
     },
 
+    updateBid: async (id, bidderId, amount) => {
+        // We want to return the previous bidder ID so we can notify them they were outbid
+        const connection = await db.getConnection();
+        
+        // Promisify connection methods for transaction
+        const beginTransaction = util.promisify(connection.beginTransaction).bind(connection);
+        const query = util.promisify(connection.query).bind(connection);
+        const commit = util.promisify(connection.commit).bind(connection);
+        const rollback = util.promisify(connection.rollback).bind(connection);
+
+        try {
+            await beginTransaction();
+            
+            // 1. Get current last_bidder_id and current_price
+            const rows = await query('SELECT last_bidder_id, current_price FROM pujas WHERE id = ? FOR UPDATE', [id]);
+            const puja = rows[0];
+            
+            if (!puja) throw new Error('Puja not found');
+            if (amount <= puja.current_price) throw new Error('Bid must be higher than current price');
+
+            const previousBidderId = puja.last_bidder_id;
+
+            // 2. Update with new bid
+            await query('UPDATE pujas SET current_price = ?, last_bidder_id = ? WHERE id = ?', [amount, bidderId, id]);
+
+            await commit();
+            return { success: true, previousBidderId };
+        } catch (error) {
+            await rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+    },
+
     // --- Favorites Logic ---
     addFavorite: async (userId, pujaId) => {
         const sql = 'INSERT IGNORE INTO favorites (user_id, puja_id) VALUES (?, ?)';
@@ -176,6 +222,13 @@ const Puja = {
         return db.query(sql, [userId]);
     },
 
+    findUsersWhoFavorited: async (pujaId) => {
+        const sql = 'SELECT user_id FROM favorites WHERE puja_id = ?';
+        const result = await db.query(sql, [pujaId]);
+        const rows = Array.isArray(result[0]) ? result[0] : result;
+        return rows.map(r => r.user_id);
+    },
+
     // --- Winner & Payment Logic ---
     endWithWinner: async (id, winnerId, finalPrice) => {
         // If there's a winner, status is 'pending', else 'none'
@@ -186,6 +239,33 @@ const Puja = {
             WHERE id = ?
         `;
         return db.query(sql, [winnerId, finalPrice, paymentStatus, id]);
+    },
+
+    findPendingPayments: async () => {
+        const sql = "SELECT * FROM pujas WHERE status = 'ended' AND payment_status = 'pending' AND payment_deadline <= NOW()";
+        return db.query(sql);
+    },
+
+    findUpcomingPaymentDeadlines: async (hoursThreshold = 6) => {
+        const sql = `
+            SELECT * FROM pujas 
+            WHERE status = 'ended' 
+            AND payment_status = 'pending' 
+            AND payment_reminder_sent = FALSE 
+            AND payment_deadline <= DATE_ADD(NOW(), INTERVAL ? HOUR)
+            AND payment_deadline > NOW()
+        `;
+        return db.query(sql, [hoursThreshold]);
+    },
+
+    markReminderSent: async (id) => {
+        const sql = 'UPDATE pujas SET payment_reminder_sent = TRUE WHERE id = ?';
+        return db.query(sql, [id]);
+    },
+
+    cancelForNonPayment: async (id) => {
+        const sql = "UPDATE pujas SET status = 'cancelled_unpaid', payment_status = 'none' WHERE id = ?";
+        return db.query(sql, [id]);
     },
 
     findPaymentsByWinner: async (userId) => {
@@ -202,6 +282,16 @@ const Puja = {
     updatePaymentStatus: async (id, status) => {
         const sql = 'UPDATE pujas SET payment_status = ? WHERE id = ?';
         return db.query(sql, [status, id]);
+    },
+
+    findExpired: async () => {
+        const sql = "SELECT * FROM pujas WHERE status = 'live' AND end_time <= NOW()";
+        return db.query(sql);
+    },
+
+    extendEndTime: async (id, seconds) => {
+        const sql = 'UPDATE pujas SET end_time = DATE_ADD(end_time, INTERVAL ? SECOND) WHERE id = ?';
+        return db.query(sql, [seconds, id]);
     }
 };
 

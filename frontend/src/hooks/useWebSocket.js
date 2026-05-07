@@ -82,6 +82,8 @@ export const useWebSocket = (auctionId, username, role = 'viewer', userId = null
                     case 'CHAT_MESSAGE':
                     case 'BID_PLACED':
                     case 'SYSTEM':
+                    case 'NEW_END_TIME':
+                    case 'ERROR':
                         setMessages(prev => [...prev, data]);
                         break;
 

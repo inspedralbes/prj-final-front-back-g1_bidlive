@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Header from '../components/layout/Header';
 import { useAuth } from '../context/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import FavoriteButton from '../components/common/FavoriteButton';
+import FollowButton from '../components/common/FollowButton';
+import PaymentSuccessOverlay from '../components/common/PaymentSuccessOverlay';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 
@@ -20,11 +22,16 @@ const getReputationStars = (sales) => {
 
 const Profile = () => {
     const { user, updateUser } = useAuth();
+    const { id: urlId } = useParams();
+
+    const targetUserId = urlId || user?.id;
+    const isOwnProfile = !urlId || (user && Number(urlId) === Number(user.id));
 
     const [myAuctions, setMyAuctions] = useState([]);
     const [myFavorites, setMyFavorites] = useState([]);
     const [myPayments, setMyPayments] = useState([]);
     const [walletBalance, setWalletBalance] = useState(0);
+    const [followStats, setFollowStats] = useState({ followers: 0, following: 0 });
     const [activeTab, setActiveTab] = useState('pujas');
     const [selectedPaymentAuction, setSelectedPaymentAuction] = useState(null); // Auction being paid
     const [paying, setPaying] = useState(false);
@@ -35,10 +42,12 @@ const Profile = () => {
     const avatarInputRef = React.useRef(null);
     const [rechargeAmount, setRechargeAmount] = useState(50);
     const [recharging, setRecharging] = useState(false);
+    const [showSuccessOverlay, setShowSuccessOverlay] = useState(false);
 
     // Form state
     const [formData, setFormData] = useState({
         username: user?.username || '',
+        bio: user?.bio || '',
         billing_address: user?.billing_address || '',
         payment_method: user?.payment_method || 'credit_card'
     });
@@ -53,20 +62,23 @@ const Profile = () => {
     const [profile, setProfile] = useState(null);
 
     const fetchUserAuctions = async () => {
-        if (!user) return;
+        if (!targetUserId) return;
         try {
             const token = localStorage.getItem('token');
-            const [profileRes, auctionsRes, favoritesRes, paymentsRes] = await Promise.all([
-                fetch(`${API}/auth/profile/${user.id}`, {
+            const [profileRes, auctionsRes, favoritesRes, paymentsRes, followRes] = await Promise.all([
+                fetch(`${API}/auth/profile/${targetUserId}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 }),
-                fetch(`${API}/auction/pujas/user/${user.id}`, {
+                fetch(`${API}/auction/pujas/user/${targetUserId}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 }),
-                fetch(`${API}/auction/favorites/${user.id}`, {
+                isOwnProfile ? fetch(`${API}/auction/favorites/${targetUserId}`, {
                     headers: { Authorization: `Bearer ${token}` }
-                }),
-                fetch(`${API}/auction/payments/${user.id}`, {
+                }) : Promise.resolve({ ok: true, json: () => Promise.resolve([]) }),
+                isOwnProfile ? fetch(`${API}/auction/payments/${targetUserId}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                }) : Promise.resolve({ ok: true, json: () => Promise.resolve([]) }),
+                fetch(`${API}/auth/follow/stats/${targetUserId}`, {
                     headers: { Authorization: `Bearer ${token}` }
                 }),
             ]);
@@ -80,6 +92,7 @@ const Profile = () => {
             if (auctionsRes.ok) setMyAuctions(await auctionsRes.json());
             if (favoritesRes.ok) setMyFavorites(await favoritesRes.json());
             if (paymentsRes.ok) setMyPayments(await paymentsRes.json());
+            if (followRes.ok) setFollowStats(await followRes.json());
         } catch (error) {
             console.error("Error fetching user data:", error);
         } finally {
@@ -91,7 +104,7 @@ const Profile = () => {
         if (!user) return;
 
         const fetchWalletBalance = async () => {
-            if (!user) return;
+            if (!isOwnProfile) return;
             try {
                 const token = localStorage.getItem('token');
                 const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8080'}/auth/wallet/balance`, {
@@ -122,7 +135,7 @@ const Profile = () => {
                             headers: { 'Authorization': `Bearer ${token}` }
                         });
                         if (resp.ok) {
-                            alert("¡Saldo recargado con éxito!");
+                            setShowSuccessOverlay(true);
                             fetchWalletBalance();
                             fetchUserAuctions();
                         }
@@ -130,7 +143,7 @@ const Profile = () => {
                         console.error("Error confirming session:", err);
                     }
                 } else {
-                    alert("¡Pago realizado con éxito!");
+                    setShowSuccessOverlay(true);
                     fetchWalletBalance();
                     fetchUserAuctions();
                 }
@@ -147,7 +160,7 @@ const Profile = () => {
         fetchUserAuctions();
         fetchWalletBalance();
         handlePaymentRedirect();
-    }, [user]);
+    }, [user, urlId]);
 
     const handleRecharge = async () => {
         if (rechargeAmount < 10 || rechargeAmount > 1000) {
@@ -198,6 +211,7 @@ const Profile = () => {
                 },
                 body: JSON.stringify({
                     username: formData.username,
+                    bio: formData.bio,
                     avatar_url: user?.avatar_url || '',
                     billing_address: formData.billing_address,
                     payment_method: formData.payment_method,
@@ -281,9 +295,9 @@ const Profile = () => {
                         <div className="relative group">
                             <div className="w-40 h-40 rounded-full bg-gradient-to-tr from-amber-500 via-orange-400 to-indigo-500 p-1.5 shadow-[0_0_30px_rgba(245,158,11,0.3)]">
                                 <div className="w-full h-full rounded-full bg-[#08080f] flex items-center justify-center overflow-hidden">
-                                    {avatarPreview || user?.avatar_url ? (
+                                    {(profile?.avatar_url) ? (
                                         <img
-                                            src={avatarPreview || user.avatar_url}
+                                            src={profile.avatar_url.startsWith('http') ? profile.avatar_url : `${API}${profile.avatar_url}`}
                                             alt="Avatar"
                                             className="w-full h-full object-cover"
                                             onError={(e) => {
@@ -294,90 +308,100 @@ const Profile = () => {
                                     ) : null}
                                     <span
                                         className="text-6xl font-black bg-gradient-to-tr from-amber-400 to-orange-500 bg-clip-text text-transparent"
-                                        style={{ display: (avatarPreview || user?.avatar_url) ? 'none' : 'flex' }}
+                                        style={{ display: (profile?.avatar_url) ? 'none' : 'flex' }}
                                     >
-                                        {initial}
+                                        {profile?.username?.charAt(0).toUpperCase() || '?'}
                                     </span>
                                 </div>
                             </div>
-                            {/* Hidden file input */}
-                            <input
-                                ref={avatarInputRef}
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                onChange={handleAvatarChange}
-                            />
+                            
+                            {isOwnProfile && (
+                                <>
+                                    <input
+                                        ref={avatarInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={handleAvatarChange}
+                                    />
 
-                            {/* Upload button */}
-                            <button
-                                type="button"
-                                onClick={() => avatarInputRef.current?.click()}
-                                disabled={avatarUploading}
-                                title="Change profile picture"
-                                className="absolute bottom-2 right-2 p-3 backdrop-blur-md rounded-full text-white shadow-lg border transition-all transform hover:scale-110 disabled:opacity-60 disabled:cursor-not-allowed"
-                                style={{
-                                    background: avatarUploading ? 'rgba(245,158,11,0.4)' : 'rgba(245,158,11,0.85)',
-                                    borderColor: 'rgba(245,158,11,0.5)',
-                                }}
-                            >
-                                {avatarUploading ? (
-                                    <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4" />
-                                    </svg>
-                                ) : (
-                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-                                    </svg>
-                                )}
-                            </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => avatarInputRef.current?.click()}
+                                        disabled={avatarUploading}
+                                        title="Change profile picture"
+                                        className="absolute bottom-2 right-2 p-3 backdrop-blur-md rounded-full text-white shadow-lg border transition-all transform hover:scale-110 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        style={{
+                                            background: avatarUploading ? 'rgba(245,158,11,0.4)' : 'rgba(245,158,11,0.85)',
+                                            borderColor: 'rgba(245,158,11,0.5)',
+                                        }}
+                                    >
+                                        {avatarUploading ? (
+                                            <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4" />
+                                            </svg>
+                                        ) : (
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+                                            </svg>
+                                        )}
+                                    </button>
+                                </>
+                            )}
                         </div>
 
                         <div className="flex-1 text-center md:text-left pt-4">
                             <h1 className="text-5xl font-black text-white tracking-tight flex justify-center md:justify-start items-center gap-3">
-                                {user?.username}
+                                {profile?.username || 'User'}
                                 <svg className="w-8 h-8 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                                 </svg>
                             </h1>
-                            <p className="text-gray-400 mt-2 text-lg mb-6">{user?.email}</p>
+                            <p className="text-gray-400 mt-2 text-lg mb-2">{isOwnProfile ? user?.email : ''}</p>
+                            {(profile?.bio) && (
+                                <p className="text-gray-300 italic mb-6 max-w-xl">
+                                    {profile?.bio}
+                                </p>
+                            )}
 
                             {/* WALLET SECTION */}
-                            <div className="max-w-md bg-white/5 border border-white/10 p-6 rounded-2xl backdrop-blur-sm mb-6 shadow-xl">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                                        <span className="text-amber-500">💰</span> Mi Monedero
-                                    </h3>
-                                    <p className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">${walletBalance}</p>
-                                </div>
-                                <div className="flex flex-col gap-3">
-                                    <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                                        Añadir Fondos ($)
-                                    </label>
-                                    <div className="flex gap-3">
-                                        <input
-                                            type="number"
-                                            min="10"
-                                            max="1000"
-                                            value={rechargeAmount}
-                                            onChange={(e) => setRechargeAmount(Number(e.target.value))}
-                                            className="w-1/2 p-3 bg-[#08080f] border border-white/10 rounded-xl text-white font-bold focus:outline-none focus:border-amber-500 transition-colors"
-                                            placeholder="Ej: 50"
-                                        />
-                                        <button
-                                            onClick={handleRecharge}
-                                            disabled={recharging}
-                                            className="w-1/2 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-black hover:from-green-400 hover:to-emerald-500 transition-all shadow-lg flex items-center justify-center gap-2"
-                                        >
-                                            <span className="material-symbols-outlined text-sm">add_card</span>
-                                            {recharging ? 'Procesando...' : 'Recargar'}
-                                        </button>
+                            {isOwnProfile && (
+                                <div className="max-w-md bg-white/5 border border-white/10 p-6 rounded-2xl backdrop-blur-sm mb-6 shadow-xl">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                                            <span className="text-amber-500">💰</span> Mi Monedero
+                                        </h3>
+                                        <p className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">${walletBalance}</p>
+                                    </div>
+                                    <div className="flex flex-col gap-3">
+                                        <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                                            Añadir Fondos ($)
+                                        </label>
+                                        <div className="flex gap-3">
+                                            <input
+                                                type="number"
+                                                min="10"
+                                                max="1000"
+                                                value={rechargeAmount}
+                                                onChange={(e) => setRechargeAmount(Number(e.target.value))}
+                                                className="w-1/2 p-3 bg-[#08080f] border border-white/10 rounded-xl text-white font-bold focus:outline-none focus:border-amber-500 transition-colors"
+                                                placeholder="Ej: 50"
+                                            />
+                                            <button
+                                                onClick={handleRecharge}
+                                                disabled={recharging}
+                                                className="w-1/2 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-black hover:from-green-400 hover:to-emerald-500 transition-all shadow-lg flex items-center justify-center gap-2"
+                                            >
+                                                <span className="material-symbols-outlined text-sm">add_card</span>
+                                                {recharging ? 'Procesando...' : 'Recargar'}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
                             {/* END WALLET SECTION */}
 
-                            {(user?.billing_address || user?.payment_method) && !isEditing && (
+                            {isOwnProfile && (user?.billing_address || user?.payment_method) && !isEditing && (
                                 <div className="flex flex-col gap-1 mt-4 text-sm text-gray-300">
                                     {user?.billing_address && <p>🏠 <span className="text-white font-medium">{user.billing_address}</span></p>}
                                     {user?.payment_method && <p>💳 <span className="text-white font-medium capitalize">{user.payment_method.replace('_', ' ')}</span></p>}
@@ -400,45 +424,77 @@ const Profile = () => {
                                             <span className="material-symbols-outlined text-lg" style={{ fontVariationSettings: "'FILL' 1" }}>
                                                 star
                                             </span>
-                                            <span className="text-[10px] leading-none">{getReputationStars(profile?.total_sales).stars}</span>
+                                            <span className="text-[10px] leading-none">{profile?.reputation || getReputationStars(profile?.total_sales).stars}</span>
                                         </div>
                                     </div>
                                     <div className="flex flex-col text-left">
                                         <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Reputación</span>
-                                        <span className="text-white font-medium">{getReputationStars(profile?.total_sales).label}</span>
+                                        <span className="text-white font-medium">{profile?.reputation ? `${profile.reputation} Estrellas` : getReputationStars(profile?.total_sales).label}</span>
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-green-400 font-black text-xl flex-col">
-                                        <span className="text-[10px] text-gray-500 font-normal leading-none mb-0.5">Ventas</span>
-                                        <span className="leading-none">{profile?.total_sales || 0}</span>
+                                        <span className="text-[10px] text-gray-500 font-normal leading-none mb-0.5">Seguidores</span>
+                                        <span className="leading-none">{followStats.followers}</span>
                                     </div>
                                     <div className="flex flex-col text-left">
-                                        <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Saldo</span>
-                                        <span className="text-white font-medium">{profile?.wallet_balance || 0}€</span>
+                                        <span className="text-gray-500 text-xs font-bold uppercase tracking-wider">Social</span>
+                                        <span className="text-white font-medium">Following: {followStats.following}</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
                         <div className="flex flex-row md:flex-col gap-3 w-full md:w-auto mt-6 md:mt-0 pt-4">
-                            {!isEditing ? (
-                                <button onClick={() => setIsEditing(true)} className="flex-1 md:flex-none px-8 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black rounded-xl hover:from-amber-400 hover:to-orange-400 transition-all shadow-lg hover:shadow-amber-500/25">
-                                    Editar Perfil
-                                </button>
-                            ) : (
-                                <div className="flex gap-2 w-full">
-                                    <button onClick={handleSaveProfile} disabled={saving} className="flex-1 px-4 py-3 bg-green-500 text-white font-black rounded-xl hover:bg-green-400 transition-all shadow-lg">
-                                        {saving ? 'Guardando...' : 'Guardar'}
+                            {isOwnProfile ? (
+                                !isEditing ? (
+                                    <button onClick={() => setIsEditing(true)} className="flex-1 md:flex-none px-8 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-black font-black rounded-xl hover:from-amber-400 hover:to-orange-400 transition-all shadow-lg hover:shadow-amber-500/25">
+                                        Editar Perfil
                                     </button>
-                                    <button onClick={() => setIsEditing(false)} className="flex-1 px-4 py-3 bg-gray-600 text-white font-black rounded-xl hover:bg-gray-500 transition-all shadow-lg">
-                                        Cancelar
+                                ) : (
+                                    <div className="flex gap-2 w-full">
+                                        <button onClick={handleSaveProfile} disabled={saving} className="flex-1 px-4 py-3 bg-green-500 text-white font-black rounded-xl hover:bg-green-400 transition-all shadow-lg">
+                                            {saving ? 'Guardando...' : 'Guardar'}
+                                        </button>
+                                        <button onClick={() => setIsEditing(false)} className="flex-1 px-4 py-3 bg-gray-600 text-white font-black rounded-xl hover:bg-gray-500 transition-all shadow-lg">
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                )
+                            ) : (
+                                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto mt-6 md:mt-0 pt-4">
+                                    <div className="flex-1 md:flex-none min-w-[140px]">
+                                        <FollowButton sellerId={targetUserId} />
+                                    </div>
+                                    <button 
+                                        onClick={async () => {
+                                            const token = localStorage.getItem('token');
+                                            const res = await fetch(`${API}/chat/conversations`, {
+                                                method: 'POST',
+                                                headers: { 
+                                                    'Content-Type': 'application/json',
+                                                    Authorization: `Bearer ${token}` 
+                                                },
+                                                body: JSON.stringify({ participantId: targetUserId })
+                                            });
+                                            if (res.ok) {
+                                                const data = await res.json();
+                                                window.location.href = `/messages/${data.id}`;
+                                            }
+                                        }}
+                                        className="flex-1 md:flex-none px-8 py-3 bg-white/10 text-white border border-white/10 font-bold rounded-xl hover:bg-white/20 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <span className="material-symbols-outlined text-lg">forum</span>
+                                        Chat
                                     </button>
                                 </div>
                             )}
-                            <Link to="/create-puja" className="flex-1 md:flex-none px-8 py-3 bg-white/10 text-white border border-white/10 font-bold rounded-xl hover:bg-white/20 transition-all text-center">
-                                Crear Subasta
-                            </Link>
+                            
+                            {isOwnProfile && (
+                                <Link to="/create-puja" className="flex-1 md:flex-none px-8 py-3 bg-white/10 text-white border border-white/10 font-bold rounded-xl hover:bg-white/20 transition-all text-center">
+                                    Crear Subasta
+                                </Link>
+                            )}
                         </div>
                     </div>
 
@@ -448,6 +504,10 @@ const Profile = () => {
                                 <div>
                                     <label className="block text-gray-400 text-sm font-bold mb-2">Nombre de usuario (Nick)</label>
                                     <input type="text" name="username" value={formData.username} onChange={handleInputChange} className="w-full bg-[#08080f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                                </div>
+                                <div>
+                                    <label className="block text-gray-400 text-sm font-bold mb-2">Biografía</label>
+                                    <textarea name="bio" value={formData.bio || ''} onChange={handleInputChange} rows="3" className="w-full bg-[#08080f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors resize-none" placeholder="Cuéntanos algo sobre ti..."></textarea>
                                 </div>
                                 <div>
                                     <p className="block text-gray-400 text-sm font-bold mb-2">Foto de Perfil</p>
@@ -475,28 +535,33 @@ const Profile = () => {
 
                 {/* Content Section */}
                 <div className="space-y-6 mt-12">
-                    <div className="flex items-center gap-6 border-b border-white/10 mb-8">
+                    <div className="flex items-center gap-6 border-b border-white/10 mb-8 overflow-x-auto pb-1">
                         <button 
                             onClick={() => setActiveTab('pujas')}
-                            className={`pb-4 text-sm font-bold uppercase tracking-wider transition-all relative ${activeTab === 'pujas' ? 'text-amber-500' : 'text-gray-500 hover:text-white'}`}
+                            className={`pb-4 text-sm font-bold uppercase tracking-wider transition-all relative whitespace-nowrap ${activeTab === 'pujas' ? 'text-amber-500' : 'text-gray-500 hover:text-white'}`}
                         >
-                            Subastas creadas
+                            {isOwnProfile ? 'Mis Subastas' : 'Subastas creadas'}
                             {activeTab === 'pujas' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500" />}
                         </button>
-                        <button 
-                            onClick={() => setActiveTab('favorites')}
-                            className={`pb-4 text-sm font-bold uppercase tracking-wider transition-all relative ${activeTab === 'favorites' ? 'text-amber-500' : 'text-gray-500 hover:text-white'}`}
-                        >
-                            Mis Favoritos
-                            {activeTab === 'favorites' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500" />}
-                        </button>
-                        <button 
-                            onClick={() => setActiveTab('payments')}
-                            className={`pb-4 text-sm font-bold uppercase tracking-wider transition-all relative ${activeTab === 'payments' ? 'text-amber-500' : 'text-gray-500 hover:text-white'}`}
-                        >
-                            Mis Compras
-                            {activeTab === 'payments' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500" />}
-                        </button>
+                        
+                        {isOwnProfile && (
+                            <>
+                                <button 
+                                    onClick={() => setActiveTab('favorites')}
+                                    className={`pb-4 text-sm font-bold uppercase tracking-wider transition-all relative whitespace-nowrap ${activeTab === 'favorites' ? 'text-amber-500' : 'text-gray-500 hover:text-white'}`}
+                                >
+                                    Mis Favoritos
+                                    {activeTab === 'favorites' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500" />}
+                                </button>
+                                <button 
+                                    onClick={() => setActiveTab('payments')}
+                                    className={`pb-4 text-sm font-bold uppercase tracking-wider transition-all relative whitespace-nowrap ${activeTab === 'payments' ? 'text-amber-500' : 'text-gray-500 hover:text-white'}`}
+                                >
+                                    Mis Compras
+                                    {activeTab === 'payments' && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500" />}
+                                </button>
+                            </>
+                        )}
                     </div>
 
                     {loading ? (
@@ -518,11 +583,15 @@ const Profile = () => {
                                                     )}
                                                     <div className="absolute inset-0 bg-gradient-to-t from-[#08080f] via-transparent to-transparent opacity-80" />
                                                     <div className="absolute top-4 right-4">
-                                                        <span className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest shadow-lg backdrop-blur-md ${auction.status === 'live' ? 'bg-red-500/80 text-white border border-red-500/50' :
+                                                        <span className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest shadow-lg backdrop-blur-md ${
+                                                            auction.status === 'live' ? 'bg-red-500/80 text-white border border-red-500/50' :
                                                             auction.status === 'upcoming' ? 'bg-amber-500/80 text-black border border-amber-500/50' :
-                                                                'bg-white/20 text-white border border-white/10'
-                                                            }`}>
-                                                            {auction.status === 'live' ? 'En Vivo' : auction.status === 'upcoming' ? 'Próximamente' : 'Cerrada'}
+                                                            auction.status === 'cancelled_unpaid' ? 'bg-red-900/80 text-white border border-red-700/50' :
+                                                            'bg-white/20 text-white border border-white/10'
+                                                        }`}>
+                                                            {auction.status === 'live' ? 'En Vivo' : 
+                                                             auction.status === 'upcoming' ? 'Próximamente' : 
+                                                             auction.status === 'cancelled_unpaid' ? 'Sin Pago' : 'Cerrada'}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -608,8 +677,13 @@ const Profile = () => {
                                                         <img src={p.image_url} alt={p.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" />
                                                     ) : <div className="w-full h-full flex items-center justify-center text-4xl opacity-20">🔨</div>}
                                                     <div className="absolute top-3 right-3">
-                                                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md shadow-lg ${p.payment_status === 'paid' ? 'bg-emerald-500/80 text-white' : 'bg-amber-500/80 text-white'}`}>
-                                                            {p.payment_status === 'paid' ? 'Pagado' : 'Pendiente'}
+                                                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md shadow-lg ${
+                                                            p.payment_status === 'paid' ? 'bg-emerald-500/80 text-white' : 
+                                                            p.status === 'cancelled_unpaid' ? 'bg-red-900/80 text-white' :
+                                                            'bg-amber-500/80 text-white'
+                                                        }`}>
+                                                            {p.payment_status === 'paid' ? 'Pagado' : 
+                                                             p.status === 'cancelled_unpaid' ? 'Cancelado' : 'Pendiente'}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -621,7 +695,7 @@ const Profile = () => {
                                                             <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-0.5">Precio Final</p>
                                                             <p className="text-xl font-black text-white">${p.current_price?.toLocaleString()}</p>
                                                         </div>
-                                                        {p.payment_status === 'pending' ? (
+                                                        {p.payment_status === 'pending' && p.status !== 'cancelled_unpaid' ? (
                                                             <button 
                                                                 onClick={() => setSelectedPaymentAuction(p)}
                                                                 className="btn-primary py-2 px-6 text-sm flex items-center gap-2"
@@ -629,6 +703,11 @@ const Profile = () => {
                                                                 <span className="material-symbols-outlined text-sm">payments</span>
                                                                 Pagar
                                                             </button>
+                                                        ) : p.status === 'cancelled_unpaid' ? (
+                                                            <div className="text-red-400 flex items-center gap-1.5 font-bold text-sm">
+                                                                <span className="material-symbols-outlined text-lg">cancel</span>
+                                                                Expirado
+                                                            </div>
                                                         ) : (
                                                             <div className="text-emerald-400 flex items-center gap-1.5 font-bold text-sm">
                                                                 <span className="material-symbols-outlined text-lg">check_circle</span>
@@ -681,8 +760,9 @@ const Profile = () => {
                                         const data = await resp.json();
                                         if (resp.ok) {
                                             setSelectedPaymentAuction(null);
+                                            setShowSuccessOverlay(true);
+                                            fetchWalletBalance();
                                             fetchUserAuctions();
-                                            alert('¡Pago realizado con éxito!');
                                         } else {
                                             alert(data.message || 'Error al pagar');
                                         }
@@ -741,6 +821,9 @@ const Profile = () => {
                         </div>
                     </div>
                 </div>
+            )}
+            {showSuccessOverlay && (
+                <PaymentSuccessOverlay onComplete={() => setShowSuccessOverlay(false)} />
             )}
         </div>
     );

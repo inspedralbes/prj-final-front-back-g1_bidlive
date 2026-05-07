@@ -1,5 +1,6 @@
 const Puja = require('../models/Puja');
 const db = require('../config/db');
+const { sendNotification, sendMassNotification } = require('../utils/notifications');
 
 const pujaController = {
     createPuja: async (req, res) => {
@@ -47,7 +48,7 @@ const pujaController = {
                 id: p.id,
                 title: p.title,
                 description: p.description,
-                img: p.image_url || 'https://images.unsplash.com/photo-1550259979-ed79b48d2a30?auto=format&fit=crop&q=80',
+                img: p.image_url,
                 seller: p.seller_username || `User ${p.seller_id}`,
                 sellerId: p.seller_id,
                 sellerReputation: p.reputation_score || 0,
@@ -94,11 +95,62 @@ const pujaController = {
                 return res.status(400).json({ message: 'Cannot restart an ended auction' });
             }
 
-            // Update to live regardless of current state (upcoming or already live = idempotent)
-            await Puja.updateStatus(id, 'live');
-            console.log(`[Auction] Puja ${id} started (status → live)`);
+            // Calculate end_time based on duration
+            let durationMinutes = 60; // Default 1 hour
+            if (puja.duration) {
+                const match = puja.duration.match(/(\d+)/);
+                if (match) {
+                    const value = parseInt(match[1]);
+                    if (puja.duration.toLowerCase().includes('hour')) durationMinutes = value * 60;
+                    else if (puja.duration.toLowerCase().includes('minute')) durationMinutes = value;
+                }
+            }
+            
+            const endTime = new Date(Date.now() + durationMinutes * 60000);
 
-            res.json({ message: 'Puja started', id, status: 'live' });
+            // Update to live and set end_time
+            await db.query('UPDATE pujas SET status = "live", end_time = ? WHERE id = ?', [endTime, id]);
+            console.log(`[Auction] Puja ${id} started (status → live, end_time → ${endTime.toISOString()})`);
+
+            // --- NOTIFICATIONS ---
+            // 1. Notify users who favorited this auction
+            const favoriters = await Puja.findUsersWhoFavorited(id);
+            if (favoriters.length > 0) {
+                sendMassNotification(
+                    favoriters,
+                    '¡Subasta en directo!',
+                    `La subasta "${puja.title}" acaba de empezar el live. ¡Entra ya!`,
+                    'info',
+                    `/auction/${id}`
+                );
+            }
+
+            // 2. Notify followers of the seller
+            const authUrl = process.env.AUTH_SERVICE_URL || 'http://auth-service:3000';
+            const internalSecret = process.env.INTERNAL_SECRET || 'bidlive_secret';
+            try {
+                const followersResp = await fetch(`${authUrl}/follow/internal/followers/${puja.seller_id}?secret=${internalSecret}`);
+                if (followersResp.ok) {
+                    const followers = await followersResp.json();
+                    const followerIdsToNotify = followers
+                        .map(f => f.id)
+                        .filter(fid => !favoriters.includes(fid)); // Skip if already notified as favoriter
+
+                    if (followerIdsToNotify.length > 0) {
+                        sendMassNotification(
+                            followerIdsToNotify,
+                            `${puja.seller_username || 'Un vendedor que sigues'} está en directo`,
+                            `Ha comenzado el live de "${puja.title}".`,
+                            'info',
+                            `/auction/${id}`
+                        );
+                    }
+                }
+            } catch (err) {
+                console.error('[PujaController] Failed to fetch followers for notification:', err.message);
+            }
+
+            res.json({ message: 'Puja started', id, status: 'live', endTime });
         } catch (error) {
             console.error('Error starting puja:', error);
             res.status(500).json({ message: 'Internal server error', error: error.message });
@@ -132,6 +184,36 @@ const pujaController = {
                 console.error('[Auction] Reputation update failed:', repErr.message);
             }
 
+            // Notify winner
+            if (winnerId) {
+                sendNotification(
+                    winnerId,
+                    '¡HAS GANADO!',
+                    `Has ganado la subasta "${puja.title}" por $${finalPrice || puja.current_price}.`,
+                    'success',
+                    `/auction/${id}`
+                );
+
+                // --- PRIVATE CHAT SYSTEM NOTIFICATION ---
+                const chatUrl = process.env.CHAT_SERVICE_URL || 'http://chat-service:3004';
+                const internalSecret = process.env.INTERNAL_SECRET || 'bidlive_secret';
+                try {
+                    await fetch(`${chatUrl}/internal/system-message`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            secret: internalSecret,
+                            winnerId: winnerId,
+                            sellerId: puja.seller_id,
+                            content: `¡Enhorabuena! Has ganado la subasta "${puja.title}" por ${finalPrice || puja.current_price}€. Ponte en contacto con el vendedor para finalizar los detalles del pago y envío.`
+                        })
+                    });
+                    console.log(`[Auction] Private chat notification sent for Puja ${id}`);
+                } catch (chatErr) {
+                    console.error('[Auction] Failed to send private chat notification:', chatErr.message);
+                }
+            }
+
             res.json({ message: 'Puja ended', id, status: 'ended', winnerId, finalPrice });
         } catch (error) {
             console.error('Error ending puja:', error);
@@ -160,6 +242,11 @@ const pujaController = {
             const auction = await Puja.findById(id);
             if (!auction) return res.status(404).json({ message: 'Subasta no encontrada' });
             
+            // SECURITY: Only the winner can pay
+            if (auction.winner_id !== req.user.userId) {
+                return res.status(403).json({ message: 'Solo el ganador de la subasta puede realizar el pago.' });
+            }
+
             const price = auction.current_price || auction.starting_price;
 
             if (method === 'wallet') {
@@ -171,7 +258,8 @@ const pujaController = {
 
                 const data = await response.json();
                 if (response.ok && data.success) {
-                    await Puja.updatePaymentStatus(id, 'paid');
+                    // Trigger internal settlement
+                    await pujaController._doMarkPaidAndSettlement(id);
                     return res.json({ success: true, message: '¡Pago realizado con tu billetera!' });
                 } else {
                     return res.status(400).json({ success: false, message: data.message || 'Error al pagar con billetera' });
@@ -196,7 +284,7 @@ const pujaController = {
             console.error('CRITICAL ERROR processing payment:', {
                 message: error.message,
                 stack: error.stack,
-                auctionId: id
+                auctionId: req.params.id
             });
             res.status(500).json({ 
                 message: 'Error interno del servidor al procesar el pago', 
@@ -234,7 +322,7 @@ const pujaController = {
                 id: p.id,
                 title: p.title,
                 description: p.description,
-                img: p.image_url || 'https://images.unsplash.com/photo-1550259979-ed79b48d2a30?auto=format&fit=crop&q=80',
+                img: p.image_url,
                 seller: p.seller_username || `User ${p.seller_id}`,
                 currentPrice: p.current_price,
                 startingPrice: p.starting_price,
@@ -263,13 +351,86 @@ const pujaController = {
         try {
             const { id } = req.params;
             const { secret } = req.body;
+            
             if (secret !== (process.env.INTERNAL_SECRET || 'bidlive_secret')) {
                 return res.status(403).json({ message: 'Forbidden' });
             }
-            await Puja.updatePaymentStatus(id, 'paid');
-            res.json({ success: true, message: `Auction ${id} marked as paid` });
+
+            await pujaController._doMarkPaidAndSettlement(id);
+            res.json({ success: true, message: `Auction ${id} marked as paid and seller credited.` });
         } catch (error) {
-            console.error('Error marking as paid:', error);
+            console.error('Error in markPaid route:', error);
+            res.status(500).json({ message: 'Internal server error', error: error.message });
+        }
+    },
+
+    _doMarkPaidAndSettlement: async (id) => {
+        try {
+            const puja = await Puja.findById(id);
+            if (!puja) throw new Error('Puja not found');
+            if (puja.payment_status === 'paid') return; // Idempotent
+
+            await Puja.updatePaymentStatus(id, 'paid');
+            console.log(`[Auction] Puja ${id} marked as paid.`);
+
+            // SETTLEMENT: Credit the seller
+            const authUrl = process.env.AUTH_SERVICE_URL || 'http://auth-service:3000';
+            const internalSecret = process.env.INTERNAL_SECRET || 'bidlive_secret';
+            const amount = puja.current_price || puja.starting_price;
+
+            const creditResp = await fetch(`${authUrl}/wallet/credit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: puja.seller_id,
+                    amount: amount,
+                    secret: internalSecret
+                })
+            });
+
+            if (!creditResp.ok) {
+                const errData = await creditResp.json();
+                throw new Error(`Failed to credit seller: ${errData.message}`);
+            }
+            console.log(`[Settlement] Successfully credited ${amount} to seller ${puja.seller_id}`);
+        } catch (error) {
+            console.error('Error in _doMarkPaidAndSettlement:', error);
+            throw error;
+        }
+    },
+
+    recordBid: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { bidderId, amount, secret } = req.body;
+            
+            if (secret !== (process.env.INTERNAL_SECRET || 'bidlive_secret')) {
+                return res.status(403).json({ message: 'Forbidden' });
+            }
+
+            const result = await Puja.updateBid(id, bidderId, amount);
+            res.json({ success: true, previousBidderId: result.previousBidderId });
+        } catch (error) {
+            console.error('Error recording bid:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    },
+
+    extendEndTime: async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { seconds, secret } = req.body;
+
+            if (secret !== (process.env.INTERNAL_SECRET || 'bidlive_secret')) {
+                return res.status(403).json({ message: 'Forbidden' });
+            }
+
+            await Puja.extendEndTime(id, seconds || 30);
+            const puja = await Puja.findById(id);
+            
+            res.json({ success: true, newEndTime: puja.end_time });
+        } catch (error) {
+            console.error('Error extending puja time:', error);
             res.status(500).json({ message: 'Internal server error' });
         }
     }

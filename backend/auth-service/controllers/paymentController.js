@@ -65,11 +65,16 @@ const paymentController = {
         const auctionId = session.metadata.auctionId;
         const amount = session.amount_total / 100;
 
-        if (!auctionId) {
-          await User.addMoney(userId, amount);
+        // Idempotency check
+        const alreadyProcessed = await User.isPaymentProcessed(sessionId);
+        if (!alreadyProcessed) {
+          if (!auctionId) {
+            await User.addMoney(userId, amount);
+          }
+          await User.markPaymentProcessed(sessionId, userId, amount);
         }
 
-        res.json({ success: true, amount, balance: amount, wallet: amount }); // Simplificado
+        res.json({ success: true, amount, balance: amount, wallet: amount });
       } else {
         res.status(400).json({ success: false, message: "Payment not completed" });
       }
@@ -102,6 +107,13 @@ const paymentController = {
       const amount = session.amount_total / 100; // Volver a euros
 
       try {
+        // Idempotency check
+        const alreadyProcessed = await User.isPaymentProcessed(session.id);
+        if (alreadyProcessed) {
+          console.log(`⚠️ Webhook received for already processed session: ${session.id}`);
+          return res.json({ received: true });
+        }
+
         if (!auctionId) {
           await User.addMoney(userId, amount);
           console.log(`✅ Success: Wallet of user ${userId} updated with ${amount}€`);
@@ -115,6 +127,8 @@ const paymentController = {
               body: JSON.stringify({ secret: process.env.INTERNAL_SECRET || 'bidlive_secret' })
           });
         }
+        
+        await User.markPaymentProcessed(session.id, userId, amount);
       } catch (err) {
         console.error("Database update error in webhook:", err);
         return res.status(500).send("Database error");
@@ -142,6 +156,54 @@ const paymentController = {
     } catch (err) {
       console.error("Pay with wallet error:", err);
       res.status(500).json({ message: "Error al procesar el pago con billetera" });
+    }
+  },
+
+  creditWallet: async (req, res) => {
+    try {
+      const { userId, amount, secret } = req.body;
+      const internalSecret = process.env.INTERNAL_SECRET || "bidlive_secret";
+
+      if (secret !== internalSecret) {
+        return res.status(403).json({ message: "Forbidden: Invalid internal secret" });
+      }
+
+      if (!userId || !amount || amount <= 0) {
+        return res.status(400).json({ message: "Invalid parameters" });
+      }
+
+      await User.addMoney(userId, amount);
+      console.log(`[Wallet] Credited ${amount} to user ${userId} via internal credit`);
+      res.json({ success: true, message: "Balance updated" });
+    } catch (err) {
+      console.error("Credit wallet error:", err);
+      res.status(500).json({ message: "Error updating wallet balance" });
+    }
+  },
+
+  internalDebitWallet: async (req, res) => {
+    try {
+      const { userId, amount, secret } = req.body;
+      const internalSecret = process.env.INTERNAL_SECRET || "bidlive_secret";
+
+      if (secret !== internalSecret) {
+        return res.status(403).json({ message: "Forbidden: Invalid internal secret" });
+      }
+
+      if (!userId || !amount || amount <= 0) {
+        return res.status(400).json({ message: "Invalid parameters" });
+      }
+
+      const success = await User.subtractMoney(userId, amount);
+      if (success) {
+        console.log(`[Wallet] Debited ${amount} from user ${userId} via internal debit`);
+        res.json({ success: true, message: "Balance updated" });
+      } else {
+        res.status(400).json({ success: false, message: "Insufficient funds" });
+      }
+    } catch (err) {
+      console.error("Internal debit wallet error:", err);
+      res.status(500).json({ message: "Error updating wallet balance" });
     }
   },
 };

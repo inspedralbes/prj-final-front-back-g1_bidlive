@@ -7,7 +7,8 @@ import Header from '../components/layout/Header';
 const statusColor = (status) => {
     if (status === 'live') return { text: '#ef4444', bg: 'rgba(239,68,68,0.1)', label: 'Live' };
     if (status === 'ended') return { text: '#6b7280', bg: 'rgba(107,114,128,0.1)', label: 'Ended' };
-    return { text: '#9ca3af', bg: 'rgba(156,163,175,0.1)', label: 'Not Live' };
+    if (status === 'cancelled_unpaid') return { text: '#f87171', bg: 'rgba(248,113,113,0.1)', label: 'Unpaid' };
+    return { text: '#9ca3af', bg: 'rgba(156,163,175,0.1)', label: 'Upcoming' };
 };
 
 const StatCard = ({ label, value, icon, accent }) => (
@@ -49,8 +50,8 @@ export default function SellerDashboard() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id, location.key]);
 
-    const activePujas = pujas.filter(p => p.status !== 'ended');
-    const endedPujas = pujas.filter(p => p.status === 'ended');
+    const activePujas = pujas.filter(p => !['ended', 'cancelled_unpaid'].includes(p.status));
+    const endedPujas = pujas.filter(p => ['ended', 'cancelled_unpaid'].includes(p.status));
 
     const total = pujas.length;
     const live = pujas.filter(p => p.status === 'live').length;
@@ -190,7 +191,7 @@ export default function SellerDashboard() {
                                                 </div>
                                             </div>
                                             <div className="hidden md:flex col-span-2 items-center opacity-70">
-                                                <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ color: col.text, background: col.bg }}>Completed</span>
+                                                <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ color: col.text, background: col.bg }}>{col.label}</span>
                                             </div>
                                             <div className="hidden md:block col-span-2 opacity-70">
                                                 <p className="text-gray-400 font-bold text-sm">${Number(price).toLocaleString()}</p>

@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import Header from '../components/layout/Header';
 import { usePujas } from '../hooks/usePujas';
+import { useSellers } from '../hooks/useSellers';
 import { useCategories } from '../hooks/useCategories';
 import FavoriteButton from '../components/common/FavoriteButton';
+import SellerCard from '../components/common/SellerCard';
 
 const getReputationStars = (sales) => {
     if (!sales || sales === 0) return { stars: 0, label: "New" };
@@ -36,8 +38,17 @@ const AuctionCard = ({ auction }) => (
                     <img src={auction.img} alt={auction.title} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                         onError={e => { e.target.style.display = 'none'; }} />
                 ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-3" 
+                         style={{ background: 'linear-gradient(135deg, #1e1e3f 0%, #111122 100%)' }}>
+                        <div className="w-16 h-16 rounded-2xl flex items-center justify-center"
+                             style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                            <span className="material-symbols-outlined text-amber-400" style={{ fontSize: '32px' }}>
+                                {auction.categoryIcon || 'category'}
+                            </span>
+                        </div>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 opacity-60">
+                            {auction.categoryName || 'General'}
+                        </p>
                     </div>
                 )}
                 {auction.status === 'live' && (
@@ -48,7 +59,7 @@ const AuctionCard = ({ auction }) => (
                 {/* Removed redundant category badge and added bidding info overlay */}
                 <div className="absolute bottom-0 left-0 right-0 p-3"
                     style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)' }}>
-                    <p className="text-amber-400 font-black text-lg">{auction.bid || '$0'}</p>
+                    <p className="text-amber-400 font-black text-lg">${Number(auction.currentPrice).toLocaleString()}</p>
                 </div>
             </div>
             <div className="p-4">
@@ -90,6 +101,7 @@ export default function Search() {
     const [query, setQuery] = useState(searchParams.get('q') || '');
     const [activeCategoryId, setActiveCategoryId] = useState(searchParams.get('categoryId') || '');
     const [activeCategoryName, setActiveCategoryName] = useState(searchParams.get('categoryName') || '');
+    const [searchType, setSearchType] = useState(searchParams.get('type') || 'auctions');
 
     const { categories } = useCategories();
 
@@ -110,13 +122,22 @@ export default function Search() {
             params.categoryId = activeCategoryId;
             params.categoryName = activeCategoryName;
         }
+        if (searchType !== 'auctions') params.type = searchType;
         setSearchParams(params, { replace: true });
-    }, [query, activeCategoryId, activeCategoryName, setSearchParams]);
+    }, [query, activeCategoryId, activeCategoryName, searchType, setSearchParams]);
 
-    const { data: auctions, loading, error } = usePujas({
+    const { data: auctions, loading: loadingAuctions, error: errorAuctions } = usePujas({
         q: query || undefined,
         categoryId: activeCategoryId || undefined,
     });
+
+    const { sellers, loading: loadingSellers, error: errorSellers } = useSellers({
+        q: query || undefined
+    });
+
+    const loading = searchType === 'auctions' ? loadingAuctions : loadingSellers;
+    const error = searchType === 'auctions' ? errorAuctions : errorSellers;
+    const itemsCount = searchType === 'auctions' ? auctions.length : sellers.length;
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -151,7 +172,7 @@ export default function Search() {
                 {/* Search bar */}
                 <div className="max-w-2xl mx-auto mb-10">
                     <h1 className="text-4xl font-black text-white text-center mb-8">
-                        Explore <span className="text-amber-400">auctions</span>
+                        Explore <span className="text-amber-400">{searchType === 'auctions' ? 'auctions' : 'sellers'}</span>
                     </h1>
                     <form onSubmit={handleSearch} className="flex gap-3">
                         <div className="relative flex-1">
@@ -162,7 +183,7 @@ export default function Search() {
                             <input
                                 className="input-field pl-11"
                                 type="text"
-                                placeholder="Search by item name..."
+                                placeholder={searchType === 'auctions' ? "Search by item name..." : "Search by seller name or bio..."}
                                 value={input}
                                 onChange={e => setInput(e.target.value)}
                             />
@@ -171,9 +192,27 @@ export default function Search() {
                     </form>
                 </div>
 
-                {/* Category pills */}
-                {categories.length > 0 && (
-                    <div className="mb-8 flex flex-wrap gap-2 justify-center">
+                {/* Search Type Tabs */}
+                <div className="flex justify-center gap-8 mb-10 border-b border-white/5">
+                    <button 
+                        onClick={() => setSearchType('auctions')}
+                        className={`pb-4 px-4 text-sm font-bold tracking-widest uppercase transition-all relative ${searchType === 'auctions' ? 'text-amber-400' : 'text-gray-500 hover:text-white'}`}
+                    >
+                        Subastas
+                        {searchType === 'auctions' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-400 rounded-t-full" />}
+                    </button>
+                    <button 
+                        onClick={() => setSearchType('sellers')}
+                        className={`pb-4 px-4 text-sm font-bold tracking-widest uppercase transition-all relative ${searchType === 'sellers' ? 'text-amber-400' : 'text-gray-500 hover:text-white'}`}
+                    >
+                        Vendedores
+                        {searchType === 'sellers' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-amber-400 rounded-t-full" />}
+                    </button>
+                </div>
+
+                {/* Category pills - only for auctions */}
+                {searchType === 'auctions' && categories.length > 0 && (
+                    <div className="mb-8 flex flex-wrap gap-2 justify-center animate-fade-in">
                         <button
                             onClick={clearAll}
                             className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all"
@@ -208,7 +247,7 @@ export default function Search() {
                     <p className="text-gray-400 text-sm">
                         {loading
                             ? 'Searching...'
-                            : `${auctions.length} auction${auctions.length !== 1 ? 's' : ''} found${activeCategoryName ? ` in "${activeCategoryName}"` : ''}${query ? ` for "${query}"` : ''}`}
+                            : `${itemsCount} ${searchType === 'auctions' ? 'auction' : 'seller'}${itemsCount !== 1 ? 's' : ''} found${activeCategoryName ? ` in "${activeCategoryName}"` : ''}${query ? ` for "${query}"` : ''}`}
                     </p>
                     {hasFilters && (
                         <button
@@ -234,31 +273,37 @@ export default function Search() {
                     </div>
                 )}
 
-                {!loading && !error && auctions.length === 0 && (
+                {!loading && !error && itemsCount === 0 && (
                     <div className="rounded-xl p-16 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
                         <div className="w-14 h-14 rounded-full mx-auto mb-4 flex items-center justify-center"
                             style={{ background: 'rgba(245,158,11,0.1)' }}>
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="rgba(245,158,11,0.6)" strokeWidth="2"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" /></svg>
                         </div>
-                        <p className="text-gray-400 font-medium text-lg">No auctions found</p>
-                        <p className="text-gray-600 text-sm mt-2">
-                            {hasFilters ? 'No results for the current filters.' : 'Be the first to create an auction!'}
+                        <p className="text-gray-400 font-medium text-lg">
+                            {searchType === 'auctions' ? 'No auctions found' : 'No sellers found'}
                         </p>
-                        {hasFilters ? (
-                            <button onClick={clearAll} className="btn-primary mt-6 inline-flex text-sm px-6 py-2.5">
-                                Clear filters
-                            </button>
-                        ) : (
+                        <p className="text-gray-600 text-sm mt-2">
+                            {query ? `Try searching for something else.` : (searchType === 'auctions' ? 'Be the first to create an auction!' : 'Be the first seller!')}
+                        </p>
+                        {searchType === 'auctions' && !query && (
                             <Link to="/create-puja" className="btn-primary mt-6 inline-flex text-sm px-6 py-2.5">
                                 Create auction
                             </Link>
                         )}
+                        {query && (
+                            <button onClick={clearAll} className="btn-primary mt-6 inline-flex text-sm px-6 py-2.5">
+                                Clear search
+                            </button>
+                        )}
                     </div>
                 )}
 
-                {!loading && !error && auctions.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {auctions.map(a => <AuctionCard key={a.id} auction={a} />)}
+                {!loading && !error && itemsCount > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 animate-fade-in">
+                        {searchType === 'auctions' 
+                            ? auctions.map(a => <AuctionCard key={a.id} auction={a} />)
+                            : sellers.map(s => <SellerCard key={s.id} seller={s} />)
+                        }
                     </div>
                 )}
             </main>

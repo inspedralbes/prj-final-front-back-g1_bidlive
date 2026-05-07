@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useChat } from '../../hooks/useChat';
+import NotificationBell from '../common/NotificationBell';
 
 const Logo = () => (
     <Link to="/" className="flex items-center gap-2 select-none group">
@@ -16,13 +18,13 @@ const Logo = () => (
     </Link>
 );
 
-const NavLink = ({ to, children, active }) => (
+const NavLink = ({ to, children, active, className = "" }) => (
     <Link
         to={to}
         className={`text-sm font-medium transition-colors px-1 py-0.5 ${active
             ? 'text-amber-400'
             : 'text-gray-400 hover:text-white'
-            }`}
+            } ${className}`}
     >
         {children}
     </Link>
@@ -30,6 +32,7 @@ const NavLink = ({ to, children, active }) => (
 
 export default function Header() {
     const { user, logout } = useAuth();
+    const chatData = useChat();
     const navigate = useNavigate();
     const location = useLocation();
     const [menuOpen, setMenuOpen] = useState(false);
@@ -111,7 +114,16 @@ export default function Header() {
                 {/* Nav links — desktop */}
                 <nav className="hidden md:flex items-center gap-6">
                     <NavLink to="/" active={isActive('/')}>Home</NavLink>
-                    <NavLink to="/explore" active={isActive('/explore')}>Explore</NavLink>
+                    <NavLink to="/explore" active={isActive('/explore') && !location.search.includes('type=sellers')}>Explore</NavLink>
+                    <NavLink to="/explore?type=sellers" active={location.search.includes('type=sellers')}>Sellers</NavLink>
+                    {user && (
+                        <NavLink to="/messages" active={location.pathname.startsWith('/messages')} className="relative">
+                            Messages
+                            {chatData.totalUnread > 0 && (
+                                <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                            )}
+                        </NavLink>
+                    )}
                     {user && <NavLink to="/seller" active={isActive('/seller')}>Dashboard</NavLink>}
                 </nav>
 
@@ -139,11 +151,13 @@ export default function Header() {
                                 New auction
                             </Link>
 
+                            <NotificationBell />
+                            
                             {/* User avatar dropdown */}
                             <div className="relative" ref={userMenuRef}>
                                 <button
                                     onClick={() => setUserMenuOpen(v => !v)}
-                                    className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-amber-400 border border-amber-500/30 hover:border-amber-500/60 transition-colors cursor-pointer select-none overflow-hidden"
+                                    className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-amber-400 border border-amber-500/30 hover:border-amber-500/60 transition-colors cursor-pointer select-none overflow-hidden relative"
                                     style={{ background: 'rgba(245,158,11,0.12)' }}
                                 >
                                     {user.avatar_url ? (
@@ -183,6 +197,18 @@ export default function Header() {
                                             className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
                                         >
                                             My Profile
+                                        </Link>
+                                        <Link
+                                            to="/messages"
+                                            onClick={() => setUserMenuOpen(false)}
+                                            className="flex items-center justify-between px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                Messages
+                                            </div>
+                                            {chatData.totalUnread > 0 && (
+                                                <span className="w-2 h-2 bg-red-500 rounded-full" />
+                                            )}
                                         </Link>
 
                                         {!isRecharging ? (
@@ -291,23 +317,27 @@ export default function Header() {
                     {[
                         { to: '/', label: 'Home' },
                         { to: '/explore', label: 'Explore' },
+                        { to: '/explore?type=sellers', label: 'Sellers' },
                         ...(user ? [
                             { to: '/profile', label: 'My profile' },
+                            { to: '/messages', label: 'Messages', badge: chatData.totalUnread > 0 },
                             { to: '/seller', label: 'Dashboard' },
-                            { to: '/profile', label: 'My Profile' },
                             { to: '/create-puja', label: 'New auction' },
                         ] : [
                             { to: '/login', label: 'Sign in' },
                             { to: '/register', label: 'Get started' },
                         ])
-                    ].map(({ to, label }) => (
+                    ].map(({ to, label, badge }) => (
                         <Link
                             key={to}
                             to={to}
                             onClick={() => setMenuOpen(false)}
-                            className="block px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
+                            className="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
                         >
                             {label}
+                            {badge && (
+                                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                            )}
                         </Link>
                     ))}
                     {user && (

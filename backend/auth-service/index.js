@@ -6,13 +6,17 @@ const multer = require("multer");
 const authController = require("./controllers/authController");
 const paymentController = require("./controllers/paymentController");
 const profileController = require("./controllers/profileController");
+const notificationController = require("./controllers/notificationController");
+const followerController = require("./controllers/followerController");
 const User = require("./models/User");
+const Notification = require("./models/Notification");
+const Follower = require("./models/Follower");
 const authMiddleware = require("./middleware/authMiddleware");
 const swaggerUi = require("swagger-ui-express");
 const YAML = require("yamljs");
 const OpenApiValidator = require("express-openapi-validator");
 
-const openApiSpec = YAML.load(path.join(__dirname, "../../openspec/specs/auth-spec.yaml"));
+const openApiSpec = YAML.load(process.env.OPENAPI_SPEC_PATH || path.join(__dirname, "../../openspec/specs/auth-spec.yaml"));
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -34,7 +38,7 @@ app.use("/docs", swaggerUi.serve, swaggerUi.setup(openApiSpec));
 
 app.use(
   OpenApiValidator.middleware({
-    apiSpec: path.join(__dirname, "../../openspec/specs/auth-spec.yaml"),
+    apiSpec: process.env.OPENAPI_SPEC_PATH || path.join(__dirname, "../../openspec/specs/auth-spec.yaml"),
     validateRequests: true,
     validateResponses: false, // Set to true if you want to strictly validate responses too
     ignorePaths: (path) => path.includes("/webhook") || path.includes("/uploads"),
@@ -73,7 +77,9 @@ const initDB = async (retries = 5, delay = 5000) => {
   for (let i = 0; i < retries; i++) {
     try {
       await User.createTable();
-      console.log("✅ Users table checked/created successfully");
+      await Notification.createTable();
+      await Follower.createTable();
+      console.log("✅ Users, Notifications and Followers tables checked/created successfully");
       return true;
     } catch (err) {
       console.error(`❌ Error creating users table (attempt ${i + 1}/${retries}):`, err);
@@ -104,8 +110,25 @@ app.get("/wallet/balance", authMiddleware, async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 });
+app.get("/wallet/balance/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { secret } = req.query;
+    if (secret !== (process.env.INTERNAL_SECRET || "bidlive_secret")) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({ balance: user.wallet_balance ?? 0 });
+  } catch (err) {
+    res.status(500).json({ message: "Error" });
+  }
+});
+app.post("/wallet/credit", paymentController.creditWallet);
+app.post("/wallet/debit", paymentController.internalDebitWallet);
 
 // Profile routes
+app.get("/profile/search", profileController.searchUsers);
 app.get("/profile/:id", profileController.getProfile);
 app.put("/profile/:id", authMiddleware, authController.updateProfile);
 app.put("/profile", authMiddleware, profileController.updateProfile);
@@ -117,11 +140,24 @@ app.get("/payment/confirm-session/:sessionId", paymentController.confirmSession)
 app.post("/payment/webhook", paymentController.webhook);
 
 // Avatar upload: POST /auth/profile/:id/avatar  (multipart, field = "avatar")
+// Avatar upload: POST /auth/profile/:id/avatar  (multipart, field = "avatar")
 app.post(
   "/profile/:id/avatar",
   uploadAvatar.single("avatar"),
   authController.uploadAvatar
 );
+
+// Notification routes
+app.get("/notifications", authMiddleware, notificationController.getNotifications);
+app.post("/notifications/:id/read", authMiddleware, notificationController.markAsRead);
+app.post("/notifications/read-all", authMiddleware, notificationController.markAllAsRead);
+app.post("/notifications/internal", notificationController.createInternal);
+
+// Follower routes
+app.post("/follow/toggle", authMiddleware, followerController.toggleFollow);
+app.get("/follow/check/:sellerId", authMiddleware, followerController.checkFollowing);
+app.get("/follow/stats/:userId", followerController.getStats);
+app.get("/follow/internal/followers/:sellerId", followerController.getInternalFollowers);
 
 app.get("/", (_req, res) => res.send("Auth Service is running"));
 

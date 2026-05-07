@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import AuctionTimer from './AuctionTimer';
 
 /**
  * BiddingHUD — viewer-facing bid panel.
@@ -7,16 +8,25 @@ import React, { useState } from 'react';
  *   placeBid     function(amount)  – from useWebSocket
  *   disabled     bool              – when not connected
  */
-export default function BiddingHUD({ currentBid = 0, placeBid, disabled = false, status = 'none' }) {
+export default function BiddingHUD({ currentBid = 0, hasBids = false, placeBid, disabled = false, status = 'none', balance = 0, endTime = null }) {
     const current = typeof currentBid === 'string'
         ? parseFloat(currentBid.replace(/[^0-9.]/g, '')) || 0
         : Number(currentBid) || 0;
 
+    const getMinIncrement = (price) => {
+        if (price >= 500) return 10;
+        if (price >= 100) return 5;
+        return 1;
+    };
+
+    const minIncrement = getMinIncrement(current);
+    const minRequired = hasBids ? (current + minIncrement) : current;
+
     const suggestedBids = [
-        current + 10,
-        current + 25,
-        current + 50,
-        current + 100,
+        minRequired,
+        minRequired + minIncrement,
+        minRequired + (minIncrement * 5),
+        minRequired + (minIncrement * 10),
     ];
 
     const [customAmount, setCustomAmount] = useState('');
@@ -25,8 +35,12 @@ export default function BiddingHUD({ currentBid = 0, placeBid, disabled = false,
 
     const handleBid = (amount) => {
         const num = Number(amount);
-        if (!num || num <= current) {
-            setError(`Bid must be higher than $${current}`);
+        if (!num || num < minRequired) {
+            setError(`La puja mínima es de ${Math.ceil(minRequired)}€.`);
+            return;
+        }
+        if (num > balance) {
+            setError('Saldo insuficiente en tu billetera.');
             return;
         }
         setError('');
@@ -42,10 +56,21 @@ export default function BiddingHUD({ currentBid = 0, placeBid, disabled = false,
 
     return (
         <div className="rounded-2xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+            {/* Timer & Balance */}
+            <div className="flex items-center justify-between mb-6 pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                <AuctionTimer endTime={endTime} />
+                <div className="text-right">
+                    <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Tu Saldo</p>
+                    <p className="text-white font-black text-lg">${balance.toLocaleString()}</p>
+                </div>
+            </div>
+
             {/* Current bid */}
             <div className="flex items-center justify-between mb-5">
                 <div key={current} className="animate-bid-flash rounded-lg p-1 -m-1 transition-colors">
-                    <p className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1">Current bid</p>
+                    <p className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1">
+                        {hasBids ? 'Current bid' : 'Starting Price'}
+                    </p>
                     <p className="text-white font-black text-4xl">${current.toLocaleString()}</p>
                 </div>
                 <div className="flex flex-col items-end gap-2">
@@ -55,7 +80,7 @@ export default function BiddingHUD({ currentBid = 0, placeBid, disabled = false,
                             GANANDO
                         </div>
                     )}
-                    {status === 'outbid' && (
+                    {status === 'outbid' && hasBids && (
                         <div className="badge-live" style={{ background: 'rgba(245, 158, 11, 0.15)', borderColor: 'rgba(245, 158, 11, 0.3)', color: '#f59e0b' }}>
                             <span className="w-2 h-2 rounded-full bg-amber-500"></span>
                             SUPERADO
@@ -86,7 +111,11 @@ export default function BiddingHUD({ currentBid = 0, placeBid, disabled = false,
                         onMouseEnter={e => { if (!disabled) { e.currentTarget.style.background = 'rgba(245,158,11,0.18)'; e.currentTarget.style.borderColor = 'rgba(245,158,11,0.4)'; } }}
                         onMouseLeave={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.08)'; e.currentTarget.style.borderColor = 'rgba(245,158,11,0.2)'; }}
                     >
-                        +${amt - current} <span className="font-normal opacity-60">(${amt.toLocaleString()})</span>
+                        {amt === current ? (
+                            `Starting Bid ($${amt.toLocaleString()})`
+                        ) : (
+                            <>+${amt - current} <span className="font-normal opacity-60">(${amt.toLocaleString()})</span></>
+                        )}
                     </button>
                 ))}
             </div>
@@ -98,9 +127,9 @@ export default function BiddingHUD({ currentBid = 0, placeBid, disabled = false,
                     <input
                         className="input-field pl-7 text-sm py-2.5"
                         type="number"
-                        min={current + 1}
+                        min={minRequired}
                         step="1"
-                        placeholder={`Min. $${current + 1}`}
+                        placeholder={`Min. $${Math.ceil(minRequired)}`}
                         value={customAmount}
                         onChange={e => setCustomAmount(e.target.value)}
                         disabled={disabled}

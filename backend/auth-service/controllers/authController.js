@@ -55,9 +55,10 @@ const authController = {
         { expiresIn: "7d" },
       );
 
+      const { password: _, ...userWithoutPassword } = user;
       res.json({
         token,
-        user: { id: user.id, username: user.username, email: user.email, avatar_url: user.avatar_url, billing_address: user.billing_address, payment_method: user.payment_method },
+        user: userWithoutPassword,
       });
     } catch (error) {
       console.error("Login error:", error);
@@ -98,9 +99,10 @@ const authController = {
         { expiresIn: "7d" }
       );
 
+      const { password: _, ...userWithoutPassword } = user;
       res.json({
         token,
-        user: { id: user.id, username: user.username, email: user.email, avatar_url: user.avatar_url, billing_address: user.billing_address, payment_method: user.payment_method },
+        user: userWithoutPassword,
       });
     } catch (error) {
       console.error("Google Login error:", error);
@@ -111,9 +113,8 @@ const authController = {
   updateProfile: async (req, res) => {
     try {
       const { id } = req.params;
-      const { username, avatar_url, billing_address, payment_method } = req.body;
-
-      await User.updateFullProfile(id, { username, avatar_url, billing_address, payment_method });
+      const { username, bio, avatar_url, billing_address, payment_method } = req.body;
+      await User.updateFullProfile(id, { username, bio, avatar_url, billing_address, payment_method });
       const updatedUser = await User.findById(id);
 
       res.json({
