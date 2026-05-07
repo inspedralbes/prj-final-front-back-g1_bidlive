@@ -12,7 +12,7 @@ const authMiddleware = require("./middleware/authMiddleware");
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Webhook must be before express.json() to get raw bodys
+// Webhook must be before express.json() to get raw body
 app.post("/webhook", express.raw({ type: "application/json" }), paymentController.webhook);
 
 app.use(express.json({
