@@ -1,6 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
+
+const FlagCA = () => (
+    <div className="w-[18px] h-[13px] flex flex-col rounded-[2px] overflow-hidden border border-white/10" style={{ backgroundColor: '#ffce00' }}>
+        <div className="w-full flex-1" />
+        <div className="w-full flex-1 bg-[#d50000]" />
+        <div className="w-full flex-1" />
+        <div className="w-full flex-1 bg-[#d50000]" />
+        <div className="w-full flex-1" />
+        <div className="w-full flex-1 bg-[#d50000]" />
+        <div className="w-full flex-1" />
+        <div className="w-full flex-1 bg-[#d50000]" />
+        <div className="w-full flex-1" />
+    </div>
+);
 
 const Logo = () => (
     <Link to="/" className="flex items-center gap-2 select-none group">
@@ -30,6 +45,7 @@ const NavLink = ({ to, children, active }) => (
 
 export default function Header() {
     const { user, logout } = useAuth();
+    const { language, setLanguage, t } = useLanguage();
     const navigate = useNavigate();
     const location = useLocation();
     const [menuOpen, setMenuOpen] = useState(false);
@@ -110,20 +126,27 @@ export default function Header() {
 
                 {/* Nav links — desktop */}
                 <nav className="hidden md:flex items-center gap-6">
-                    <NavLink to="/" active={isActive('/')}>Home</NavLink>
-                    <NavLink to="/explore" active={isActive('/explore')}>Explore</NavLink>
-                    {user && <NavLink to="/seller" active={isActive('/seller')}>Dashboard</NavLink>}
+                    <NavLink to="/" active={isActive('/')}>{t('nav.home')}</NavLink>
+                    <NavLink to="/explore" active={isActive('/explore')}>{t('nav.explore')}</NavLink>
+                    {user && <NavLink to="/seller" active={isActive('/seller')}>{t('nav.dashboard')}</NavLink>}
                 </nav>
 
                 {/* Right */}
                 <div className="flex items-center gap-3">
+                    {/* Language Switcher */}
+                    <div className="flex items-center gap-2 border-r border-white/10 pr-3 mr-1">
+                        <button onClick={() => setLanguage('es')} className={`text-[15px] transition-transform ${language === 'es' ? 'scale-125 opacity-100 grayscale-0' : 'opacity-50 grayscale hover:grayscale-0 hover:opacity-100'} cursor-pointer`} title="Español">🇪🇸</button>
+                        <button onClick={() => setLanguage('ca')} className={`transition-transform flex items-center justify-center ${language === 'ca' ? 'scale-125 opacity-100 grayscale-0' : 'opacity-50 grayscale hover:grayscale-0 hover:opacity-100'} cursor-pointer`} title="Català" style={{width: '20px', height: '20px'}}><FlagCA /></button>
+                        <button onClick={() => setLanguage('en')} className={`text-[15px] transition-transform ${language === 'en' ? 'scale-125 opacity-100 grayscale-0' : 'opacity-50 grayscale hover:grayscale-0 hover:opacity-100'} cursor-pointer`} title="English">🇬🇧</button>
+                    </div>
+
                     {!user ? (
                         <>
                             <Link to="/login" className="hidden sm:inline-flex btn-ghost text-sm py-2 px-4">
-                                Sign in
+                                {t('nav.signin')}
                             </Link>
                             <Link to="/register" className="btn-primary text-sm py-2 px-4">
-                                Get started
+                                {t('nav.getstarted')}
                             </Link>
                         </>
                     ) : (
@@ -136,7 +159,7 @@ export default function Header() {
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                                     <path d="M12 5v14M5 12h14" />
                                 </svg>
-                                New auction
+                                {t('nav.newauction')}
                             </Link>
 
                             {/* User avatar dropdown */}
@@ -182,7 +205,7 @@ export default function Header() {
                                             onClick={() => setUserMenuOpen(false)}
                                             className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
                                         >
-                                            My Profile
+                                            {t('nav.profile')}
                                         </Link>
 
                                         {!isRecharging ? (
@@ -193,7 +216,7 @@ export default function Header() {
                                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
                                                     <path d="M12 5v14M5 12h14" />
                                                 </svg>
-                                                Añadir Dinero
+                                                {t('nav.addmoney')}
                                             </button>
                                         ) : (
                                             <div className="px-4 py-3 bg-white/5 border-y border-white/5">
@@ -243,21 +266,21 @@ export default function Header() {
                                             onClick={() => setUserMenuOpen(false)}
                                             className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
                                         >
-                                            Dashboard
+                                            {t('nav.dashboard')}
                                         </Link>
                                         <Link
                                             to="/create-puja"
                                             onClick={() => setUserMenuOpen(false)}
                                             className="flex items-center gap-2 px-4 py-2.5 text-sm text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
                                         >
-                                            New auction
+                                            {t('nav.newauction')}
                                         </Link>
                                         <div className="border-t border-white/5 mt-1">
                                             <button
                                                 onClick={handleLogout}
                                                 className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/5 transition-colors"
                                             >
-                                                Sign out
+                                                {t('nav.signout')}
                                             </button>
                                         </div>
                                     </div>
@@ -289,20 +312,19 @@ export default function Header() {
                     style={{ background: 'rgba(8,8,15,0.97)' }}
                 >
                     {[
-                        { to: '/', label: 'Home' },
-                        { to: '/explore', label: 'Explore' },
+                        { to: '/', label: t('nav.home') },
+                        { to: '/explore', label: t('nav.explore') },
                         ...(user ? [
-                            { to: '/profile', label: 'My profile' },
-                            { to: '/seller', label: 'Dashboard' },
-                            { to: '/profile', label: 'My Profile' },
-                            { to: '/create-puja', label: 'New auction' },
+                            { to: '/profile', label: t('nav.profile') },
+                            { to: '/seller', label: t('nav.dashboard') },
+                            { to: '/create-puja', label: t('nav.newauction') },
                         ] : [
-                            { to: '/login', label: 'Sign in' },
-                            { to: '/register', label: 'Get started' },
+                            { to: '/login', label: t('nav.signin') },
+                            { to: '/register', label: t('nav.getstarted') },
                         ])
-                    ].map(({ to, label }) => (
+                    ].map(({ to, label }, index) => (
                         <Link
-                            key={to}
+                            key={`${to}-${index}`}
                             to={to}
                             onClick={() => setMenuOpen(false)}
                             className="block px-3 py-2.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/5 transition-colors"
@@ -315,7 +337,7 @@ export default function Header() {
                             onClick={handleLogout}
                             className="block w-full text-left px-3 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:bg-red-500/5 transition-colors"
                         >
-                            Sign out
+                            {t('nav.signout')}
                         </button>
                     )}
                 </div>

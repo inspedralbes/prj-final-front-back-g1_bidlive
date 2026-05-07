@@ -3,11 +3,13 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import Header from "../components/layout/Header";
 import { useCategories } from "../hooks/useCategories";
+import { useLanguage } from "../context/LanguageContext";
 
 export default function CreatePuja() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { categories, loading: catsLoading } = useCategories();
+  const { t } = useLanguage();
 
   const [formData, setFormData] = useState({
     title: "",
@@ -93,8 +95,8 @@ export default function CreatePuja() {
       <Header />
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-12">
         <div className="mb-8">
-          <h1 className="text-3xl font-black text-white">New auction</h1>
-          <p className="text-gray-500 mt-1">Fill in the details and go live instantly.</p>
+          <h1 className="text-3xl font-black text-white">{t('create.title')}</h1>
+          <p className="text-gray-500 mt-1">{t('create.subtitle')}</p>
         </div>
 
         {error && (
@@ -107,7 +109,7 @@ export default function CreatePuja() {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Image upload */}
           <div>
-            <label className="input-label">Item photo</label>
+            <label className="input-label">{t('create.photo')}</label>
             <label
               className="flex flex-col items-center justify-center w-full h-48 rounded-2xl cursor-pointer transition-all"
               style={{
@@ -129,8 +131,8 @@ export default function CreatePuja() {
                     </svg>
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-medium text-gray-400">Click to upload or drag & drop</p>
-                    <p className="text-xs text-gray-600 mt-1">PNG, JPG or WEBP — max 5MB</p>
+                    <p className="text-sm font-medium text-gray-400">{t('create.uploadText')}</p>
+                    <p className="text-xs text-gray-600 mt-1">{t('create.uploadSub')}</p>
                   </div>
                 </div>
               )}
@@ -140,14 +142,14 @@ export default function CreatePuja() {
             {preview && (
               <button type="button" onClick={() => { setPreview(null); setFormData(prev => ({ ...prev, imageFile: null })); }}
                 className="mt-2 text-xs text-gray-500 hover:text-gray-300 transition-colors">
-                Remove image
+                {t('create.removeImg')}
               </button>
             )}
           </div>
 
           {/* Title */}
           <div>
-            <label className="input-label">Title *</label>
+            <label className="input-label">{t('create.itemTitle')}</label>
             <input
               className="input-field"
               type="text"
@@ -155,26 +157,26 @@ export default function CreatePuja() {
               value={formData.title}
               onChange={handleChange}
               required
-              placeholder="e.g. Vintage Rolex Submariner 1965"
+              placeholder={t('create.titlePlaceholder')}
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="input-label">Description</label>
+            <label className="input-label">{t('create.desc')}</label>
             <textarea
               className="input-field"
               name="description"
               value={formData.description}
               onChange={handleChange}
               rows={4}
-              placeholder="Describe your item — condition, authenticity, history..."
+              placeholder={t('create.descPlaceholder')}
             />
           </div>
 
           {/* Category — custom pill picker */}
           <div>
-            <label className="input-label">Category</label>
+            <label className="input-label">{t('create.category')}</label>
             {catsLoading ? (
               <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 mt-2">
                 {Array.from({ length: 10 }).map((_, i) => (
@@ -226,11 +228,10 @@ export default function CreatePuja() {
 
           {/* Starting price */}
           <div>
-            <label className="input-label">Starting price *</label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">$</span>
+            <label className="input-label">{t('create.price')} ($)</label>
+            <div>
               <input
-                className="input-field pl-8"
+                className="input-field"
                 type="number"
                 name="startingPrice"
                 value={formData.startingPrice}
@@ -255,12 +256,12 @@ export default function CreatePuja() {
               ) : (
                 <>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                  Launch auction live
+                  {t('create.launchBtn')}
                 </>
               )}
             </button>
             <p className="text-center text-xs text-gray-600 mt-3">
-              Your auction will start immediately as a live stream
+              {t('create.launchSub')}
             </p>
           </div>
         </form>

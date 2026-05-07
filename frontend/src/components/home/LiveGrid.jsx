@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { usePujas } from '../../hooks/usePujas';
+import { useLanguage } from '../../context/LanguageContext';
 
 const getReputationStars = (sales) => {
     if (!sales || sales === 0) return { stars: 0, label: "New" };
@@ -12,6 +13,7 @@ const getReputationStars = (sales) => {
 };
 
 const AuctionCard = ({ auction }) => {
+    const { t } = useLanguage();
     const viewersCount = auction.viewers || Math.floor(Math.random() * 200) + 10;
     return (
         <Link
@@ -41,7 +43,7 @@ const AuctionCard = ({ auction }) => {
                 {/* LIVE badge */}
                 <div className="absolute top-3 left-3">
                     <span className="badge-live">
-                        <span className="live-dot" /> LIVE
+                        <span className="live-dot" /> {t('liveGrid.live')}
                     </span>
                 </div>
 
@@ -57,7 +59,7 @@ const AuctionCard = ({ auction }) => {
                     style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)' }}>
                     <div className="flex items-end justify-between">
                         <div>
-                            <p className="text-white/60 text-xs">Current bid</p>
+                            <p className="text-white/60 text-xs">{t('liveGrid.currentBid')}</p>
                             <p className="text-amber-400 font-black text-lg">{auction.bid || '$0'}</p>
                         </div>
                     </div>
@@ -74,7 +76,7 @@ const AuctionCard = ({ auction }) => {
                         {(auction.seller || 'S')[0].toUpperCase()}
                     </div>
                     <div className="flex flex-col">
-                        <span className="text-gray-400 text-xs truncate font-medium">{auction.seller || 'Seller'}</span>
+                        <span className="text-gray-400 text-xs truncate font-medium">{auction.seller || t('liveGrid.seller')}</span>
                         <div className="flex items-center gap-0.5">
                             {[...Array(5)].map((_, i) => (
                                 <span key={i} className={`material-symbols-outlined text-[10px] ${i < getReputationStars(auction.sellerTotalSales || 0).stars ? 'text-amber-400' : 'text-slate-600'}`} style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -101,20 +103,21 @@ const SkeletonCard = () => (
 
 export default function LiveGrid() {
     const { data: auctions, loading, error } = usePujas({ status: 'live' });
+    const { t } = useLanguage();
 
     return (
         <section>
             <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
-                    <h2 className="text-2xl font-black text-white">Live now</h2>
+                    <h2 className="text-2xl font-black text-white">{t('liveGrid.title')}</h2>
                     {!loading && auctions.length > 0 && (
                         <span className="badge-live">
-                            <span className="live-dot" /> {auctions.length} live
+                            <span className="live-dot" /> {auctions.length} {t('liveGrid.liveCount')}
                         </span>
                     )}
                 </div>
                 <Link to="/explore" className="text-sm text-amber-400 hover:text-amber-300 transition-colors font-medium flex items-center gap-1">
-                    See all
+                    {t('liveGrid.seeAll')}
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
                 </Link>
             </div>
@@ -127,7 +130,7 @@ export default function LiveGrid() {
 
             {error && !loading && (
                 <div className="rounded-xl p-8 text-center" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                    <p className="text-gray-500 text-sm">Unable to load live auctions</p>
+                    <p className="text-gray-500 text-sm">{t('liveGrid.error')}</p>
                 </div>
             )}
 
@@ -136,10 +139,10 @@ export default function LiveGrid() {
                     <div className="w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="rgba(245,158,11,0.7)" strokeWidth="2"><path d="M23 7l-7 5 7 5V7z" /><rect x="1" y="5" width="15" height="14" rx="2" /></svg>
                     </div>
-                    <p className="text-gray-400 font-medium">No live auctions at the moment</p>
-                    <p className="text-gray-600 text-sm mt-1">Check back soon or start your own!</p>
+                    <p className="text-gray-400 font-medium">{t('liveGrid.emptyTitle')}</p>
+                    <p className="text-gray-600 text-sm mt-1">{t('liveGrid.emptySub')}</p>
                     <Link to="/create-puja" className="btn-primary mt-5 inline-flex text-sm px-6 py-2.5">
-                        Start an auction
+                        {t('liveGrid.startBtn')}
                     </Link>
                 </div>
             )}
