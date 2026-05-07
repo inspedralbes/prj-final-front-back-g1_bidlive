@@ -24,7 +24,7 @@ const ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 const upload = multer({
     storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
     fileFilter: (req, file, cb) => {
         if (ALLOWED_MIME.includes(file.mimetype)) {
             cb(null, true);

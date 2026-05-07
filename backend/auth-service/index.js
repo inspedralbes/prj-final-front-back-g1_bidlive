@@ -38,7 +38,7 @@ const avatarStorage = multer.diskStorage({
 
 const uploadAvatar = multer({
   storage: avatarStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
     else cb(new Error("Only images are allowed"));
@@ -101,6 +101,7 @@ app.post("/payment/webhook", paymentController.webhook);
 // Avatar upload: POST /auth/profile/:id/avatar  (multipart, field = "avatar")
 app.post(
   "/profile/:id/avatar",
+  authMiddleware,
   uploadAvatar.single("avatar"),
   authController.uploadAvatar
 );
