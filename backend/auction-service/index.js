@@ -69,7 +69,7 @@ const upload = multer({
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Initialize Database Tables (categories must come before pujas due to FK)
+// Initialize Database Tabless (categories must come before pujas due to FK)
 const initDB = async (retries = 5, delay = 5000) => {
     while (retries > 0) {
         try {
