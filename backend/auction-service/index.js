@@ -13,6 +13,7 @@ const YAML = require('yamljs');
 const OpenApiValidator = require('express-openapi-validator');
 const { startClosureWorker } = require('./services/closureService');
 const authMiddleware = require('./middleware/authMiddleware');
+const multer = require('multer');
 
 // Load OpenAPI spec robustly
 const specPath = process.env.OPENAPI_SPEC_PATH || path.join(__dirname, "../../openspec/specs/auction-spec.yaml");
