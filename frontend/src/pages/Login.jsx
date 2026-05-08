@@ -175,24 +175,30 @@ export default function Login() {
                         </div>
 
                         <div className="mt-6 flex justify-center">
-                            <GoogleLogin
-                                onSuccess={async credentialResponse => {
-                                    try {
-                                        setLoading(true);
-                                        await googleLogin(credentialResponse.credential);
-                                        navigate('/');
-                                    } catch (err) {
-                                        setError(err.message || 'Google login failed');
-                                    } finally {
-                                        setLoading(false);
-                                    }
-                                }}
-                                onError={() => {
-                                    setError('Google login failed');
-                                }}
-                                theme="filled_black"
-                                shape="pill"
-                            />
+                            {(!import.meta.env.VITE_GOOGLE_CLIENT_ID || import.meta.env.VITE_GOOGLE_CLIENT_ID.includes("YOUR_GOOGLE_CLIENT_ID_HERE")) ? (
+                                <div className="text-xs text-gray-500 italic text-center opacity-60">
+                                    {t('login.googleDisabled') || 'Google Login is temporarily unavailable'}
+                                </div>
+                            ) : (
+                                <GoogleLogin
+                                    onSuccess={async credentialResponse => {
+                                        try {
+                                            setLoading(true);
+                                            await googleLogin(credentialResponse.credential);
+                                            navigate('/');
+                                        } catch (err) {
+                                            setError(err.message || 'Google login failed');
+                                        } finally {
+                                            setLoading(false);
+                                        }
+                                    }}
+                                    onError={() => {
+                                        setError('Google login failed');
+                                    }}
+                                    theme="filled_black"
+                                    shape="pill"
+                                />
+                            )}
                         </div>
                     </div>
 
