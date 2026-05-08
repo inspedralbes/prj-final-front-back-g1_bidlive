@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
 const db = require('./config/db');
 const Puja = require('./models/Puja');
 const Category = require('./models/Category');
@@ -33,12 +35,7 @@ app.use(
     })
 );
 
-// Configure Multer for file uploads
-const multer = require('multer');
-const path = require('path');
-
 // Ensure uploads directory exists
-const fs = require('fs');
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir);
@@ -71,30 +68,35 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Initialize Database Tabless (categories must come before pujas due to FK)
 const initDB = async (retries = 5, delay = 5000) => {
+    console.log(`[AuctionService] Starting DB initialization... (DB_HOST: ${process.env.DB_HOST || 'localhost'})`);
     while (retries > 0) {
         try {
             // 1. Create categories table first (referenced by pujas FK)
             await Category.createTable();
-            console.log('Categories table created or already exists');
+            console.log('✅ Categories table created or already exists');
 
             // 2. Seed default categories (INSERT IGNORE = idempotent)
             await Category.seed();
-            console.log('Categories seeded');
+            console.log('✅ Categories seeded');
 
             // 3. Create pujas table (with category_id FK)
             await Puja.createTable();
-            console.log('Pujas table created or already exists');
+            console.log('✅ Pujas table created or already exists');
 
             // 4. Idempotent migration: add category_id to existing pujas tables
             await Puja.migrate();
+            console.log('✅ Pujas table migration checked');
 
+            console.log('🚀 Database initialization complete for Auction Service');
             break;
         } catch (error) {
-            console.error(`Error initializing database (retries left: ${retries - 1}):`, error);
+            console.error(`❌ Error initializing database (retries left: ${retries - 1}):`, error.message);
             retries -= 1;
             if (retries === 0) {
-                console.error('Failed to initialize database after multiple attempts');
+                console.error('CRITICAL: Failed to initialize database after multiple attempts. Exiting...');
+                process.exit(1);
             } else {
+                console.log(`Retrying in ${delay / 1000}s...`);
                 await new Promise(res => setTimeout(res, delay));
             }
         }

@@ -73,10 +73,16 @@ const authController = {
         return res.status(400).json({ message: "Google token is required" });
       }
 
+      const GOOGLE_ID = process.env.GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID_HERE";
+      if (GOOGLE_ID.includes("YOUR_GOOGLE_CLIENT_ID_HERE")) {
+        console.error("❌ Google Login attempted but GOOGLE_CLIENT_ID is not configured in backend.");
+        return res.status(503).json({ message: "Google Login is currently unavailable (not configured)" });
+      }
+
       // Verify Google token
       const ticket = await client.verifyIdToken({
         idToken: googleToken,
-        audience: process.env.GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLIENT_ID_HERE",
+        audience: GOOGLE_ID,
       });
       const payload = ticket.getPayload();
       const email = payload.email;

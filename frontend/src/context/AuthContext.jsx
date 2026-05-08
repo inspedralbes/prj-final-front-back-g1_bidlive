@@ -12,10 +12,27 @@ export const AuthProvider = ({ children }) => {
         const storedUser = localStorage.getItem('user');
 
         if (token && storedUser) {
-            setUser(JSON.parse(storedUser));
+            try {
+                setUser(JSON.parse(storedUser));
+            } catch (e) {
+                console.error("Error parsing stored user:", e);
+                localStorage.removeItem('user');
+                localStorage.removeItem('token');
+            }
         }
         setLoading(false);
     }, []);
+
+    const safeParseJson = async (response) => {
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+            return await response.json();
+        }
+        // If not JSON, it's likely an HTML error page (502/504)
+        const text = await response.text();
+        console.error("Non-JSON response received:", text.substring(0, 200));
+        return { message: `Server error (${response.status}). Please try again later.` };
+    };
 
     const login = async (email, password) => {
         try {
@@ -26,11 +43,11 @@ export const AuthProvider = ({ children }) => {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = await safeParseJson(response);
                 throw new Error(errorData.message || 'Login failed');
             }
 
-            const data = await response.json();
+            const data = await safeParseJson(response);
             localStorage.setItem('token', data.token);
             localStorage.setItem('user', JSON.stringify(data.user));
             setUser(data.user);
@@ -50,11 +67,11 @@ export const AuthProvider = ({ children }) => {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = await safeParseJson(response);
                 throw new Error(errorData.message || 'Registration failed');
             }
 
-            return await response.json();
+            return await safeParseJson(response);
         } catch (error) {
             console.error('Registration error:', error);
             throw error;
@@ -70,11 +87,11 @@ export const AuthProvider = ({ children }) => {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
+                const errorData = await safeParseJson(response);
                 throw new Error(errorData.message || 'Google Login failed');
             }
 
-            const data = await response.json();
+            const data = await safeParseJson(response);
             localStorage.setItem('token', data.token);
             localStorage.setItem('user', JSON.stringify(data.user));
             setUser(data.user);

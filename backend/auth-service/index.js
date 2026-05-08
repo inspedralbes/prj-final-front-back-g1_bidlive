@@ -74,15 +74,20 @@ app.use(
 
 // ── Initialize DB ────────────────────────────────────────────────────────────
 const initDB = async (retries = 5, delay = 5000) => {
+  console.log(`[AuthService] Starting DB initialization... (DB_HOST: ${process.env.DB_HOST || 'localhost'})`);
   for (let i = 0; i < retries; i++) {
     try {
       await User.createTable();
+      console.log("✅ Users table checked/created successfully");
       await Notification.createTable();
+      console.log("✅ Notifications table checked/created successfully");
       await Follower.createTable();
-      console.log("✅ Users, Notifications and Followers tables checked/created successfully");
+      console.log("✅ Followers table checked/created successfully");
+      
+      console.log("🚀 Database initialization complete for Auth Service");
       return true;
     } catch (err) {
-      console.error(`❌ Error creating users table (attempt ${i + 1}/${retries}):`, err);
+      console.error(`❌ Error initializing database (attempt ${i + 1}/${retries}):`, err.message);
       if (i < retries - 1) {
         console.log(`Retrying in ${delay / 1000} seconds...`);
         await new Promise((res) => setTimeout(res, delay));
