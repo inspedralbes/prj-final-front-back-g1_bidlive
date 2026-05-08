@@ -25,6 +25,7 @@ services:
       - auth-service
       - auction-service
       - bidding-service
+      - chat-service
     restart: unless-stopped
 
   # Database (port NOT exposed publicly in production)
@@ -83,6 +84,21 @@ services:
       - DB_USER=${DB_USER}
       - DB_PASS=${DB_PASSWORD}
       - DB_NAME=${DB_DATABASE}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  chat-service:
+    build:
+      context: ./backend/chat-service
+    environment:
+      - PORT=${PORT_CHAT_SERVICE}
+      - DB_HOST=db
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASSWORD}
+      - DB_NAME=${DB_DATABASE}
+      - JWT_SECRET=${JWT_SECRET}
     depends_on:
       db:
         condition: service_healthy

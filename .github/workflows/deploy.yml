@@ -42,6 +42,8 @@ jobs:
             printf 'PORT_AUTH_SERVICE=%s\n'    '3000'                        >> .env.production
             printf 'PORT_AUCTION_SERVICE=%s\n' '3001'                        >> .env.production
             printf 'PORT_BIDDING_SERVICE=%s\n' '3002'                        >> .env.production
+            printf 'PORT_CHAT_SERVICE=%s\n'    '3004'                        >> .env.production
+            printf 'JWT_SECRET=%s\n'           '${{ secrets.JWT_SECRET }}'   >> .env.production
             printf 'VITE_API_URL=%s\n'     '${{ secrets.VITE_API_URL }}'     >> .env.production
             printf 'VITE_WS_URL=%s\n'      '${{ secrets.VITE_WS_URL }}'      >> .env.production
             printf 'VITE_SIGNALING_URL=%s\n' '${{ secrets.VITE_API_URL }}'   >> .env.production
