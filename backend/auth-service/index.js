@@ -16,10 +16,22 @@ const swaggerUi = require("swagger-ui-express");
 const YAML = require("yamljs");
 const OpenApiValidator = require("express-openapi-validator");
 
-const openApiSpec = YAML.load(process.env.OPENAPI_SPEC_PATH || path.join(__dirname, "../../openspec/specs/auth-spec.yaml"));
-
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Load OpenAPI spec robustly
+const specPath = process.env.OPENAPI_SPEC_PATH || path.join(__dirname, "../../openspec/specs/auth-spec.yaml");
+let openApiSpec = null;
+if (fs.existsSync(specPath)) {
+  try {
+    openApiSpec = YAML.load(specPath);
+  } catch (err) {
+    console.warn(`[Warning] Could not parse OpenAPI spec at ${specPath}:`, err.message);
+  }
+} else {
+  console.warn(`[Warning] OpenAPI spec not found at ${specPath}. Swagger UI and validation disabled.`);
+}
+
 
 // Webhook must be before express.json() to get raw body
 app.post("/webhook", express.raw({ type: "application/json" }), paymentController.webhook);
@@ -34,16 +46,18 @@ app.use(express.json({
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ── OpenAPI / Swagger ────────────────────────────────────────────────────────
-app.use("/docs", swaggerUi.serve, swaggerUi.setup(openApiSpec));
+if (openApiSpec) {
+  app.use("/docs", swaggerUi.serve, swaggerUi.setup(openApiSpec));
 
-app.use(
-  OpenApiValidator.middleware({
-    apiSpec: process.env.OPENAPI_SPEC_PATH || path.join(__dirname, "../../openspec/specs/auth-spec.yaml"),
-    validateRequests: true,
-    validateResponses: false, // Set to true if you want to strictly validate responses too
-    ignorePaths: (path) => path.includes("/webhook") || path.includes("/uploads"),
-  }),
-);
+  app.use(
+    OpenApiValidator.middleware({
+      apiSpec: specPath,
+      validateRequests: true,
+      validateResponses: false, // Set to true if you want to strictly validate responses too
+      ignorePaths: (path) => path.includes("/webhook") || path.includes("/uploads"),
+    }),
+  );
+}
 
 // ── Avatar uploads ──────────────────────────────────────────────────────────
 const avatarDir = path.join(__dirname, "uploads", "avatars");

@@ -14,7 +14,18 @@ const OpenApiValidator = require('express-openapi-validator');
 const { startClosureWorker } = require('./services/closureService');
 const authMiddleware = require('./middleware/authMiddleware');
 
-const openApiSpec = YAML.load(process.env.OPENAPI_SPEC_PATH || path.join(__dirname, "../../openspec/specs/auction-spec.yaml"));
+// Load OpenAPI spec robustly
+const specPath = process.env.OPENAPI_SPEC_PATH || path.join(__dirname, "../../openspec/specs/auction-spec.yaml");
+let openApiSpec = null;
+if (fs.existsSync(specPath)) {
+    try {
+        openApiSpec = YAML.load(specPath);
+    } catch (err) {
+        console.warn(`[Warning] Could not parse OpenAPI spec at ${specPath}:`, err.message);
+    }
+} else {
+    console.warn(`[Warning] OpenAPI spec not found at ${specPath}. Swagger UI and validation disabled.`);
+}
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -24,16 +35,18 @@ const port = process.env.PORT || 3001;
 app.use(express.json());
 
 // ── OpenAPI / Swagger ────────────────────────────────────────────────────────
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
+if (openApiSpec) {
+    app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiSpec));
 
-app.use(
-    OpenApiValidator.middleware({
-        apiSpec: process.env.OPENAPI_SPEC_PATH || path.join(__dirname, "../../openspec/specs/auction-spec.yaml"),
-        validateRequests: true,
-        validateResponses: false,
-        ignorePaths: (path) => path.includes('/uploads'),
-    })
-);
+    app.use(
+        OpenApiValidator.middleware({
+            apiSpec: specPath,
+            validateRequests: true,
+            validateResponses: false,
+            ignorePaths: (path) => path.includes('/uploads'),
+        })
+    );
+}
 
 // Ensure uploads directory exists
 const uploadDir = path.join(__dirname, 'uploads');
