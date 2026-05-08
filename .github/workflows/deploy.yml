@@ -52,7 +52,10 @@ jobs:
             # 4. Reconstruir y levantar los contenedores en produccion
             docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 
-            # 5. Limpiar imagenes antiguas para liberar espacio
+            # 5. Recargar config de Nginx en el gateway (necesario cuando solo cambia el conf montado)
+            docker exec $(docker ps -qf "name=gateway") nginx -s reload || true
+
+            # 6. Limpiar imagenes antiguas para liberar espacio
             docker image prune -f
 
             echo "✅ Deploy completado con exito"
