@@ -21,7 +21,11 @@ const translations = {
             getstarted: 'Get started',
             newauction: 'New auction',
             addmoney: 'Add Money',
-            signout: 'Sign out'
+            signout: 'Sign out',
+            sellers: 'Sellers',
+            messages: 'Messages',
+            add: 'Add',
+            cancel: 'Cancel'
         },
         home: {
             liveBadge: 'Live auctions happening right now',
@@ -200,7 +204,11 @@ const translations = {
             getstarted: 'Comenzar',
             newauction: 'Nueva subasta',
             addmoney: 'Añadir Dinero',
-            signout: 'Cerrar Sesión'
+            signout: 'Cerrar Sesión',
+            sellers: 'Vendedores',
+            messages: 'Mensajes',
+            add: 'Añadir',
+            cancel: 'Cancelar'
         },
         home: {
             liveBadge: 'Subastas en vivo ahora mismo',
@@ -379,7 +387,11 @@ const translations = {
             getstarted: 'Començar',
             newauction: 'Nova subhasta',
             addmoney: 'Afegir Diners',
-            signout: 'Tancar Sessió'
+            signout: 'Tancar Sessió',
+            sellers: 'Venedors',
+            messages: 'Missatges',
+            add: 'Afegir',
+            cancel: 'Cancel·lar'
         },
         home: {
             liveBadge: 'Subhastes en directe ara mateix',
@@ -533,7 +545,7 @@ const translations = {
             badgeEnded: 'Finalitzada',
             badgeNotLive: 'Sense començar',
             btnEnterLive: 'Entrar al Directe',
-            btnGoLive: 'Iniciar Directo',
+            btnGoLive: 'Iniciar Directe',
             historyTitle: 'Historial de Pujes (Finalitzades)',
             noEnded: 'No hi ha subhastes finalitzades encara',
             badgeCompleted: 'Completada',
@@ -543,7 +555,7 @@ const translations = {
 };
 
 export const LanguageProvider = ({ children }) => {
-    const [language, setLanguage] = useState('en'); // Default to English
+    const [language, setLanguage] = useState('ca'); // Default to Catalan
 
     const t = (key) => {
         const keys = key.split('.');

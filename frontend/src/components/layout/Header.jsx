@@ -6,17 +6,36 @@ import NotificationBell from '../common/NotificationBell';
 import { useLanguage } from '../../context/LanguageContext';
 
 const FlagCA = () => (
-    <div className="w-[18px] h-[13px] flex flex-col rounded-[2px] overflow-hidden border border-white/10" style={{ backgroundColor: '#ffce00' }}>
+    <div className="w-[18px] h-[13px] flex flex-col rounded-[2px] overflow-hidden border border-white/10" style={{ backgroundColor: '#FCDD09' }}>
         <div className="w-full flex-1" />
-        <div className="w-full flex-1 bg-[#d50000]" />
+        <div className="w-full flex-1 bg-[#DA121A]" />
         <div className="w-full flex-1" />
-        <div className="w-full flex-1 bg-[#d50000]" />
+        <div className="w-full flex-1 bg-[#DA121A]" />
         <div className="w-full flex-1" />
-        <div className="w-full flex-1 bg-[#d50000]" />
+        <div className="w-full flex-1 bg-[#DA121A]" />
         <div className="w-full flex-1" />
-        <div className="w-full flex-1 bg-[#d50000]" />
+        <div className="w-full flex-1 bg-[#DA121A]" />
         <div className="w-full flex-1" />
     </div>
+);
+
+const FlagES = () => (
+    <svg width="18" height="13" viewBox="0 0 18 13" style={{ borderRadius: 2, overflow: 'hidden', display: 'block' }}>
+        <rect width="18" height="13" fill="#c60b1e" />
+        <rect y="2.5" width="18" height="8" fill="#ffc400" />
+        <rect y="2.5" width="18" height="1.5" fill="#c60b1e" />
+        <rect y="9" width="18" height="1.5" fill="#c60b1e" />
+    </svg>
+);
+
+const FlagGB = () => (
+    <svg width="18" height="13" viewBox="0 0 18 13" style={{ borderRadius: 2, overflow: 'hidden', display: 'block' }}>
+        <rect width="18" height="13" fill="#012169" />
+        <path d="M0,0 L18,13 M18,0 L0,13" stroke="white" strokeWidth="2.5" />
+        <path d="M0,0 L18,13 M18,0 L0,13" stroke="#C8102E" strokeWidth="1.5" />
+        <path d="M9,0 V13 M0,6.5 H18" stroke="white" strokeWidth="4" />
+        <path d="M9,0 V13 M0,6.5 H18" stroke="#C8102E" strokeWidth="2.5" />
+    </svg>
 );
 
 const Logo = () => (
@@ -129,27 +148,27 @@ export default function Header() {
 
                 {/* Nav links — desktop */}
                 <nav className="hidden md:flex items-center gap-6">
-                    <NavLink to="/" active={isActive('/')}>Home</NavLink>
-                    <NavLink to="/explore" active={isActive('/explore') && !location.search.includes('type=sellers')}>Explore</NavLink>
-                    <NavLink to="/explore?type=sellers" active={location.search.includes('type=sellers')}>Sellers</NavLink>
+                    <NavLink to="/" active={isActive('/')}>{t('nav.home')}</NavLink>
+                    <NavLink to="/explore" active={isActive('/explore') && !location.search.includes('type=sellers')}>{t('nav.explore')}</NavLink>
+                    <NavLink to="/explore?type=sellers" active={location.search.includes('type=sellers')}>{t('nav.sellers')}</NavLink>
                     {user && (
                         <NavLink to="/messages" active={location.pathname.startsWith('/messages')} className="relative">
-                            Messages
+                            {t('nav.messages')}
                             {chatData.totalUnread > 0 && (
                                 <span className="absolute -top-1 -right-2 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                             )}
                         </NavLink>
                     )}
-                    {user && <NavLink to="/seller" active={isActive('/seller')}>Dashboard</NavLink>}
+                    {user && <NavLink to="/seller" active={isActive('/seller')}>{t('nav.dashboard')}</NavLink>}
                 </nav>
 
                 {/* Right */}
                 <div className="flex items-center gap-3">
                     {/* Language Switcher */}
                     <div className="flex items-center gap-2 border-r border-white/10 pr-3 mr-1">
-                        <button onClick={() => setLanguage('es')} className={`text-[15px] transition-transform ${language === 'es' ? 'scale-125 opacity-100 grayscale-0' : 'opacity-50 grayscale hover:grayscale-0 hover:opacity-100'} cursor-pointer`} title="Español">🇪🇸</button>
-                        <button onClick={() => setLanguage('ca')} className={`transition-transform flex items-center justify-center ${language === 'ca' ? 'scale-125 opacity-100 grayscale-0' : 'opacity-50 grayscale hover:grayscale-0 hover:opacity-100'} cursor-pointer`} title="Català" style={{ width: '20px', height: '20px' }}><FlagCA /></button>
-                        <button onClick={() => setLanguage('en')} className={`text-[15px] transition-transform ${language === 'en' ? 'scale-125 opacity-100 grayscale-0' : 'opacity-50 grayscale hover:grayscale-0 hover:opacity-100'} cursor-pointer`} title="English">🇬🇧</button>
+                        <button onClick={() => setLanguage('ca')} className={`transition-transform flex items-center justify-center ${language === 'ca' ? 'scale-125 opacity-100' : 'opacity-50 hover:opacity-100'} cursor-pointer`} title="Català" style={{ width: '20px', height: '20px' }}><FlagCA /></button>
+                        <button onClick={() => setLanguage('es')} className={`transition-transform flex items-center justify-center ${language === 'es' ? 'scale-125 opacity-100' : 'opacity-50 hover:opacity-100'} cursor-pointer`} title="Español" style={{ width: '20px', height: '20px' }}><FlagES /></button>
+                        <button onClick={() => setLanguage('en')} className={`transition-transform flex items-center justify-center ${language === 'en' ? 'scale-125 opacity-100' : 'opacity-50 hover:opacity-100'} cursor-pointer`} title="English" style={{ width: '20px', height: '20px' }}><FlagGB /></button>
                     </div>
 
                     {!user ? (
@@ -270,7 +289,7 @@ export default function Header() {
                                                             disabled={isProcessingPayment}
                                                             className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-[#08080f] font-bold py-1.5 rounded-lg text-xs transition-colors"
                                                         >
-                                                            {isProcessingPayment ? '...' : 'Añadir'}
+                                                            {isProcessingPayment ? '...' : t('nav.add')}
                                                         </button>
                                                         <button
                                                             type="button"
@@ -281,7 +300,7 @@ export default function Header() {
                                                             }}
                                                             className="flex-1 bg-white/10 hover:bg-white/20 text-white py-1.5 rounded-lg text-xs transition-colors"
                                                         >
-                                                            Cancelar
+                                                            {t('nav.cancel')}
                                                         </button>
                                                     </div>
                                                 </form>
@@ -340,17 +359,17 @@ export default function Header() {
                     {[
                         { to: '/', label: t('nav.home') },
                         { to: '/explore', label: t('nav.explore') },
-                        { to: '/explore?type=sellers', label: 'Sellers' },
+                        { to: '/explore?type=sellers', label: t('nav.sellers') },
                         ...(user ? [
-                            { to: '/profile', label: 'My profile' },
-                            { to: '/messages', label: 'Messages', badge: chatData.totalUnread > 0 },
-                            { to: '/seller', label: 'Dashboard' },
-                            { to: '/create-puja', label: 'New auction' },
+                            { to: '/profile', label: t('nav.profile') },
+                            { to: '/messages', label: t('nav.messages'), badge: chatData.totalUnread > 0 },
+                            { to: '/seller', label: t('nav.dashboard') },
+                            { to: '/create-puja', label: t('nav.newauction') },
                         ] : [
                             { to: '/login', label: t('nav.signin') },
                             { to: '/register', label: t('nav.getstarted') },
                         ])
-                    ].map(({ to, label, badge }) => (
+                    ].map(({ to, label, badge }, index) => (
                         <Link
                             key={`${to}-${index}`}
                             to={to}
