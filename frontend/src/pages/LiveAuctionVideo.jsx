@@ -313,9 +313,9 @@ export default function LiveAuctionVideo() {
             </header>
 
             {/* ── Main layout ─────────────────────────────────────────────── */}
-            <main className="flex-1 grid overflow-hidden" style={{ gridTemplateColumns: '1fr 380px' }}>
+            <main className="flex-1 flex flex-col md:grid overflow-hidden md:grid-cols-[1fr_380px]">
                 {/* Left: video fills the column */}
-                <div className="flex items-center justify-center overflow-hidden" style={{ background: '#000' }}>
+                <div className="flex items-center justify-center overflow-hidden min-h-[300px] md:min-h-0" style={{ background: '#000' }}>
                     <VideoPlayer 
                         auctionId={id} 
                         role="viewer" 
