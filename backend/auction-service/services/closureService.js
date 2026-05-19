@@ -1,6 +1,7 @@
 const Puja = require('../models/Puja');
 const db = require('../config/db');
 const { sendNotification } = require('../utils/notifications');
+const { sendAuctionWinEmail } = require('./emailService');
 
 const checkExpiredAuctions = async () => {
     try {
@@ -54,6 +55,16 @@ const checkExpiredAuctions = async () => {
                             'success',
                             `/auction/${auction.id}`
                         );
+
+                        // 6. Send Email Notification
+                        try {
+                            const [userRows] = await db.query('SELECT email FROM users WHERE id = ?', [winnerId]);
+                            if (userRows.length > 0 && userRows[0].email) {
+                                sendAuctionWinEmail(userRows[0].email, auction.title, finalPrice, auction.id);
+                            }
+                        } catch (emailErr) {
+                            console.error('[ClosureWorker] Failed to fetch user email or send email:', emailErr.message);
+                        }
                     } else {
                         const debitData = await debitResp.json();
                         console.error(`[ClosureWorker] Instant settlement failed (Insufficient funds) for winner ${winnerId}:`, debitData.message);
