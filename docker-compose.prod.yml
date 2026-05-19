@@ -53,6 +53,14 @@ services:
       - DB_PASS=${DB_PASSWORD}
       - DB_NAME=${DB_DATABASE}
       - PORT=${PORT_AUTH_SERVICE}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - FRONTEND_URL=${FRONTEND_URL}
+      - BACKEND_URL=${BACKEND_URL}
+      - AUCTION_SERVICE_URL=http://auction-service:3001
+      - INTERNAL_SECRET=bidlive_secret
+      - JWT_SECRET=${JWT_SECRET}
     depends_on:
       db:
         condition: service_healthy
@@ -68,6 +76,10 @@ services:
       - DB_NAME=${DB_DATABASE}
       - PORT=${PORT_AUCTION_SERVICE}
       - SERVICE_PREFIX=/auction
+      - AUTH_SERVICE_URL=http://auth-service:3000
+      - INTERNAL_SECRET=bidlive_secret
+      - JWT_SECRET=${JWT_SECRET}
+      - CHAT_SERVICE_URL=http://chat-service:3004
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=${SMTP_PORT}
       - SMTP_USER=${SMTP_USER}
@@ -89,6 +101,9 @@ services:
       - DB_USER=${DB_USER}
       - DB_PASS=${DB_PASSWORD}
       - DB_NAME=${DB_DATABASE}
+      - JWT_SECRET=${JWT_SECRET}
+      - AUTH_SERVICE_URL=http://auth-service:3000
+      - INTERNAL_SECRET=bidlive_secret
     depends_on:
       db:
         condition: service_healthy
@@ -104,6 +119,7 @@ services:
       - DB_PASS=${DB_PASSWORD}
       - DB_NAME=${DB_DATABASE}
       - JWT_SECRET=${JWT_SECRET}
+      - INTERNAL_SECRET=bidlive_secret
     depends_on:
       db:
         condition: service_healthy
