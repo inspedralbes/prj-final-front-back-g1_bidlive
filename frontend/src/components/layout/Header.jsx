@@ -165,7 +165,7 @@ export default function Header() {
                 {/* Right */}
                 <div className="flex items-center gap-3">
                     {/* Language Switcher */}
-                    <div className="flex items-center gap-2 border-r border-white/10 pr-3 mr-1">
+                    <div className="hidden sm:flex items-center gap-2 border-r border-white/10 pr-3 mr-1">
                         <button onClick={() => setLanguage('ca')} className={`transition-transform flex items-center justify-center ${language === 'ca' ? 'scale-125 opacity-100' : 'opacity-50 hover:opacity-100'} cursor-pointer`} title="Català" style={{ width: '20px', height: '20px' }}><FlagCA /></button>
                         <button onClick={() => setLanguage('es')} className={`transition-transform flex items-center justify-center ${language === 'es' ? 'scale-125 opacity-100' : 'opacity-50 hover:opacity-100'} cursor-pointer`} title="Español" style={{ width: '20px', height: '20px' }}><FlagES /></button>
                         <button onClick={() => setLanguage('en')} className={`transition-transform flex items-center justify-center ${language === 'en' ? 'scale-125 opacity-100' : 'opacity-50 hover:opacity-100'} cursor-pointer`} title="English" style={{ width: '20px', height: '20px' }}><FlagGB /></button>
@@ -176,7 +176,7 @@ export default function Header() {
                             <Link to="/login" className="hidden sm:inline-flex btn-ghost text-sm py-2 px-4">
                                 {t('nav.signin')}
                             </Link>
-                            <Link to="/register" className="btn-primary text-sm py-2 px-4">
+                            <Link to="/register" className="hidden sm:inline-flex btn-primary text-sm py-2 px-4">
                                 {t('nav.getstarted')}
                             </Link>
                         </>
@@ -356,6 +356,12 @@ export default function Header() {
                     className="md:hidden border-t border-white/5 px-4 py-4 space-y-1"
                     style={{ background: 'rgba(8,8,15,0.97)' }}
                 >
+                    {/* Mobile Language Switcher */}
+                    <div className="flex sm:hidden items-center justify-center gap-6 py-3 mb-2 border-b border-white/10">
+                        <button onClick={() => { setLanguage('ca'); setMenuOpen(false); }} className={`transition-transform flex items-center justify-center ${language === 'ca' ? 'scale-125 opacity-100' : 'opacity-50 hover:opacity-100'}`} style={{ width: '24px', height: '24px' }}><FlagCA /></button>
+                        <button onClick={() => { setLanguage('es'); setMenuOpen(false); }} className={`transition-transform flex items-center justify-center ${language === 'es' ? 'scale-125 opacity-100' : 'opacity-50 hover:opacity-100'}`} style={{ width: '24px', height: '24px' }}><FlagES /></button>
+                        <button onClick={() => { setLanguage('en'); setMenuOpen(false); }} className={`transition-transform flex items-center justify-center ${language === 'en' ? 'scale-125 opacity-100' : 'opacity-50 hover:opacity-100'}`} style={{ width: '24px', height: '24px' }}><FlagGB /></button>
+                    </div>
                     {[
                         { to: '/', label: t('nav.home') },
                         { to: '/explore', label: t('nav.explore') },

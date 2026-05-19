@@ -20,7 +20,7 @@ export default function HeroSection() {
                     {t('home.liveBadge')}
                 </div>
 
-                <h1 className="text-5xl md:text-7xl font-black leading-tight tracking-tight text-white mb-6">
+                <h1 className="text-4xl sm:text-5xl md:text-7xl font-black leading-tight tracking-tight text-white mb-6">
                     {t('home.heroTitle1')}
                     <span className="relative inline-block">
                         <span className="text-amber-400">{t('home.heroTitle2')}</span>
@@ -47,7 +47,7 @@ export default function HeroSection() {
                 </div>
 
                 {/* Stats bar */}
-                <div className="flex justify-center gap-8 sm:gap-16 mt-14 pt-10 border-t border-white/5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 sm:gap-16 mt-14 pt-10 border-t border-white/5">
                     {[
                         { val: '12K+', label: t('home.stats.total') },
                         { val: '500+', label: t('home.stats.live') },
