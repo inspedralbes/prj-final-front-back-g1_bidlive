@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Outer hexagon glow -->
+  <filter id="glow">
+    <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+    <feMerge><feMergeNode in="coloredBlur"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+  <!-- Outer hexagon -->
+  <polygon
+    points="32,4 56,18 56,46 32,60 8,46 8,18"
+    fill="#f59e0b"
+    filter="url(#glow)"
+    opacity="0.9"
+  />
+  <!-- Inner hexagon (dark background) -->
+  <polygon
+    points="32,12 50,22 50,42 32,52 14,42 14,22"
+    fill="#08080f"
+  />
+  <!-- Inner hexagon accent -->
+  <polygon
+    points="32,16 47,25 47,41 32,50 17,41 17,25"
+    fill="none"
+    stroke="#f59e0b"
+    stroke-width="1"
+    opacity="0.3"
+  />
+  <!-- B letter -->
+  <text
+    x="32"
+    y="40"
+    font-family="Arial Black, Arial, sans-serif"
+    font-size="22"
+    font-weight="900"
+    fill="#f59e0b"
+    text-anchor="middle"
+    dominant-baseline="middle"
+  >B</text>
+</svg>

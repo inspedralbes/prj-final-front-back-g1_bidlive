@@ -18,6 +18,8 @@ export default function CreatePuja() {
     imageFile: null,
   });
   const [categoryId, setCategoryId] = useState("");
+  const [duration, setDuration] = useState("1 Hour");
+  const [mode, setMode] = useState("video");
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -61,6 +63,8 @@ export default function CreatePuja() {
       fd.append("startingPrice", Number(formData.startingPrice));
       fd.append("sellerId", user.id);
       fd.append("status", "live");
+      fd.append("duration", duration);
+      fd.append("mode", mode);
       if (categoryId) fd.append("categoryId", categoryId);
       if (formData.imageFile) fd.append("image", formData.imageFile);
 
@@ -226,9 +230,43 @@ export default function CreatePuja() {
             )}
           </div>
 
+          {/* Duration & Mode row */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Duration */}
+            <div>
+              <label className="input-label">Duráción</label>
+              <select
+                id="auction-duration"
+                value={duration}
+                onChange={e => setDuration(e.target.value)}
+                className="input-field"
+              >
+                <option value="1 Minute">1 Minuto</option>
+                <option value="1 Hour">1 Hora</option>
+                <option value="24 Hours">24 Horas</option>
+                <option value="3 Days">3 Días</option>
+                <option value="7 Days">7 Días</option>
+              </select>
+            </div>
+
+            {/* Mode */}
+            <div>
+              <label className="input-label">Modo</label>
+              <select
+                id="auction-mode"
+                value={mode}
+                onChange={e => setMode(e.target.value)}
+                className="input-field"
+              >
+                <option value="video">Vídeo en Directo</option>
+                <option value="photo">Solo Foto</option>
+              </select>
+            </div>
+          </div>
+
           {/* Starting price */}
           <div>
-            <label className="input-label">{t('create.price')} ($)</label>
+            <label className="input-label">{t('create.price')} (€)</label>
             <div>
               <input
                 className="input-field"

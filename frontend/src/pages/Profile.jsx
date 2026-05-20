@@ -164,7 +164,7 @@ const Profile = () => {
 
     const handleRecharge = async () => {
         if (rechargeAmount < 10 || rechargeAmount > 1000) {
-            alert("Please enter an amount between $10 and $1000");
+            alert("Por favor, ingresa un importe entre 10€ y 1000€");
             return;
         }
 
@@ -371,11 +371,11 @@ const Profile = () => {
                                         <h3 className="text-xl font-bold text-white flex items-center gap-2">
                                             <span className="text-amber-500">💰</span> Mi Monedero
                                         </h3>
-                                        <p className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">${walletBalance}</p>
+                                        <p className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">{walletBalance}€</p>
                                     </div>
                                     <div className="flex flex-col gap-3">
                                         <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                                            Añadir Fondos ($)
+                                            Añadir Fondos (€)
                                         </label>
                                         <div className="flex gap-3">
                                             <input
@@ -600,7 +600,7 @@ const Profile = () => {
                                                     <div className="flex justify-between items-end">
                                                         <div>
                                                             <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Puja Actual</p>
-                                                            <p className="font-black text-2xl text-white tracking-tight">${auction.current_price?.toLocaleString() || auction.starting_price?.toLocaleString()}</p>
+                                                            <p className="font-black text-2xl text-white tracking-tight">{(auction.current_price?.toLocaleString() || auction.starting_price?.toLocaleString())}€</p>
                                                         </div>
                                                         <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-black transition-all">
                                                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
@@ -647,7 +647,7 @@ const Profile = () => {
                                                             <div className="flex justify-between items-end">
                                                                 <div>
                                                                     <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Precio actual</p>
-                                                                    <p className="font-black text-2xl text-white tracking-tight">${auction.current_price?.toLocaleString()}</p>
+                                                                    <p className="font-black text-2xl text-white tracking-tight">{auction.current_price?.toLocaleString()}€</p>
                                                                 </div>
                                                             </div>
                                                         </div>

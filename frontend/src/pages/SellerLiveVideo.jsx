@@ -10,8 +10,8 @@ const ICE_SERVERS = [
   { urls: 'stun:stun1.l.google.com:19302' },
 ];
 
-// ── Seller camera preview component ─────────────────────────────────────────
-function SellerVideo({ localRef, status, viewerCount, onGoLive, isStreaming }) {
+// ── Seller camera/photo preview component ────────────────────────────────────────
+function SellerVideo({ localRef, status, viewerCount, onGoLive, isStreaming, mode, imageUrl, auctionTitle, auctionDescription }) {
   const containerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -58,14 +58,33 @@ function SellerVideo({ localRef, status, viewerCount, onGoLive, isStreaming }) {
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      <video
-        ref={localRef}
-        autoPlay
-        playsInline
-        muted
-        className="w-full h-full block"
-        style={{ background: '#000', objectFit: 'cover' }}
-      />
+      {/* Photo-only mode display */}
+      {mode === 'photo' ? (
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #0a0a18 0%, #08080f 100%)', position: 'relative' }}>
+          <div style={{ position: 'absolute', top: '-60px', left: '50%', transform: 'translateX(-50%)', width: '300px', height: '300px', background: 'radial-gradient(circle, rgba(245,158,11,0.1) 0%, transparent 70%)', pointerEvents: 'none' }} />
+          <div style={{ background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(24px)', border: '1px solid rgba(245,158,11,0.2)', borderRadius: '20px', padding: '28px', maxWidth: '340px', width: '85%', textAlign: 'center', position: 'relative', boxShadow: '0 0 40px rgba(245,158,11,0.1)' }}>
+            <div style={{ position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#08080f', fontWeight: '900', fontSize: '9px', letterSpacing: '0.18em', padding: '3px 12px', borderRadius: '999px', whiteSpace: 'nowrap', animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite' }}>
+              ■ MODO FOTO
+            </div>
+            {imageUrl ? (
+              <div style={{ width: '100%', aspectRatio: '4/3', borderRadius: '12px', overflow: 'hidden', marginBottom: '16px', border: '1px solid rgba(245,158,11,0.15)' }}>
+                <img src={imageUrl} alt={auctionTitle || 'Product'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            ) : null}
+            {auctionTitle && <h3 style={{ color: '#fff', fontWeight: '900', fontSize: '16px', margin: '0 0 6px' }}>{auctionTitle}</h3>}
+            {auctionDescription && <p style={{ color: '#9ca3af', fontSize: '12px', margin: '0', lineHeight: 1.5 }}>{auctionDescription}</p>}
+          </div>
+        </div>
+      ) : (
+        <video
+          ref={localRef}
+          autoPlay
+          playsInline
+          muted
+          className="w-full h-full block"
+          style={{ background: '#000', objectFit: 'cover' }}
+        />
+      )}
 
       {/* BROADCASTING / Camera preview badge */}
       <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
@@ -150,7 +169,7 @@ function SellerVideo({ localRef, status, viewerCount, onGoLive, isStreaming }) {
   );
 }
 
-// ── Main seller page ─────────────────────────────────────────────────────────
+// ── Main seller page ──────────────────────────────────────────────────────────────────────
 export default function SellerLiveVideo() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -168,6 +187,25 @@ export default function SellerLiveVideo() {
 
   const [isStreaming, setIsStreaming] = React.useState(false);
   const [isEnding, setIsEnding] = React.useState(false);
+  const [auctionMode, setAuctionMode] = React.useState('video');
+  const [auctionImageUrl, setAuctionImageUrl] = React.useState(null);
+  const [auctionTitle, setAuctionTitle] = React.useState('');
+  const [auctionDescription, setAuctionDescription] = React.useState('');
+
+  // Fetch auction data on mount to read mode and image_url
+  React.useEffect(() => {
+    fetch(`${API_URL}/auction/pujas/${id}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    })
+      .then(r => r.json())
+      .then(data => {
+        setAuctionMode(data.mode || 'video');
+        setAuctionImageUrl(data.image_url || null);
+        setAuctionTitle(data.title || '');
+        setAuctionDescription(data.description || '');
+      })
+      .catch(err => console.error('[Seller] Failed to fetch auction data:', err.message));
+  }, [id]);
 
   // ── Create (or reuse) one RTCPeerConnection per viewer ──────────────────
   const createPcForViewer = useCallback((viewerSessionId) => {
@@ -197,7 +235,7 @@ export default function SellerLiveVideo() {
 
   // ── Send offer to a specific viewer ─────────────────────────────────────
   const sendOfferToViewer = useCallback(async (viewerSessionId) => {
-    if (!streamRef.current) {
+    if (!streamRef.current && auctionMode !== 'photo') {
       console.warn('[Seller] No stream yet — ignoring REQUEST_OFFER from', viewerSessionId);
       return;
     }
@@ -210,7 +248,7 @@ export default function SellerLiveVideo() {
     } catch (err) {
       console.error('[Seller] createOffer error:', err);
     }
-  }, [createPcForViewer, sendSignal]);
+  }, [createPcForViewer, sendSignal, auctionMode]);
 
   // ── Register WebRTC signal handler via the hook (no onmessage override) ─
   useEffect(() => {
@@ -260,21 +298,26 @@ export default function SellerLiveVideo() {
     return () => setSignalHandler(null);
   }, [status, setSignalHandler, sendOfferToViewer]);
 
-  // ── Go Live: capture camera, send SELLER_LIVE, update DB ────────────────
+  // ── Go Live: capture camera or activate photo mode ──────────────────────
   const startBroadcast = async () => {
-    if (isStreaming || streamRef.current) return;
+    if (isStreaming || (streamRef.current && auctionMode !== 'photo')) return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
-        audio: true,
-      });
-      streamRef.current = stream;
-      if (localRef.current) localRef.current.srcObject = stream;
-      setIsStreaming(true);
-
-      // Tell all waiting viewers the seller is now live
-      sendSignal('SELLER_LIVE', {});
-      console.log('[Seller] SELLER_LIVE sent');
+      if (auctionMode === 'photo') {
+        // Photo mode: skip camera, go live directly
+        setIsStreaming(true);
+        sendSignal('SELLER_LIVE', {});
+        console.log('[Seller] SELLER_LIVE sent (photo mode)');
+      } else {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+          audio: true,
+        });
+        streamRef.current = stream;
+        if (localRef.current) localRef.current.srcObject = stream;
+        setIsStreaming(true);
+        sendSignal('SELLER_LIVE', {});
+        console.log('[Seller] SELLER_LIVE sent');
+      }
 
       // Update auction status in DB
       fetch(`${API_URL}/auction/pujas/${id}/start`, {
@@ -368,6 +411,10 @@ export default function SellerLiveVideo() {
             viewerCount={viewerCount}
             onGoLive={startBroadcast}
             isStreaming={isStreaming}
+            mode={auctionMode}
+            imageUrl={auctionImageUrl}
+            auctionTitle={auctionTitle}
+            auctionDescription={auctionDescription}
           />
         </div>
 
@@ -382,7 +429,7 @@ export default function SellerLiveVideo() {
               </div>
               <div>
                 <p className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold mb-1">Current bid</p>
-                <p className="text-amber-400 font-black text-2xl">${latestBid.toLocaleString()}</p>
+                <p className="text-amber-400 font-black text-2xl">{latestBid.toLocaleString()}€</p>
                 {latestBidder && <p className="text-gray-600 text-[10px] mt-0.5">by {latestBidder}</p>}
               </div>
               <div>

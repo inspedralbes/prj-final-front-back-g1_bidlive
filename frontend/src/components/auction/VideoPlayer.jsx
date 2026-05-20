@@ -25,7 +25,8 @@ const ICE_SERVERS = [
 export default function VideoPlayer({
   auctionId, role = 'viewer', autoStart = false,
   viewerCount, onAuctionEnd, externalWs,
-  categoryIcon, categoryName
+  categoryIcon, categoryName,
+  mode, imageUrl, auctionTitle, auctionDescription
 }) {
   const { user } = useAuth();
   const username = user?.username || user?.email || 'Anonymous';
@@ -273,6 +274,7 @@ export default function VideoPlayer({
 
   // ── Auto-start (viewer connects: init PC + request offer) ─────────────────
   useEffect(() => {
+    if (mode === 'photo') return; // Skip WebRTC for photo-only mode
     if (status !== 'connected') return;
     if (role === 'seller' && autoStart) startBroadcast();
     if (role === 'viewer') {
@@ -344,6 +346,92 @@ export default function VideoPlayer({
       </svg>
     );
   };
+
+  // ── Photo-only mode: render premium glassmorphic product card ─────────────
+  if (mode === 'photo') {
+    return (
+      <div
+        ref={containerRef}
+        className="relative w-full rounded-2xl overflow-hidden flex items-center justify-center"
+        style={{
+          background: 'linear-gradient(135deg, #0a0a18 0%, #08080f 100%)',
+          border: '1px solid rgba(245,158,11,0.25)',
+          height: '100%',
+          width: '100%',
+          boxShadow: '0 0 60px rgba(245,158,11,0.08)',
+        }}
+      >
+        {/* Ambient glow */}
+        <div style={{ position: 'absolute', top: '-80px', left: '50%', transform: 'translateX(-50%)', width: '400px', height: '400px', background: 'radial-gradient(circle, rgba(245,158,11,0.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+        {/* Product card */}
+        <div
+          style={{
+            background: 'rgba(255,255,255,0.04)',
+            backdropFilter: 'blur(24px)',
+            border: '1px solid rgba(245,158,11,0.2)',
+            borderRadius: '24px',
+            padding: '32px',
+            maxWidth: '420px',
+            width: '90%',
+            boxShadow: '0 0 40px rgba(245,158,11,0.1), inset 0 1px 0 rgba(255,255,255,0.06)',
+            textAlign: 'center',
+            position: 'relative',
+          }}
+        >
+          {/* MODO FOTO badge */}
+          <div style={{
+            position: 'absolute',
+            top: '-14px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+            color: '#08080f',
+            fontWeight: '900',
+            fontSize: '10px',
+            letterSpacing: '0.18em',
+            padding: '4px 14px',
+            borderRadius: '999px',
+            animation: 'pulse 2s cubic-bezier(0.4,0,0.6,1) infinite',
+            whiteSpace: 'nowrap',
+          }}>
+            ■ MODO FOTO
+          </div>
+
+          {/* Product image */}
+          {imageUrl ? (
+            <div style={{ width: '100%', aspectRatio: '4/3', borderRadius: '16px', overflow: 'hidden', marginBottom: '20px', border: '1px solid rgba(245,158,11,0.15)', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+              <img src={imageUrl} alt={auctionTitle || 'Auction item'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+          ) : (
+            <div style={{ width: '100%', aspectRatio: '4/3', borderRadius: '16px', background: 'rgba(245,158,11,0.06)', marginBottom: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed rgba(245,158,11,0.2)' }}>
+              <span className="material-symbols-outlined" style={{ fontSize: '64px', color: 'rgba(245,158,11,0.3)' }}>image</span>
+            </div>
+          )}
+
+          {auctionTitle && (
+            <h3 style={{ color: '#ffffff', fontWeight: '900', fontSize: '18px', margin: '0 0 8px', lineHeight: 1.3 }}>{auctionTitle}</h3>
+          )}
+          {auctionDescription && (
+            <p style={{ color: '#9ca3af', fontSize: '13px', margin: '0', lineHeight: 1.6, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{auctionDescription}</p>
+          )}
+        </div>
+
+        {/* Live badge top-left */}
+        <div className="absolute top-3 left-3 z-10">
+          <span className="badge-live"><span className="live-dot" /> LIVE</span>
+        </div>
+
+        {/* Viewer count */}
+        {viewerCount !== undefined && (
+          <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 text-xs font-medium text-white px-2.5 py-1.5 rounded-full" style={{ background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" opacity="0.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+            {viewerCount} watching
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (

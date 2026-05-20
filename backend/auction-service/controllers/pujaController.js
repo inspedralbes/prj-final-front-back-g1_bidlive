@@ -1,6 +1,7 @@
 const Puja = require('../models/Puja');
 const db = require('../config/db');
 const { sendNotification, sendMassNotification } = require('../utils/notifications');
+const { sendAuctionWinEmail } = require('../services/emailService');
 
 const pujaController = {
     createPuja: async (req, res) => {
@@ -56,7 +57,7 @@ const pujaController = {
                 sellerImg: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&q=80',
                 category: p.category || 'General',
                 currentPrice: p.current_price,
-                bid: `$${p.current_price}`,
+                bid: `${p.current_price}€`,
                 viewers: Math.floor(Math.random() * 200) + 10,
                 status: p.status,
             }));
@@ -103,6 +104,7 @@ const pujaController = {
                     const value = parseInt(match[1]);
                     if (puja.duration.toLowerCase().includes('hour')) durationMinutes = value * 60;
                     else if (puja.duration.toLowerCase().includes('minute')) durationMinutes = value;
+                    else if (puja.duration.toLowerCase().includes('day')) durationMinutes = value * 24 * 60;
                 }
             }
             
@@ -174,22 +176,21 @@ const pujaController = {
             await Puja.endWithWinner(id, winnerId || null, finalPrice || puja.current_price);
             console.log(`[Auction] Puja ${id} ended. Winner: ${winnerId}, Price: ${finalPrice}`);
 
-            // Update seller reputation
-            try {
-                await db.query(
-                    'UPDATE users SET reputation_score = reputation_score + 1, total_sales = total_sales + 1 WHERE id = ?',
-                    [puja.seller_id]
-                );
-            } catch (repErr) {
-                console.error('[Auction] Reputation update failed:', repErr.message);
-            }
-
-            // Notify winner
+            // Update seller reputation and send notifications ONLY if there is a winner
             if (winnerId) {
+                try {
+                    await db.query(
+                        'UPDATE users SET reputation_score = reputation_score + 1, total_sales = total_sales + 1 WHERE id = ?',
+                        [puja.seller_id]
+                    );
+                } catch (repErr) {
+                    console.error('[Auction] Reputation update failed:', repErr.message);
+                }
+
                 sendNotification(
                     winnerId,
                     '¡HAS GANADO!',
-                    `Has ganado la subasta "${puja.title}" por $${finalPrice || puja.current_price}.`,
+                    `Has ganado la subasta "${puja.title}" por ${finalPrice || puja.current_price}€.`,
                     'success',
                     `/auction/${id}`
                 );
@@ -212,6 +213,26 @@ const pujaController = {
                 } catch (chatErr) {
                     console.error('[Auction] Failed to send private chat notification:', chatErr.message);
                 }
+
+                // Send email win confirmation email to winner
+                try {
+                    const [userRows] = await db.query('SELECT email FROM users WHERE id = ?', [winnerId]);
+                    if (userRows.length > 0 && userRows[0].email) {
+                        await sendAuctionWinEmail(userRows[0].email, puja.title, finalPrice || puja.current_price, id);
+                        console.log(`[Auction] Email win confirmation triggered for winner ${winnerId}`);
+                    }
+                } catch (emailErr) {
+                    console.error('[Auction] Failed to fetch winner email or send email:', emailErr.message);
+                }
+            } else {
+                // No winner: Notify Seller
+                sendNotification(
+                    puja.seller_id,
+                    'Subasta finalizada sin pujas',
+                    `Tu subasta "${puja.title}" ha terminado sin recibir ninguna puja.`,
+                    'info',
+                    `/auction/${id}`
+                );
             }
 
             res.json({ message: 'Puja ended', id, status: 'ended', winnerId, finalPrice });

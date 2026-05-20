@@ -61,7 +61,7 @@ export default function BiddingHUD({ currentBid = 0, hasBids = false, placeBid, 
                 <AuctionTimer endTime={endTime} />
                 <div className="text-right">
                     <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Tu Saldo</p>
-                    <p className="text-white font-black text-lg">${balance.toLocaleString()}</p>
+                    <p className="text-white font-black text-lg">{balance.toLocaleString()}€</p>
                 </div>
             </div>
 
@@ -71,7 +71,7 @@ export default function BiddingHUD({ currentBid = 0, hasBids = false, placeBid, 
                     <p className="text-gray-500 text-xs font-semibold uppercase tracking-wider mb-1">
                         {hasBids ? 'Current bid' : 'Starting Price'}
                     </p>
-                    <p className="text-white font-black text-4xl">${current.toLocaleString()}</p>
+                    <p className="text-white font-black text-4xl">{current.toLocaleString()}€</p>
                 </div>
                 <div className="flex flex-col items-end gap-2">
                     {status === 'winning' && (
@@ -89,7 +89,7 @@ export default function BiddingHUD({ currentBid = 0, hasBids = false, placeBid, 
                     {lastBid && (
                         <div className="text-right">
                             <p className="text-gray-600 text-xs mb-1">Your last bid</p>
-                            <p className="text-amber-400 font-bold text-lg">${lastBid.toLocaleString()}</p>
+                            <p className="text-amber-400 font-bold text-lg">{lastBid.toLocaleString()}€</p>
                         </div>
                     )}
                 </div>
@@ -112,9 +112,9 @@ export default function BiddingHUD({ currentBid = 0, hasBids = false, placeBid, 
                         onMouseLeave={e => { e.currentTarget.style.background = 'rgba(245,158,11,0.08)'; e.currentTarget.style.borderColor = 'rgba(245,158,11,0.2)'; }}
                     >
                         {amt === current ? (
-                            `Starting Bid ($${amt.toLocaleString()})`
+                            `Puja Inicial (${amt.toLocaleString()}€)`
                         ) : (
-                            <>+${amt - current} <span className="font-normal opacity-60">(${amt.toLocaleString()})</span></>
+                            <>+{amt - current}€ <span className="font-normal opacity-60">({amt.toLocaleString()}€)</span></>
                         )}
                     </button>
                 ))}
@@ -123,13 +123,12 @@ export default function BiddingHUD({ currentBid = 0, hasBids = false, placeBid, 
             {/* Custom bid */}
             <form onSubmit={handleCustomSubmit} className="flex gap-2">
                 <div className="relative flex-1">
-                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-sm">$</span>
                     <input
-                        className="input-field pl-7 text-sm py-2.5"
+                        className="input-field text-sm py-2.5"
                         type="number"
                         min={minRequired}
                         step="1"
-                        placeholder={`Min. $${Math.ceil(minRequired)}`}
+                        placeholder={`Mín. ${Math.ceil(minRequired)}€`}
                         value={customAmount}
                         onChange={e => setCustomAmount(e.target.value)}
                         disabled={disabled}
@@ -140,7 +139,7 @@ export default function BiddingHUD({ currentBid = 0, hasBids = false, placeBid, 
                     disabled={disabled || !customAmount}
                     className="btn-primary py-2.5 px-5 text-sm shrink-0"
                 >
-                    Place bid
+                    Pujar
                 </button>
             </form>
 

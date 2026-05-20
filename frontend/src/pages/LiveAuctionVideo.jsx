@@ -61,7 +61,7 @@ export default function LiveAuctionVideo() {
                             const currentP = Number(data.current_price) || Number(data.starting_price);
                             if ((wallet.balance || 0) < currentP) {
                                 setToast({ 
-                                    message: `Aviso: Tu saldo ($${wallet.balance || 0}) es inferior a la puja mínima ($${currentP}). Recarga para participar.`, 
+                                    message: `Aviso: Tu saldo (${wallet.balance || 0}€) es inferior a la puja mínima (${currentP}€). Recarga para participar.`, 
                                     type: 'warning' 
                                 });
                             }
@@ -198,7 +198,7 @@ export default function LiveAuctionVideo() {
                                 </div>
                                 <div>
                                     <h2 className="text-white font-black text-3xl mb-1">¡HAS GANADO!</h2>
-                                    <p className="text-amber-400 font-bold text-lg mb-4">${endData?.finalPrice}</p>
+                                    <p className="text-amber-400 font-bold text-lg mb-4">{endData?.finalPrice}€</p>
                                 </div>
                                 
                                 {!paymentMethod ? (
@@ -323,6 +323,10 @@ export default function LiveAuctionVideo() {
                         externalWs={wsHook} 
                         categoryIcon={auctionData?.category_icon}
                         categoryName={auctionData?.category_name}
+                        mode={auctionData?.mode}
+                        imageUrl={auctionData?.image_url}
+                        auctionTitle={auctionData?.title}
+                        auctionDescription={auctionData?.description}
                     />
                 </div>
 

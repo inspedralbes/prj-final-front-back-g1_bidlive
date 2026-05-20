@@ -60,7 +60,7 @@ const AuctionCard = ({ auction }) => (
                 {/* Removed redundant category badge and added bidding info overlay */}
                 <div className="absolute bottom-0 left-0 right-0 p-3"
                     style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.75), transparent)' }}>
-                    <p className="text-amber-400 font-black text-lg">${Number(auction.currentPrice).toLocaleString()}</p>
+                    <p className="text-amber-400 font-black text-lg">{Number(auction.currentPrice).toLocaleString()}€</p>
                 </div>
             </div>
             <div className="p-4">

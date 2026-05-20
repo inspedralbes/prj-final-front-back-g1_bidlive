@@ -4,6 +4,7 @@ const http = require("http");
 const WebSocket = require("ws");
 const cors = require("cors");
 const { randomUUID } = require("crypto");
+const db = require('./config/db');
 
 const app = express();
 // app.use(cors());
@@ -11,6 +12,23 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 const PORT = process.env.PORT || 3002;
+
+// Initialize live_messages table for persistent chat
+db.query(`
+    CREATE TABLE IF NOT EXISTS live_messages (
+        id VARCHAR(36) PRIMARY KEY,
+        auction_id VARCHAR(64) NOT NULL,
+        username VARCHAR(255) NOT NULL,
+        sender_id VARCHAR(64) DEFAULT NULL,
+        message TEXT NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_auction_id (auction_id)
+    )
+`).then(() => {
+    console.log('[BiddingDB] live_messages table ready.');
+}).catch(err => {
+    console.error('[BiddingDB] Failed to create live_messages table:', err.message);
+});
 
 // { auctionId: { seller: ws|null, viewers: Map<sessionId, ws>, mutedUsers: Map<username, expireTimeMs> } }
 const rooms = new Map();
@@ -118,6 +136,31 @@ wss.on("connection", (ws) => {
                         console.log(`[Room ${auctionId}] Viewer joined [${ws.sessionId}]`);
                     }
                     broadcastViewerCount(room);
+
+                    // Stream last 100 historical messages to the newly connected socket
+                    try {
+                        const history = await db.query(
+                            'SELECT * FROM live_messages WHERE auction_id = ? ORDER BY timestamp ASC LIMIT 100',
+                            [auctionId]
+                        );
+                        const rows = Array.isArray(history[0]) ? history[0] : history;
+                        rows.forEach(row => {
+                            sendJson(ws, {
+                                type: 'CHAT_MESSAGE',
+                                payload: {
+                                    id: row.id,
+                                    username: row.username,
+                                    message: row.message,
+                                    timestamp: row.timestamp,
+                                    senderId: row.sender_id,
+                                    historical: true,
+                                }
+                            });
+                        });
+                        if (rows.length > 0) console.log(`[Room ${auctionId}] Streamed ${rows.length} historical messages to [${ws.sessionId}]`);
+                    } catch (histErr) {
+                        console.error(`[BiddingDB] Failed to stream chat history for room ${auctionId}:`, histErr.message);
+                    }
                     break;
                 }
 
@@ -128,9 +171,20 @@ wss.on("connection", (ws) => {
                     const username = ws.username || "Anonymous";
                     if (isUserMuted(room, username, ws)) break;
 
-                    const msg = { type: "CHAT_MESSAGE", payload: { id: randomUUID(), username: username, message: payload.message, timestamp: new Date().toISOString(), senderId: ws.role } };
+                    const msgId = randomUUID();
+                    const msg = { type: "CHAT_MESSAGE", payload: { id: msgId, username: username, message: payload.message, timestamp: new Date().toISOString(), senderId: ws.role } };
                     if (room.seller) sendJson(room.seller, msg);
                     room.viewers.forEach(v => sendJson(v, msg));
+
+                    // Persist to database
+                    try {
+                        await db.query(
+                            'INSERT INTO live_messages (id, auction_id, username, sender_id, message) VALUES (?, ?, ?, ?, ?)',
+                            [msgId, ws.auctionId, username, ws.userId || null, payload.message]
+                        );
+                    } catch (dbErr) {
+                        console.error('[BiddingDB] Failed to persist chat message:', dbErr.message);
+                    }
                     break;
                 }
 
@@ -142,6 +196,13 @@ wss.on("connection", (ws) => {
                     console.log(`[Room ${ws.auctionId}] Moderation: Seller deleted message ${payload.messageId}`);
                     if (room.seller) sendJson(room.seller, delMsg);
                     room.viewers.forEach(v => sendJson(v, delMsg));
+
+                    // Delete from database
+                    try {
+                        await db.query('DELETE FROM live_messages WHERE id = ? AND auction_id = ?', [payload.messageId, ws.auctionId]);
+                    } catch (dbErr) {
+                        console.error('[BiddingDB] Failed to delete chat message:', dbErr.message);
+                    }
                     break;
                 }
 
@@ -275,9 +336,9 @@ wss.on("connection", (ws) => {
                             createAndSendNotification(
                                 bidData.previousBidderId,
                                 '¡Han superado tu puja!',
-                                `Alguien ha pujado $${payload.amount} en la subasta #${ws.auctionId}.`,
+                                `Alguien ha pujado ${payload.amount}€ en la subasta #${ws.auctionId}.`,
                                 'outbid',
-                                `/auction/${ws.auctionId}`
+                                `/auction/video/${ws.auctionId}`
                             );
                         }
 
