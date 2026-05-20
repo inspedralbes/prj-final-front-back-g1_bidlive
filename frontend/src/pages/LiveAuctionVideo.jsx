@@ -129,6 +129,7 @@ export default function LiveAuctionVideo() {
     const [paymentMethod, setPaymentMethod] = useState(null); // 'wallet' or 'stripe'
     const [paying, setPaying] = useState(false);
     const isFinalWinner = endData?.winnerId === user?.id;
+    const hasWinner = !!endData?.winnerId;
 
     // ── Loading screen — placed AFTER all hooks ────────────────────────────
     if (auctionStatus === null) {
@@ -256,6 +257,20 @@ export default function LiveAuctionVideo() {
                                     </div>
                                 )}
                             </>
+                        ) : !hasWinner ? (
+                            <div className="text-center p-8">
+                                <div className="w-20 h-20 bg-gray-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                                    <span className="material-symbols-outlined text-gray-400 text-4xl">timer_off</span>
+                                </div>
+                                <h2 className="text-white font-black text-2xl mb-2 text-red-400">Subasta Desierta</h2>
+                                <p className="text-gray-400 text-sm leading-relaxed mb-6">
+                                    El tiempo ha finalizado sin recibir ninguna puja.<br />
+                                    La subasta se ha cerrado sin ganador.
+                                </p>
+                                <button onClick={() => navigate('/')} className="btn-ghost w-full py-3">
+                                    Volver al inicio
+                                </button>
+                            </div>
                         ) : (
                             <>
                                 {/* Ended Icon */}
@@ -324,7 +339,7 @@ export default function LiveAuctionVideo() {
                         categoryIcon={auctionData?.category_icon}
                         categoryName={auctionData?.category_name}
                         mode={auctionData?.mode}
-                        imageUrl={auctionData?.image_url}
+                        imageUrl={auctionData?.stream_image_url || auctionData?.image_url}
                         auctionTitle={auctionData?.title}
                         auctionDescription={auctionData?.description}
                     />

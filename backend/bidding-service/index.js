@@ -474,6 +474,39 @@ app.post("/broadcast", (req, res) => {
     res.status(404).json({ message: 'Room not found' });
 });
 
+app.post("/inject-chat", async (req, res) => {
+    const { auctionId, message, username, senderId, secret } = req.body;
+    if (secret !== (process.env.INTERNAL_SECRET || 'bidlive_secret')) {
+        return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    try {
+        const msgId = randomUUID();
+        const timestamp = new Date().toISOString();
+        const chatMsg = { 
+            type: "CHAT_MESSAGE", 
+            payload: { id: msgId, username, message, timestamp, senderId: senderId || 'system' } 
+        };
+
+        const room = rooms.get(auctionId);
+        if (room) {
+            if (room.seller) sendJson(room.seller, chatMsg);
+            room.viewers.forEach(v => sendJson(v, chatMsg));
+        }
+
+        // Persist to database even if room is empty (for history)
+        await db.query(
+            'INSERT INTO live_messages (id, auction_id, username, sender_id, message) VALUES (?, ?, ?, ?, ?)',
+            [msgId, auctionId, username, senderId || 'system', message]
+        );
+
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[BiddingService] Failed to inject chat:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 app.post("/notify-user", (req, res) => {
     const { userId, type, payload, secret } = req.body;
     if (secret !== (process.env.INTERNAL_SECRET || 'bidlive_secret')) {

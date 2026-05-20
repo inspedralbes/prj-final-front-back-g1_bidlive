@@ -67,8 +67,8 @@ function SellerVideo({ localRef, status, viewerCount, onGoLive, isStreaming, mod
               ■ MODO FOTO
             </div>
             {imageUrl ? (
-              <div style={{ width: '100%', aspectRatio: '4/3', borderRadius: '12px', overflow: 'hidden', marginBottom: '16px', border: '1px solid rgba(245,158,11,0.15)' }}>
-                <img src={imageUrl} alt={auctionTitle || 'Product'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <div style={{ width: '100%', aspectRatio: '4/3', borderRadius: '12px', overflow: 'hidden', marginBottom: '16px', border: '1px solid rgba(245,158,11,0.15)', background: '#000' }}>
+                <img src={imageUrl} alt={auctionTitle || 'Product'} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </div>
             ) : null}
             {auctionTitle && <h3 style={{ color: '#fff', fontWeight: '900', fontSize: '16px', margin: '0 0 6px' }}>{auctionTitle}</h3>}
@@ -189,6 +189,7 @@ export default function SellerLiveVideo() {
   const [isEnding, setIsEnding] = React.useState(false);
   const [auctionMode, setAuctionMode] = React.useState('video');
   const [auctionImageUrl, setAuctionImageUrl] = React.useState(null);
+  const [auctionStreamImageUrl, setAuctionStreamImageUrl] = React.useState(null);
   const [auctionTitle, setAuctionTitle] = React.useState('');
   const [auctionDescription, setAuctionDescription] = React.useState('');
 
@@ -201,6 +202,7 @@ export default function SellerLiveVideo() {
       .then(data => {
         setAuctionMode(data.mode || 'video');
         setAuctionImageUrl(data.image_url || null);
+        setAuctionStreamImageUrl(data.stream_image_url || null);
         setAuctionTitle(data.title || '');
         setAuctionDescription(data.description || '');
       })
@@ -289,6 +291,14 @@ export default function SellerLiveVideo() {
             iceQueue.push(candidate);
           }
         }
+        
+        if (data.type === 'AUCTION_ENDED') {
+          setIsEnding(true);
+          streamRef.current?.getTracks().forEach(t => t.stop());
+          peersRef.current.forEach(({ pc }) => pc.close());
+          peersRef.current.clear();
+          setTimeout(() => navigate('/seller'), 1500);
+        }
       } catch (err) {
         console.error('[Seller] signal handler error:', err);
       }
@@ -309,7 +319,7 @@ export default function SellerLiveVideo() {
         console.log('[Seller] SELLER_LIVE sent (photo mode)');
       } else {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+          video: { facingMode: 'user', width: { ideal: 1280 } },
           audio: true,
         });
         streamRef.current = stream;
@@ -332,39 +342,7 @@ export default function SellerLiveVideo() {
     }
   };
 
-  // ── End live: stop tracks, update DB, signal viewers, navigate ──────────
-  const endLive = async () => {
-    if (isEnding) return;
-    setIsEnding(true);
-
-    // Stop local camera/mic immediately
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    // Close all peer connections
-    peersRef.current.forEach(({ pc }) => pc.close());
-    peersRef.current.clear();
-
-    // Find the last bid to declare the winner
-    const lastBidMsg = [...messages].reverse().find(m => m.type === 'BID_PLACED');
-    const winnerId = lastBidMsg?.payload?.userId || null;
-    const finalPrice = lastBidMsg?.payload?.amount || 0;
-
-    try {
-      await fetch(`${API_URL}/auction/pujas/${id}/end`, {
-        method: 'POST',
-        headers: { 
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ winnerId, finalPrice })
-      });
-      console.log(`[Seller] Auction ended. Winner: ${winnerId}, Final Price: ${finalPrice}`);
-    } catch (err) {
-      console.error('[Seller] endLive API error (non-critical):', err);
-    }
-
-    sendSignal('END_AUCTION', { auctionId: id, winnerId, finalPrice });
-    setTimeout(() => navigate('/seller'), 600);
-  };
+  // ── Seller ends auction manually is REMOVED ──────────────────────────────
 
   // ── Cleanup on unmount ───────────────────────────────────────────────────
   useEffect(() => {
@@ -395,9 +373,6 @@ export default function SellerLiveVideo() {
           <button onClick={() => navigate('/seller')} className="btn-ghost text-xs py-1.5 px-3">
             Dashboard
           </button>
-          <button onClick={endLive} disabled={isEnding} className="btn-danger text-xs py-1.5 px-3 disabled:opacity-50">
-            {isEnding ? 'Ending...' : 'End live'}
-          </button>
         </div>
       </header>
 
@@ -412,7 +387,7 @@ export default function SellerLiveVideo() {
             onGoLive={startBroadcast}
             isStreaming={isStreaming}
             mode={auctionMode}
-            imageUrl={auctionImageUrl}
+            imageUrl={auctionStreamImageUrl || auctionImageUrl}
             auctionTitle={auctionTitle}
             auctionDescription={auctionDescription}
           />

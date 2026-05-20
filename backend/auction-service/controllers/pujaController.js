@@ -8,8 +8,22 @@ const pujaController = {
         try {
             const { title, description, category, reservePrice, duration, mode, startingPrice, sellerId } = req.body;
             let imageUrl = req.body.imageUrl;
+            let streamImageUrl = null;
 
-            if (req.file) {
+            if (req.files) {
+                const protocol = req.protocol;
+                const host = req.get('host');
+                const servicePrefix = process.env.SERVICE_PREFIX || '';
+                
+                if (req.files['image'] && req.files['image'][0]) {
+                    imageUrl = `${protocol}://${host}${servicePrefix}/uploads/${req.files['image'][0].filename}`;
+                }
+                
+                if (req.files['streamImage'] && req.files['streamImage'][0]) {
+                    streamImageUrl = `${protocol}://${host}${servicePrefix}/uploads/${req.files['streamImage'][0].filename}`;
+                }
+            } else if (req.file) {
+                // Fallback for older single file logic just in case
                 const protocol = req.protocol;
                 const host = req.get('host');
                 const servicePrefix = process.env.SERVICE_PREFIX || '';
@@ -20,7 +34,7 @@ const pujaController = {
                 return res.status(400).json({ message: 'Title, starting price, and seller ID are required' });
             }
 
-            const newPuja = await Puja.create(title, description, category, reservePrice, duration, mode, startingPrice, imageUrl, sellerId, 'upcoming');
+            const newPuja = await Puja.create(title, description, category, reservePrice, duration, mode, startingPrice, imageUrl, streamImageUrl, sellerId, 'upcoming');
             res.status(201).json({ message: 'Puja created successfully', puja: newPuja });
         } catch (error) {
             console.error('Error creating puja:', error);
@@ -97,16 +111,8 @@ const pujaController = {
             }
 
             // Calculate end_time based on duration
-            let durationMinutes = 60; // Default 1 hour
-            if (puja.duration) {
-                const match = puja.duration.match(/(\d+)/);
-                if (match) {
-                    const value = parseInt(match[1]);
-                    if (puja.duration.toLowerCase().includes('hour')) durationMinutes = value * 60;
-                    else if (puja.duration.toLowerCase().includes('minute')) durationMinutes = value;
-                    else if (puja.duration.toLowerCase().includes('day')) durationMinutes = value * 24 * 60;
-                }
-            }
+            let durationMinutes = parseInt(puja.duration) || 60;
+
             
             const endTime = new Date(Date.now() + durationMinutes * 60000);
 

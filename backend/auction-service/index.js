@@ -128,7 +128,7 @@ app.get('/', (req, res) => {
 app.get('/categories', categoryController.getCategories);
 
 // Auctions Endpoints
-app.post('/pujas', upload.single('image'), pujaController.createPuja);
+app.post('/pujas', upload.fields([{ name: 'image', maxCount: 1 }, { name: 'streamImage', maxCount: 1 }]), pujaController.createPuja);
 app.get('/pujas', pujaController.getPujas);
 app.get('/pujas/:id', pujaController.getPujaById)
 app.post('/pujas/:id/start', pujaController.startPuja);

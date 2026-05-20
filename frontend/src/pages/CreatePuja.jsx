@@ -16,11 +16,13 @@ export default function CreatePuja() {
     description: "",
     startingPrice: "",
     imageFile: null,
+    streamImageFile: null,
   });
   const [categoryId, setCategoryId] = useState("");
-  const [duration, setDuration] = useState("1 Hour");
+  const [duration, setDuration] = useState(60);
   const [mode, setMode] = useState("video");
   const [preview, setPreview] = useState(null);
+  const [streamPreview, setStreamPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -32,15 +34,19 @@ export default function CreatePuja() {
   }, [categories, categoryId]);
 
   const handleChange = (e) => {
-    if (e.target.name === "imageFile") {
+    if (e.target.name === "imageFile" || e.target.name === "streamImageFile") {
       const file = e.target.files[0];
-      setFormData({ ...formData, imageFile: file });
+      setFormData({ ...formData, [e.target.name]: file });
       if (file) {
         const reader = new FileReader();
-        reader.onloadend = () => setPreview(reader.result);
+        reader.onloadend = () => {
+          if (e.target.name === "imageFile") setPreview(reader.result);
+          else setStreamPreview(reader.result);
+        };
         reader.readAsDataURL(file);
       } else {
-        setPreview(null);
+        if (e.target.name === "imageFile") setPreview(null);
+        else setStreamPreview(null);
       }
     } else {
       setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -67,6 +73,7 @@ export default function CreatePuja() {
       fd.append("mode", mode);
       if (categoryId) fd.append("categoryId", categoryId);
       if (formData.imageFile) fd.append("image", formData.imageFile);
+      if (formData.streamImageFile && mode === 'photo') fd.append("streamImage", formData.streamImageFile);
 
       const response = await fetch(`${baseUrl}/auction/pujas`, {
         method: "POST",
@@ -151,6 +158,40 @@ export default function CreatePuja() {
             )}
           </div>
 
+          {/* Stream Image upload (only if photo mode) */}
+          {mode === 'photo' && (
+            <div className="animate-fade-in-up">
+              <label className="input-label">Foto del Stream (Opcional)</label>
+              <p className="text-gray-500 text-xs mb-2">Si no subes ninguna, se mostrará la foto de portada durante el directo.</p>
+              <label
+                className="flex flex-col items-center justify-center w-full h-32 rounded-2xl cursor-pointer transition-all"
+                style={{
+                  background: streamPreview ? 'transparent' : 'rgba(245,158,11,0.03)',
+                  border: '1px dashed rgba(245,158,11,0.2)',
+                  overflow: 'hidden',
+                  position: 'relative',
+                }}
+              >
+                {streamPreview ? (
+                  <img src={streamPreview} alt="Stream Preview" className="w-full h-full object-cover absolute inset-0" />
+                ) : (
+                  <div className="flex flex-col items-center gap-2 text-gray-500">
+                    <span className="material-symbols-outlined text-amber-500/50">add_photo_alternate</span>
+                    <span className="text-xs">Subir foto para el reproductor</span>
+                  </div>
+                )}
+                <input type="file" name="streamImageFile" accept="image/*" onChange={handleChange}
+                  className="absolute inset-0 opacity-0 cursor-pointer" />
+              </label>
+              {streamPreview && (
+                <button type="button" onClick={() => { setStreamPreview(null); setFormData(prev => ({ ...prev, streamImageFile: null })); }}
+                  className="mt-2 text-xs text-gray-500 hover:text-gray-300 transition-colors">
+                  Quitar foto del stream
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Title */}
           <div>
             <label className="input-label">{t('create.itemTitle')}</label>
@@ -234,19 +275,18 @@ export default function CreatePuja() {
           <div className="grid grid-cols-2 gap-4">
             {/* Duration */}
             <div>
-              <label className="input-label">Duráción</label>
-              <select
+              <label className="input-label">Duración (Minutos)</label>
+              <input
+                type="number"
                 id="auction-duration"
                 value={duration}
                 onChange={e => setDuration(e.target.value)}
-                className="input-field"
-              >
-                <option value="1 Minute">1 Minuto</option>
-                <option value="1 Hour">1 Hora</option>
-                <option value="24 Hours">24 Horas</option>
-                <option value="3 Days">3 Días</option>
-                <option value="7 Days">7 Días</option>
-              </select>
+                min="1"
+                max="2880"
+                className="input-field text-white"
+                placeholder="Ej: 60"
+                style={{ color: '#fff' }}
+              />
             </div>
 
             {/* Mode */}

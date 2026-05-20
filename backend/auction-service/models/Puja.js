@@ -43,6 +43,7 @@ const Puja = {
                 starting_price DECIMAL(10, 2) NOT NULL,
                 current_price DECIMAL(10, 2) DEFAULT 0.00,
                 image_url VARCHAR(2048),
+                stream_image_url VARCHAR(2048),
                 seller_id INT NOT NULL,
                 status ENUM('live', 'upcoming', 'ended', 'cancelled_unpaid') DEFAULT 'upcoming',
                 winner_id INT DEFAULT NULL,
@@ -61,6 +62,7 @@ const Puja = {
         try { await db.query("ALTER TABLE pujas ADD COLUMN reserve_price DECIMAL(10, 2)"); } catch (e) { }
         try { await db.query("ALTER TABLE pujas ADD COLUMN duration VARCHAR(50) DEFAULT '1 Hour'"); } catch (e) { }
         try { await db.query("ALTER TABLE pujas ADD COLUMN mode ENUM('video', 'photo') DEFAULT 'video'"); } catch (e) { }
+        try { await db.query("ALTER TABLE pujas ADD COLUMN stream_image_url VARCHAR(2048)"); } catch (e) { }
         try { await db.query("ALTER TABLE pujas ADD COLUMN winner_id INT DEFAULT NULL"); } catch (e) { }
         try { await db.query("ALTER TABLE pujas ADD COLUMN last_bidder_id INT DEFAULT NULL"); } catch (e) { }
         try { await db.query("ALTER TABLE pujas MODIFY COLUMN status ENUM('live', 'upcoming', 'ended', 'cancelled_unpaid') DEFAULT 'upcoming'"); } catch (e) { }
@@ -80,13 +82,13 @@ const Puja = {
         return true;
     },
 
-    create: async (title, description, category, reservePrice, duration, mode, startingPrice, imageUrl, sellerId, status = 'upcoming') => {
+    create: async (title, description, category, reservePrice, duration, mode, startingPrice, imageUrl, streamImageUrl, sellerId, status = 'upcoming') => {
         const sql = `
-            INSERT INTO pujas (title, description, category, reserve_price, duration, mode, starting_price, current_price, image_url, seller_id, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO pujas (title, description, category, reserve_price, duration, mode, starting_price, current_price, image_url, stream_image_url, seller_id, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
-        const result = await db.query(sql, [title, description, category, reservePrice, duration, mode, startingPrice, startingPrice, imageUrl, sellerId, status]);
-        return { id: result.insertId, title, description, category, reservePrice, duration, mode, startingPrice, currentPrice: startingPrice, imageUrl, sellerId, status };
+        const result = await db.query(sql, [title, description, category, reservePrice, duration, mode, startingPrice, startingPrice, imageUrl, streamImageUrl, sellerId, status]);
+        return { id: result.insertId, title, description, category, reservePrice, duration, mode, startingPrice, currentPrice: startingPrice, imageUrl, streamImageUrl, sellerId, status };
     },
 
     findAll: async (status = null, search = null, categoryId = null) => {

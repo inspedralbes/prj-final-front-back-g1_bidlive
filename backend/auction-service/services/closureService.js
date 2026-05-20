@@ -103,6 +103,30 @@ const checkExpiredAuctions = async () => {
                 );
             }
 
+            // Inject chat message
+            try {
+                const BIDDING_SERVICE_URL = process.env.BIDDING_SERVICE_URL || 'http://bidding-service:3002';
+                const INTERNAL_SECRET = process.env.INTERNAL_SECRET || 'bidlive_secret';
+                
+                let chatMessage = winnerId 
+                    ? `🎉 ¡Subasta finalizada! Se ha adjudicado por ${finalPrice}€.`
+                    : `🛑 Subasta finalizada sin ganador.`;
+
+                await fetch(`${BIDDING_SERVICE_URL}/inject-chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        auctionId: auction.id.toString(),
+                        message: chatMessage,
+                        username: 'Sistema BidLive',
+                        senderId: 'system',
+                        secret: INTERNAL_SECRET
+                    })
+                });
+            } catch (chatErr) {
+                console.error('[ClosureWorker] Failed to inject chat message:', chatErr.message);
+            }
+
             // Notify Bidding Service to broadcast AUCTION_ENDED
             try {
                 const BIDDING_SERVICE_URL = process.env.BIDDING_SERVICE_URL || 'http://bidding-service:3002';
