@@ -58,13 +58,13 @@ Pantalla	                    Descripción	                                      
 
 👥 Equipo del Proyecto
 
-    Eduard Vilaseca – [Tu Rol]
+    Eduard Vilaseca – [DevOps & Docker]
 
-    Jordi Rocha – [Tu Rol]
+    Jordi Rocha – [Frontend Developer]
 
-    Hugo Córdoba – [Tu Rol]
+    Hugo Córdoba – [Backend Developer]
 
-    Roberto Lotreanu – [Tu Rol]
+    Roberto Lotreanu – [Production & Development]
 
 📄 Licencia
 
