@@ -562,7 +562,7 @@ export const LanguageProvider = ({ children }) => {
         let value = translations[language];
         for (const k of keys) {
             value = value?.[k];
-            if (!value) return key; // Fallback to key if not found
+            if (value === undefined) return key; // Fallback to key if not found
         }
         return value;
     };
