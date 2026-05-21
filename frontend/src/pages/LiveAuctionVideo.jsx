@@ -35,6 +35,7 @@ export default function LiveAuctionVideo() {
     const [balance, setBalance] = useState(0);
     const [endTime, setEndTime] = useState(null);
     const [sellerInfo, setSellerInfo] = useState({ id: null, username: '' });
+    const [redirectCountdown, setRedirectCountdown] = useState(null);
 
     // ── 4. Fetch auction status on mount (redirect if ended) ───────────────
     useEffect(() => {
@@ -79,7 +80,7 @@ export default function LiveAuctionVideo() {
             .catch(err => console.error('Error fetching balance:', err));
     }, [id, navigate]);
 
-    // ── 5. Auction-ended popup + countdown ────────────────────────────────
+    // ── 5. Auction-ended popup + auto-redirect ────────────────────────────────────
     useEffect(() => {
         if (!auctionEnded) return;
         setShowEndedPopup(true);
@@ -122,6 +123,24 @@ export default function LiveAuctionVideo() {
     const [paying, setPaying] = useState(false);
     const isFinalWinner = endData?.winnerId === user?.id;
     const hasWinner = !!endData?.winnerId;
+
+    // Auto-redirect countdown for non-winners
+    useEffect(() => {
+        // Only start countdown once the ended popup shows and we know we didn't win
+        if (!showEndedPopup) return;
+        if (isFinalWinner) return; // winners choose manually
+        setRedirectCountdown(8);
+    }, [showEndedPopup, isFinalWinner]);
+
+    useEffect(() => {
+        if (redirectCountdown === null) return;
+        if (redirectCountdown <= 0) {
+            navigate('/explore');
+            return;
+        }
+        const t = setTimeout(() => setRedirectCountdown(c => c - 1), 1000);
+        return () => clearTimeout(t);
+    }, [redirectCountdown, navigate]);
 
     // ── Loading screen — placed AFTER all hooks ────────────────────────────
     if (auctionStatus === null) {
@@ -236,7 +255,12 @@ export default function LiveAuctionVideo() {
                                         className="w-full py-3.5 rounded-2xl font-bold text-sm"
                                         style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#ffffff' }}
                                     >
-                                        Volver a las salas
+                                        {isFinalWinner
+                                            ? 'Volver a las salas'
+                                            : redirectCountdown !== null && redirectCountdown > 0
+                                                ? `Volviendo a las salas en ${redirectCountdown}s...`
+                                                : 'Volver a las salas'
+                                        }
                                     </button>
                                 </div>
                             </>
@@ -252,7 +276,10 @@ export default function LiveAuctionVideo() {
                                 </div>
                                 <button onClick={() => navigate('/explore')} className="w-full py-3.5 rounded-2xl font-bold text-sm"
                                     style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#ffffff' }}>
-                                    Volver a las salas
+                                    {redirectCountdown !== null && redirectCountdown > 0
+                                        ? `Volviendo a las salas en ${redirectCountdown}s...`
+                                        : 'Volver a las salas'
+                                    }
                                 </button>
                             </>
                         )}

@@ -196,6 +196,7 @@ export default function SellerLiveVideo() {
   const [timeLeft, setTimeLeft] = React.useState(null);
   const [currentBid, setCurrentBid] = React.useState(0);
   const [currentBidder, setCurrentBidder] = React.useState('');
+  const [redirectCountdown, setRedirectCountdown] = React.useState(null);
 
   // Fetch auction data on mount
   React.useEffect(() => {
@@ -322,6 +323,8 @@ export default function SellerLiveVideo() {
           streamRef.current?.getTracks().forEach(t => t.stop());
           peersRef.current.forEach(({ pc }) => pc.close());
           peersRef.current.clear();
+          // Auto-redirect seller to dashboard after 4 seconds
+          setRedirectCountdown(4);
         }
       } catch (err) {
         console.error('[Seller] signal handler error:', err);
@@ -377,6 +380,28 @@ export default function SellerLiveVideo() {
   };
 
 
+
+  // ── Auto-redirect seller when auction ends ──────────────────────────────
+  React.useEffect(() => {
+    if (redirectCountdown === null) return;
+    if (redirectCountdown <= 0) {
+      navigate('/seller');
+      return;
+    }
+    const t = setTimeout(() => setRedirectCountdown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [redirectCountdown, navigate]);
+
+  // ── Also watch auctionEnded from hook (if signal handler missed it) ──────
+  React.useEffect(() => {
+    if (auctionEnded && redirectCountdown === null) {
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      peersRef.current.forEach(({ pc }) => pc.close());
+      peersRef.current.clear();
+      setIsEnding(true);
+      setRedirectCountdown(4);
+    }
+  }, [auctionEnded]);
 
   // ── Cleanup on unmount ───────────────────────────────────────────────────
   useEffect(() => {
@@ -467,7 +492,10 @@ export default function SellerLiveVideo() {
 
             <button onClick={() => navigate('/seller')} className="w-full py-3.5 rounded-2xl font-bold text-sm mt-2"
               style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#ffffff' }}>
-              Volver al Dashboard
+              {redirectCountdown !== null && redirectCountdown > 0
+                ? `Volviendo al Dashboard en ${redirectCountdown}s...`
+                : 'Volver al Dashboard'
+              }
             </button>
           </div>
         </div>

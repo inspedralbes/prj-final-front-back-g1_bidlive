@@ -52,6 +52,19 @@ export default function SellerDashboard() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user?.id, location.key]);
 
+    // Extra safety net: if any auction still shows 'live' when we land here,
+    // re-fetch after 4s to pick up the closure-worker's DB update.
+    useEffect(() => {
+        if (loading) return;
+        const hasLive = pujas.some(p => p.status === 'live');
+        if (!hasLive) return;
+        const timer = setTimeout(() => {
+            if (user?.id) refetch();
+        }, 4000);
+        return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [loading, pujas.length]);
+
     const activePujas = pujas.filter(p => !['ended', 'cancelled_unpaid'].includes(p.status));
     const endedPujas = pujas.filter(p => ['ended', 'cancelled_unpaid'].includes(p.status));
 
@@ -193,7 +206,7 @@ export default function SellerDashboard() {
                                                 </div>
                                             </div>
                                             <div className="hidden md:flex col-span-2 items-center opacity-70">
-                                                <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ color: col.text, background: col.bg }}>{t('dashboard.badge{col.label}')}</span>
+                                                <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ color: col.text, background: col.bg }}>{col.label}</span>
                                             </div>
                                             <div className="hidden md:block col-span-2 opacity-70">
                                                 <p className="text-gray-400 font-bold text-sm">${Number(price).toLocaleString()}</p>
