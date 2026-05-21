@@ -229,6 +229,38 @@ export default function SellerLiveVideo() {
     return () => clearInterval(iv);
   }, [endTime, serverTimeOffset]);
 
+  // ── Client-side fallback: if timer hits 0 and WS AUCTION_ENDED never arrived ──
+  // The closure worker may take up to 5s, or the WS broadcast could be missed.
+  // After 4s of timeLeft===0, call the end API ourselves (idempotent) and redirect.
+  const fallbackFiredRef = React.useRef(false);
+  React.useEffect(() => {
+    if (timeLeft !== 0 || auctionEnded || fallbackFiredRef.current) return;
+    fallbackFiredRef.current = true;
+    console.log('[Seller] Timer hit 0, starting 4s fallback...');
+    const t = setTimeout(async () => {
+      try {
+        console.log('[Seller] Fallback: calling /end API');
+        const resp = await fetch(`${API_URL}/auction/pujas/${id}/end`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        });
+        const data = await resp.json();
+        console.log('[Seller] Fallback /end result:', data.status);
+      } catch (err) {
+        console.error('[Seller] Fallback /end error:', err);
+      }
+      // Always redirect regardless of API result
+      if (redirectCountdown === null) {
+        streamRef.current?.getTracks().forEach(t => t.stop());
+        peersRef.current.forEach(({ pc }) => pc.close());
+        peersRef.current.clear();
+        setIsEnding(true);
+        setRedirectCountdown(4);
+      }
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [timeLeft, auctionEnded]);
+
   // Update end_time when NEW_END_TIME arrives via WS (join sync + anti-snipe extension)
   React.useEffect(() => {
     const last = [...messages].reverse().find(m => m.type === 'NEW_END_TIME');

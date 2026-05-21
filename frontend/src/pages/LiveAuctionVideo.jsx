@@ -142,6 +142,24 @@ export default function LiveAuctionVideo() {
         return () => clearTimeout(t);
     }, [redirectCountdown, navigate]);
 
+    // ── Client-side fallback for viewer: if timer expired but WS AUCTION_ENDED missed ──
+    const viewerFallbackFiredRef = React.useRef(false);
+    useEffect(() => {
+        if (!endTime || auctionEnded || viewerFallbackFiredRef.current) return;
+        const check = setInterval(() => {
+            const now = Date.now();
+            const serverNow = now - (wsHook.serverTimeOffset || 0);
+            if (serverNow >= new Date(endTime).getTime() + 6000) {
+                clearInterval(check);
+                if (viewerFallbackFiredRef.current) return;
+                viewerFallbackFiredRef.current = true;
+                console.log('[Viewer] Fallback: endTime expired, triggering ended UI');
+                setShowEndedPopup(true);
+            }
+        }, 1000);
+        return () => clearInterval(check);
+    }, [endTime, auctionEnded, wsHook.serverTimeOffset]);
+
     // ── Loading screen — placed AFTER all hooks ────────────────────────────
     if (auctionStatus === null) {
         return (
