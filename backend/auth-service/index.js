@@ -9,6 +9,7 @@ const profileController = require("./controllers/profileController");
 const notificationController = require("./controllers/notificationController");
 const followerController = require("./controllers/followerController");
 const User = require("./models/User");
+const PasswordReset = require("./models/PasswordReset");
 const Notification = require("./models/Notification");
 const Follower = require("./models/Follower");
 const authMiddleware = require("./middleware/authMiddleware");
@@ -97,6 +98,8 @@ const initDB = async (retries = 5, delay = 5000) => {
       console.log("✅ Notifications table checked/created successfully");
       await Follower.createTable();
       console.log("✅ Followers table checked/created successfully");
+      await PasswordReset.createTable();
+      console.log("✅ PasswordReset tokens table checked/created successfully");
       
       console.log("🚀 Database initialization complete for Auth Service");
       return true;
@@ -115,6 +118,84 @@ const initDB = async (retries = 5, delay = 5000) => {
 app.post("/register", authController.register);
 app.post("/login", authController.login);
 app.post("/google", authController.googleLogin);
+
+// ── Password Reset Flow ──────────────────────────────────────────────────────
+// Step 1: User submits their email → generate token + send email
+app.post("/forgot-password", async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ message: "Email is required" });
+
+        const user = await User.findByEmail(email);
+        // Always return 200 to prevent email enumeration attacks
+        if (!user) {
+            return res.json({ message: "If an account exists, a reset link has been sent" });
+        }
+
+        const token = await PasswordReset.create(user.id);
+        const APP_URL = process.env.APP_URL || 'http://localhost:5173';
+        const resetUrl = `${APP_URL}/reset-password?token=${token}`;
+
+        // Send via auction-service email proxy (which has nodemailer)
+        const AUCTION_URL = process.env.AUCTION_SERVICE_URL || 'http://auction-service:3001';
+        const INTERNAL_SECRET = process.env.INTERNAL_SECRET || 'bidlive_secret';
+        try {
+            const emailRes = await fetch(`${AUCTION_URL}/internal/send-reset-email`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    secret: INTERNAL_SECRET,
+                    email: user.email,
+                    username: user.username,
+                    resetToken: token,
+                    resetUrl
+                })
+            });
+            if (!emailRes.ok) console.error('[Auth] Reset email proxy failed:', await emailRes.text());
+            else console.log(`[Auth] Password reset email sent to ${user.email}`);
+        } catch (emailErr) {
+            console.error('[Auth] Reset email request failed:', emailErr.message);
+        }
+
+        res.json({ message: "If an account exists, a reset link has been sent" });
+    } catch (err) {
+        console.error('Forgot password error:', err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
+
+// Step 2: User submits new password with the token
+app.post("/reset-password", async (req, res) => {
+    try {
+        const { token, password } = req.body;
+        if (!token || !password) {
+            return res.status(400).json({ message: "Token and password are required" });
+        }
+        if (password.length < 6) {
+            return res.status(400).json({ message: "Password must be at least 6 characters" });
+        }
+
+        const resetRecord = await PasswordReset.findValid(token);
+        if (!resetRecord) {
+            return res.status(400).json({ message: "Token inválido o expirado. Solicita un nuevo enlace." });
+        }
+
+        // Hash the new password and update
+        const bcrypt = require('bcryptjs');
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await require('./config/db').query(
+            'UPDATE users SET password = ? WHERE id = ?',
+            [hashedPassword, resetRecord.user_id]
+        );
+        await PasswordReset.markUsed(token);
+
+        console.log(`[Auth] Password reset successful for user ${resetRecord.user_id}`);
+        res.json({ message: "Contraseña actualizada correctamente. Ya puedes iniciar sesión." });
+    } catch (err) {
+        console.error('Reset password error:', err);
+        res.status(500).json({ message: "Internal server error" });
+    }
+});
 
 // Wallet routes
 app.post("/wallet/recharge", authMiddleware, paymentController.createCheckoutSession);

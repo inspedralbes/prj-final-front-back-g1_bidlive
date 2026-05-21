@@ -1,14 +1,35 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+
 export default function ForgotPassword() {
     const [email, setEmail] = useState('');
     const [sent, setSent] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        // No endpoint in backend yet — show success UI anyway
-        setSent(true);
+        setError('');
+        setLoading(true);
+        try {
+            const res = await fetch(`${API_URL}/auth/forgot-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                setError(data.message || 'Error al enviar el correo');
+            } else {
+                setSent(true);
+            }
+        } catch {
+            setError('Error de conexión. Inténtalo de nuevo.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -35,17 +56,36 @@ export default function ForgotPassword() {
                                     <rect x="2" y="4" width="20" height="16" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 01-2.06 0L2 7" />
                                 </svg>
                             </div>
-                            <h1 className="text-2xl font-black text-white mb-2">Forgot password?</h1>
-                            <p className="text-gray-500 text-sm mb-6">Enter your email and we'll send a reset link.</p>
+                            <h1 className="text-2xl font-black text-white mb-2">¿Olvidaste tu contraseña?</h1>
+                            <p className="text-gray-500 text-sm mb-6">Introduce tu email y te enviaremos un enlace para restablecerla.</p>
+
+                            {error && (
+                                <div className="mb-4 px-4 py-3 rounded-xl text-sm font-medium bg-red-500/10 border border-red-500/20 text-red-400">
+                                    {error}
+                                </div>
+                            )}
 
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div>
-                                    <label className="input-label">Email address</label>
-                                    <input className="input-field" type="email" placeholder="you@example.com"
-                                        value={email} onChange={e => setEmail(e.target.value)} required />
+                                    <label className="input-label">Dirección de email</label>
+                                    <input
+                                        className="input-field"
+                                        type="email"
+                                        placeholder="tu@email.com"
+                                        value={email}
+                                        onChange={e => setEmail(e.target.value)}
+                                        required
+                                        style={{ fontSize: '16px' }}
+                                    />
                                 </div>
-                                <button type="submit" className="btn-primary w-full py-3">
-                                    Send reset link
+                                <button
+                                    type="submit"
+                                    className="btn-primary w-full py-3 flex items-center justify-center gap-2"
+                                    disabled={loading}
+                                >
+                                    {loading ? (
+                                        <><div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin" /> Enviando...</>
+                                    ) : 'Enviar enlace de recuperación'}
                                 </button>
                             </form>
                         </>
@@ -55,14 +95,15 @@ export default function ForgotPassword() {
                                 style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)' }}>
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
                             </div>
-                            <h2 className="text-xl font-black text-white mb-2">Check your inbox</h2>
-                            <p className="text-gray-500 text-sm">If an account exists for <strong className="text-white">{email}</strong>, a reset link has been sent.</p>
+                            <h2 className="text-xl font-black text-white mb-2">¡Revisa tu bandeja!</h2>
+                            <p className="text-gray-500 text-sm">Si existe una cuenta para <strong className="text-white">{email}</strong>, recibirás un enlace de recuperación en breve.</p>
+                            <p className="text-gray-600 text-xs mt-3">¿No lo ves? Comprueba la carpeta de spam.</p>
                         </div>
                     )}
 
                     <div className="mt-6 text-center">
                         <Link to="/login" className="text-sm text-amber-400 hover:text-amber-300 transition-colors font-medium">
-                            ← Back to sign in
+                            ← Volver al inicio de sesión
                         </Link>
                     </div>
                 </div>

@@ -164,6 +164,22 @@ app.post('/internal/send-welcome-email', async (req, res) => {
     }
 });
 
+// Internal password reset email proxy
+app.post('/internal/send-reset-email', async (req, res) => {
+    const { email, username, resetToken, resetUrl, secret } = req.body;
+    if (secret !== (process.env.INTERNAL_SECRET || 'bidlive_secret')) {
+        return res.status(403).json({ message: 'Forbidden' });
+    }
+    try {
+        const { sendPasswordResetEmail } = require('./services/emailService');
+        await sendPasswordResetEmail(email, username, resetToken, resetUrl);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[AuctionService] Failed to send reset email:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 
 // Global Error Handler
 app.use((err, req, res, next) => {

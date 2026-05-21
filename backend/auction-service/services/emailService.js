@@ -12,6 +12,7 @@ const getTransporter = async () => {
 
     _transporterPromise = (async () => {
         if (process.env.SMTP_USER) {
+            console.log(`[EmailService] ✅ Using production SMTP: ${process.env.SMTP_HOST || 'smtp configured'} (user: ${process.env.SMTP_USER})`);
             // Production SMTP
             return nodemailer.createTransport({
                 host: process.env.SMTP_HOST || 'smtp.ethereal.email',
@@ -25,9 +26,12 @@ const getTransporter = async () => {
         }
 
         // Development fallback: auto-create an Ethereal test account
-        console.warn('[EmailService] ⚠️  SMTP_USER not set — using Ethereal test account. Emails will NOT be delivered in production!');
+        console.warn('[EmailService] ⚠️  SMTP_USER not set — using Ethereal test account.');
+        console.warn('[EmailService] ⚠️  Emails will NOT be delivered to real inboxes!');
+        console.warn('[EmailService] ⚠️  To enable real email, set in .env: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM');
         const testAccount = await nodemailer.createTestAccount();
         console.log(`[EmailService] Ethereal account created: ${testAccount.user}`);
+        console.log(`[EmailService] Preview emails at: https://ethereal.email/messages (login: ${testAccount.user} / ${testAccount.pass})`);
         return nodemailer.createTransport({
             host: 'smtp.ethereal.email',
             port: 587,
@@ -216,7 +220,82 @@ const sendWelcomeEmail = async (toEmail, username) => {
     }
 };
 
+/**
+ * Sends a password reset email with a one-time link.
+ * @param {string} toEmail
+ * @param {string} username
+ * @param {string} resetToken - The secure reset token
+ * @param {string} resetUrl  - Full URL to the reset page (includes token)
+ */
+const sendPasswordResetEmail = async (toEmail, username, resetToken, resetUrl) => {
+    try {
+        const transporter = await getTransporter();
+
+        const mailOptions = {
+            from: process.env.EMAIL_FROM || '"BidLive" <noreply@bidlive.com>',
+            to: toEmail,
+            subject: 'Restablece tu contraseña — BidLive',
+            html: `
+                <div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;background:#08080f;color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid rgba(245,158,11,0.2);">
+                    <!-- Header -->
+                    <div style="background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);padding:32px;text-align:center;">
+                        ${BIDLIVE_LOGO_HTML}
+                        <div style="width:48px;height:48px;background:rgba(0,0,0,0.2);border-radius:14px;margin:8px auto 16px;line-height:48px;font-size:24px;">🔒</div>
+                        <h1 style="margin:0;color:#08080f;font-size:22px;font-weight:900;">Restablecer contraseña</h1>
+                        <p style="margin:8px 0 0;color:rgba(0,0,0,0.65);font-size:13px;">Has solicitado un enlace de recuperación</p>
+                    </div>
+
+                    <!-- Body -->
+                    <div style="padding:32px;">
+                        <p style="font-size:15px;color:#d1d5db;margin:0 0 8px;">Hola, <strong style="color:#fff;">${username || 'usuario'}</strong></p>
+                        <p style="font-size:14px;color:#9ca3af;line-height:1.6;margin:0 0 24px;">
+                            Hemos recibido una solicitud para restablecer la contraseña de tu cuenta en BidLive.
+                            Haz clic en el botón de abajo para crear una nueva contraseña. Este enlace es válido durante <strong style="color:#f59e0b;">1 hora</strong>.
+                        </p>
+
+                        <div style="text-align:center;margin-bottom:24px;">
+                            <a href="${resetUrl}"
+                               style="display:inline-block;background:linear-gradient(135deg,#f59e0b,#d97706);color:#08080f;padding:14px 32px;text-decoration:none;border-radius:12px;font-weight:900;font-size:14px;letter-spacing:0.02em;">
+                                🔑 Restablecer contraseña
+                            </a>
+                        </div>
+
+                        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:14px;margin-bottom:20px;">
+                            <p style="margin:0 0 6px;font-size:11px;color:#6b7280;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;">O copia este enlace en tu navegador:</p>
+                            <p style="margin:0;font-size:11px;color:#f59e0b;word-break:break-all;">${resetUrl}</p>
+                        </div>
+
+                        <p style="font-size:12px;color:#6b7280;line-height:1.5;margin:0;">
+                            Si no solicitaste este cambio, puedes ignorar este correo. Tu contraseña no cambiará.
+                        </p>
+                    </div>
+
+                    <!-- Footer -->
+                    <div style="padding:20px 32px;border-top:1px solid rgba(255,255,255,0.06);text-align:center;">
+                        <p style="font-size:12px;color:#4b5563;margin:0;">Este enlace expirará en 1 hora por razones de seguridad.</p>
+                        <p style="font-size:12px;color:#374151;margin:6px 0 0;">&copy; 2025 BidLive &mdash; Subastas en Directo</p>
+                    </div>
+                </div>
+            `,
+        };
+
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`[EmailService] Password reset email sent to ${toEmail}. Message ID: ${info.messageId}`);
+
+        const previewUrl = nodemailer.getTestMessageUrl(info);
+        if (previewUrl) {
+            console.log(`[EmailService] 📧 Vista previa reset (Ethereal): ${previewUrl}`);
+        }
+
+        return true;
+    } catch (error) {
+        console.error(`[EmailService] Password reset email failed for ${toEmail}:`, error.message);
+        return false;
+    }
+};
+
 module.exports = {
     sendAuctionWinEmail,
     sendWelcomeEmail,
+    sendPasswordResetEmail,
 };

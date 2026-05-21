@@ -123,15 +123,38 @@ app.post('/internal/system-message', async (req, res) => {
 
     try {
         const conversation = await Conversation.findOrCreate(winnerId, sellerId);
-        const message = await Message.create(conversation.id, 0, content, true); // sender_id 0 for system
-        
-        // Notify participants via socket if online
-        io.to(`user_${winnerId}`).to(`user_${sellerId}`).emit('new_message', message);
-        
-        // Global notification for winner
-        await notifyUserGlobal(winnerId, '¡Has ganado la subasta! 🏆', content.split('\n')[0] || content, `/messages/${conversation.id}`);
 
-        res.json({ success: true, message, conversationId: conversation.id });
+        // Message 1: Winner congratulations message (visible to both in shared thread)
+        const winnerMessage = await Message.create(conversation.id, 0, content, true);
+
+        // Message 2: Seller-specific confirmation message in the same conversation
+        const sellerContent = content
+            .replace('🏆 ¡Enhorabuena! Has ganado', '🎉 ¡Felicidades! Tu subasta ha finalizado con éxito')
+            .replace('💳 Estado del pago: Pendiente', '💳 Estado del cobro: Pendiente')
+            .replace('Ponte en contacto con el vendedor para coordinar el envío.', 'El comprador se pondrá en contacto contigo para coordinar el envío.');
+        const sellerMessage = await Message.create(conversation.id, 0, sellerContent, true);
+
+        // Notify both participants via socket (real-time)
+        io.to(`user_${winnerId}`).to(`user_${sellerId}`).emit('new_message', winnerMessage);
+        io.to(`user_${sellerId}`).emit('new_message', sellerMessage);
+
+        // Push notification → winner (congratulations)
+        await notifyUserGlobal(
+            winnerId,
+            '¡Has ganado la subasta! 🏆',
+            content.split('\n')[0] || content,
+            `/messages/${conversation.id}`
+        );
+
+        // Push notification → seller (sale confirmation)
+        await notifyUserGlobal(
+            sellerId,
+            '¡Subasta finalizada! 🎉',
+            'Tu artículo ha sido vendido. Coordina el envío con el comprador.',
+            `/messages/${conversation.id}`
+        );
+
+        res.json({ success: true, message: winnerMessage, conversationId: conversation.id });
     } catch (error) {
         console.error('System message error:', error);
         res.status(500).json({ message: 'Internal error' });
