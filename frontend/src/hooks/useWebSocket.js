@@ -137,6 +137,7 @@ export const useWebSocket = (auctionId, username, role = 'viewer', userId = null
                     case 'ANSWER':
                     case 'ICE_CANDIDATE':
                     case 'REQUEST_OFFER':
+                    case 'SELLER_LIVE':
                         signalHandlerRef.current?.(data);
                         break;
 
