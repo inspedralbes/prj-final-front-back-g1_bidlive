@@ -31,7 +31,8 @@ BidLive es una aplicación web full-stack construida con arquitectura de microse
 | **WebSocket API nativa** | Tiempo real en el live de pujas (bidding-service) |
 | **WebRTC** | Streaming de vídeo P2P vendedor → compradores |
 | **@react-oauth/google** | Login con Google |
-| **CSS Vanilla + Custom Properties** | Sistema de diseño propio sin frameworks |
+| **Tailwind CSS v4** | Estilos utilitarios (clases de layout, spacing, colores) |
+| **CSS Vanilla + Custom Properties** | Sistema de tokens de diseño propio (`--bg-base`, `--text-primary`...) |
 
 ### Backend (Microservicios)
 | Servicio | Puerto interno | Responsabilidad |
