@@ -57,6 +57,7 @@ export default function VideoPlayer({
   // Controls UI
   const [showControls, setShowControls] = useState(false);
   const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(role === 'viewer');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const hideControlsTimer = useRef(null);
 
@@ -70,11 +71,19 @@ export default function VideoPlayer({
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
-  // ── Volume sync to video element ───────────────────────────────────────────
+  // ── Volume/Mute sync to video element ───────────────────────────────────────────
   useEffect(() => {
     const vid = role === 'seller' ? localRef.current : remoteRef.current;
-    if (vid) vid.volume = role === 'seller' ? 0 : volume;
-  }, [volume, role]);
+    if (vid) {
+      if (role === 'seller') {
+        vid.volume = 0;
+        vid.muted = true;
+      } else {
+        vid.volume = volume;
+        vid.muted = isMuted;
+      }
+    }
+  }, [volume, isMuted, role]);
 
   // ── AUCTION_ENDED ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -320,13 +329,12 @@ export default function VideoPlayer({
   const handleVolumeChange = (e) => {
     const val = parseFloat(e.target.value);
     setVolume(val);
-    const vid = remoteRef.current;
-    if (vid) vid.volume = val;
+    setIsMuted(val === 0);
   };
 
   // ── Volume icon helper ────────────────────────────────────────────────────
   const VolumeIcon = () => {
-    if (volume === 0) return (
+    if (isMuted || volume === 0) return (
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
         <line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
@@ -466,6 +474,7 @@ export default function VideoPlayer({
           ref={remoteRef}
           autoPlay
           playsInline
+          muted={isMuted}
           className="w-full h-full"
           style={{
             display: 'block',
@@ -474,6 +483,31 @@ export default function VideoPlayer({
           }}
         />
       }
+
+      {/* ── Tap to unmute overlay (viewer only, when muted) ── */}
+      {role === 'viewer' && hasStream && isMuted && !streamEnded && (
+        <button
+          onClick={() => {
+            setIsMuted(false);
+            if (volume === 0) setVolume(1);
+          }}
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border transition-all active:scale-95 hover:scale-105"
+          style={{
+            background: 'rgba(8, 8, 15, 0.85)',
+            backdropFilter: 'blur(16px)',
+            borderColor: 'rgba(245, 158, 11, 0.4)',
+            color: '#fff',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)',
+          }}
+        >
+          <div className="w-12 h-12 rounded-full flex items-center justify-center animate-bounce" style={{ background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+            <span className="material-symbols-outlined text-amber-400 text-2xl">
+              volume_off
+            </span>
+          </div>
+          <span className="text-xs font-bold uppercase tracking-widest text-amber-400">Activar sonido</span>
+        </button>
+      )}
 
       {/* ── Auction ended overlay ── */}
       {streamEnded && (
@@ -560,9 +594,16 @@ export default function VideoPlayer({
           {role === 'viewer' && (
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setVolume(v => v === 0 ? 1 : 0)}
+                onClick={() => {
+                  if (isMuted) {
+                    setIsMuted(false);
+                    if (volume === 0) setVolume(1);
+                  } else {
+                    setIsMuted(true);
+                  }
+                }}
                 className="text-white/80 hover:text-white transition-colors"
-                title={volume === 0 ? 'Unmute' : 'Mute'}
+                title={isMuted || volume === 0 ? 'Unmute' : 'Mute'}
               >
                 <VolumeIcon />
               </button>

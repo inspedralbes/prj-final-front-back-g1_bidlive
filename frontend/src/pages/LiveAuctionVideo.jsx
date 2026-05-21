@@ -121,12 +121,13 @@ export default function LiveAuctionVideo() {
 
     // Update endTime if NEW_END_TIME received
     useEffect(() => {
-        const lastMsg = messages[messages.length - 1];
-        if (lastMsg?.type === 'NEW_END_TIME') {
+        const lastMsg = [...messages].reverse().find(m => m.type === 'NEW_END_TIME');
+        if (lastMsg?.payload?.endTime) {
             setEndTime(lastMsg.payload.endTime);
         }
-        if (lastMsg?.type === 'ERROR') {
-            setToast({ message: lastMsg.payload.message, type: 'error' });
+        const lastError = [...messages].reverse().find(m => m.type === 'ERROR');
+        if (lastError) {
+            setToast({ message: lastError.payload.message, type: 'error' });
         }
     }, [messages]);
 
@@ -367,9 +368,9 @@ export default function LiveAuctionVideo() {
             </header>
 
             {/* ── Main layout ─────────────────────────────────────────────── */}
-            <main className="flex-1 flex flex-col overflow-hidden md:grid md:grid-cols-[1fr_380px]">
+            <main className="flex-1 flex flex-col md:grid overflow-hidden md:grid-cols-[1fr_380px]">
                 {/* Left: video fills the column */}
-                <div className="w-full aspect-video md:aspect-auto md:h-full flex items-center justify-center overflow-hidden" style={{ background: '#000', flexShrink: 0 }}>
+                <div className="w-full shrink-0 aspect-video md:aspect-auto md:h-full md:min-h-0 flex items-center justify-center overflow-hidden bg-black">
                     <VideoPlayer 
                         auctionId={id} 
                         role="viewer" 
@@ -385,7 +386,7 @@ export default function LiveAuctionVideo() {
                 </div>
 
                 {/* Right: bidding + chat stacked — scrollable on mobile */}
-                <div className="flex flex-col flex-1 overflow-hidden md:max-h-none md:h-full" style={{ borderTop: '1px solid var(--border)', borderLeft: 'none' }}>
+                <div className="flex flex-col flex-1 overflow-hidden md:max-h-none md:h-full" style={{ borderTop: '1px solid var(--border)', borderLeft: '1px solid var(--border)' }}>
                     {/* Bidding HUD — always visible, never pushed out */}
                     <div className="shrink-0 p-3 sm:p-4 overflow-y-auto scroll-area max-h-[30vh] md:max-h-[50%]" style={{ borderBottom: '1px solid var(--border)' }}>
                         <BiddingHUD

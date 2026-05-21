@@ -236,7 +236,7 @@ export default function SellerLiveVideo() {
         setTimeLeft(Math.max(0, timerBaseRef.current.seconds - elapsed));
       } else {
         const serverNow = Date.now() - serverTimeOffset;
-        setTimeLeft(Math.max(0, Math.floor((endTime - serverNow) / 1000)));
+        setTimeLeft(Math.max(0, Math.floor((new Date(endTime).getTime() - serverNow) / 1000)));
       }
     }, 1000);
     return () => clearInterval(iv);
@@ -415,7 +415,16 @@ export default function SellerLiveVideo() {
       fetch(`${API_URL}/auction/pujas/${id}/start`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      }).then(r => console.log(`[Seller] start API → ${r.status}`))
+      })
+        .then(async (r) => {
+          if (r.ok) {
+            const data = await r.json();
+            if (data.endTime) {
+              setEndTime(new Date(data.endTime));
+            }
+          }
+          console.log(`[Seller] start API → ${r.status}`);
+        })
         .catch(err => console.error('[Seller] start API error:', err));
 
     } catch (err) {

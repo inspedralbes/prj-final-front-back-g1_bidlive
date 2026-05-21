@@ -122,6 +122,31 @@ const pujaController = {
             
             console.log(`[Auction] Puja ${id} started (status → live, duration → ${durationMinutes}m, end_time → ${endTime})`);
 
+            // Broadcast the new end_time to the bidding service so that all clients (seller and viewers) receive the updated timer immediately
+            try {
+                const BIDDING_SERVICE_URL = process.env.BIDDING_SERVICE_URL || 'http://bidding-service:3002';
+                const internalSecret = process.env.INTERNAL_SECRET || 'bidlive_secret';
+                const secondsLeft = Math.max(0, Math.floor((new Date(endTime) - new Date()) / 1000));
+                
+                await fetch(`${BIDDING_SERVICE_URL}/broadcast`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        auctionId: id.toString(),
+                        type: 'NEW_END_TIME',
+                        payload: { 
+                            endTime, 
+                            serverTime: new Date().toISOString(), 
+                            secondsLeft 
+                        },
+                        secret: internalSecret
+                    })
+                });
+                console.log(`[Auction] Broadcasted start end time: ${endTime} (${secondsLeft}s left)`);
+            } catch (bErr) {
+                console.error('[Auction] Failed to broadcast start end time:', bErr.message);
+            }
+
             // --- NOTIFICATIONS ---
             // 1. Notify users who favorited this auction
             const favoriters = await Puja.findUsersWhoFavorited(id);
@@ -485,17 +510,22 @@ const pujaController = {
             if (result.extended) {
                 try {
                     const BIDDING_SERVICE_URL = process.env.BIDDING_SERVICE_URL || 'http://bidding-service:3002';
+                    const secondsLeft = Math.max(0, Math.floor((new Date(result.newEndTime) - new Date()) / 1000));
                     await fetch(`${BIDDING_SERVICE_URL}/broadcast`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             auctionId: id.toString(),
                             type: 'NEW_END_TIME',
-                            payload: { endTime: result.newEndTime },
+                            payload: { 
+                                endTime: result.newEndTime,
+                                serverTime: new Date().toISOString(),
+                                secondsLeft
+                            },
                             secret
                         })
                     });
-                    console.log(`[Auction] Puja ${id} anti-sniped. New end time broadcasted: ${result.newEndTime}`);
+                    console.log(`[Auction] Puja ${id} anti-sniped. New end time broadcasted: ${result.newEndTime} (${secondsLeft}s left)`);
                 } catch (bErr) {
                     console.error('[Auction] Failed to broadcast anti-snipe extension:', bErr.message);
                 }
