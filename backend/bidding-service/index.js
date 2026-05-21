@@ -538,13 +538,19 @@ wss.on("connection", (ws) => {
                 }
 
                 case "PING":
-                    // Application-level PONG (for clients that send PING themselves)
+                    // Client sent a PING → respond with PONG
                     sendJson(ws, { type: "PONG" });
-                    ws.isAlive = true; // also mark alive on app-level ping
+                    ws.isAlive = true;
+                    break;
+
+                case "PONG":
+                    // Client responded to server PING → mark alive, prevent heartbeat termination
+                    ws.isAlive = true;
                     break;
 
                 default:
-                    console.log("Unknown message type:", type);
+                    // Ignore unknown message types silently in production
+                    break;
             }
         } catch (err) {
             console.error("Message parse error:", err);
