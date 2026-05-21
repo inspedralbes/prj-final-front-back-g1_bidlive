@@ -1,71 +1,217 @@
-📱 BidLife: The Real-Time Auction Revolution
+# 🔨 BidLive — Plataforma de Subastas en Tiempo Real
 
-    Donde la adrenalina de la subasta se encuentra con la interacción del streaming.
+> Compra, vende y puja por artículos únicos en directo. La emoción de la subasta, en tiempo real.
 
-BidLife es una plataforma mobile-first que transforma el e-commerce tradicional en una experiencia de entretenimiento en vivo. Los usuarios no solo compran; participan en un evento social donde la inmediatez y la competitividad son los protagonistas.
+BidLive es una aplicación web full-stack construida con arquitectura de microservicios. Los vendedores emiten vídeo en directo mientras los compradores pujan en tiempo real mediante WebSockets. Todo el sistema corre orquestado con Docker.
 
-✨ Características Destacadas
+---
 
-    ⚡ Ultra-Low Latency Streaming: Implementación de WebRTC para asegurar que el vídeo y las pujas estén sincronizados al milisegundo. Sin retardo, sin injusticias.
+## ✨ Características principales
 
-    💸 Pagos Seguros e Instantáneos: Integración con Stripe para la gestión de depósitos de garantía, pagos finales y transferencias automáticas a vendedores (Connect).
+- 🎥 **Subastas en vivo** — el vendedor emite vídeo y los compradores pujan en tiempo real
+- ⚡ **Pujas con WebSockets** — sincronización instantánea del precio actual entre todos los participantes
+- 💬 **Chat en directo** — mensajería en vivo durante la subasta
+- 🔐 **Autenticación segura** — registro/login con JWT, Google OAuth y verificación en dos pasos (2FA)
+- 💳 **Pagos con Stripe** — gestión de wallet, depósitos y cobros automáticos al ganador
+- 📧 **Notificaciones por email** — alertas de inicio/fin de subasta via SMTP
+- 🌍 **Multiidioma** — interfaz disponible en Español, Catalán e Inglés
+- 🗺️ **API-first** — contratos OpenAPI 3.0 validados con `express-openapi-validator`
 
-    🔨 One-Tap Bidding: Interfaz optimizada para pujar con un solo toque, permitiendo reaccionar al instante ante la competencia.
+---
 
-    💬 Live Interaction: Chat dinámico con WebSockets, alertas visuales de "Puja Superada" y sistema de reacciones en vivo.
+## 🛠️ Stack tecnológico
 
-    🛡️ Sistema de Confianza: Algoritmo de reputación basado en transacciones completadas y valoraciones de la comunidad.
+### Frontend
+| Tecnología | Uso |
+|---|---|
+| **React 19** + Vite | Framework UI y bundler |
+| **React Router v7** | Enrutado cliente |
+| **Socket.io-client** | WebSockets para pujas y chat en tiempo real |
+| **Axios** | Comunicación con la API |
+| **@react-oauth/google** | Login con Google |
+| **Tailwind CSS v4** | Estilos utilitarios |
+| **openapi-typescript** | Tipos TypeScript generados desde las specs OpenAPI |
 
-🛠️ Stack Tecnológico
+### Backend (Microservicios)
+| Servicio | Puerto interno | Responsabilidad |
+|---|---|---|
+| **auth-service** | 3000 | Registro, login, JWT, Google OAuth, Stripe wallet, 2FA |
+| **auction-service** | 3001 | CRUD de subastas, imágenes, emails SMTP |
+| **bidding-service** | 3002 | Motor de pujas en tiempo real via WebSockets |
+| **chat-service** | 3004 | Chat en directo por sala de subasta |
+| **gateway** (Nginx) | 8080 | API Gateway — enrutado y reverse proxy |
 
-El proyecto se basa en una arquitectura de microservicios y comunicación en tiempo real.
-Frontend (Mobile)
+Todos los servicios usan **Node.js + Express**, **Sequelize** sobre **MySQL 8**, y **nodemon** en desarrollo.
 
-    React Native: UI fluida y cross-platform.
+### Infraestructura
+| Tecnología | Uso |
+|---|---|
+| **Docker + Docker Compose** | Orquestación completa (dev y prod) |
+| **MySQL 8** | Base de datos relacional |
+| **phpMyAdmin** | Administración de la base de datos (dev) |
+| **Nginx** | API Gateway y servidor estático en producción |
+| **Stripe** | Pagos, webhooks y wallet |
 
-    WebRTC Client: Para la ingesta y visualización de vídeo en tiempo real.
+---
 
-    Stripe SDK: Procesamiento de pagos seguro cumpliendo normativas PCI.
+## 📁 Estructura del proyecto
 
-Backend (Infraestructura)
+```
+bidlive/
+├── frontend/               # App React (Vite)
+│   └── src/
+│       ├── pages/          # Vistas principales
+│       ├── components/     # Componentes reutilizables
+│       ├── context/        # AuthContext, LanguageContext
+│       ├── hooks/          # Custom hooks
+│       └── api/            # Tipos generados desde OpenAPI
+├── backend/
+│   ├── auth-service/       # Autenticación y usuarios
+│   ├── auction-service/    # Gestión de subastas
+│   ├── bidding-service/    # Motor de pujas (WebSockets)
+│   ├── chat-service/       # Chat en directo
+│   └── gateway/            # Config Nginx (dev + prod)
+├── openspec/
+│   └── specs/              # Contratos OpenAPI (auth, auction, bidding)
+├── docker-compose.yml      # Entorno de desarrollo
+├── docker-compose.prod.yml # Entorno de producción
+└── .env                    # Variables de entorno
+```
 
-    Node.js & Express: Core de la lógica de negocio.
+---
 
-    Socket.io: Sincronización del "Auction Engine" (pujas y chat).
+## 🗺️ Rutas del frontend
 
-    Redis: Cache de alta velocidad para gestionar el estado de las subastas activas.
+| Ruta | Descripción | Acceso |
+|---|---|---|
+| `/login` | Inicio de sesión | Público |
+| `/register` | Registro de usuario | Público |
+| `/forgot-password` | Recuperar contraseña | Público |
+| `/reset-password` | Restablecer contraseña | Público |
+| `/` | Home — subastas en vivo y listado | Protegido |
+| `/explore` | Búsqueda y filtros de subastas | Protegido |
+| `/auction/video/:id` | Vista de comprador — subasta en directo | Protegido |
+| `/create-puja` | Crear nueva subasta | Protegido |
+| `/seller` | Dashboard del vendedor | Protegido |
+| `/seller/live/video/:id` | Vista del vendedor — emitir en directo | Protegido |
+| `/profile` / `/profile/:id` | Perfil de usuario | Protegido |
+| `/messages` / `/messages/:id` | Mensajes directos | Protegido |
 
-    PostgreSQL: Base de datos relacional para usuarios, inventario y auditoría financiera.
+---
 
-🔄 Flujo de la Subasta (Workflow)
+## 🚀 Instalación y arranque
 
-    Registro y Validación: El usuario vincula su método de pago mediante Stripe.
+### Requisitos previos
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) instalado y en ejecución
+- Git
 
-    Live Session: El vendedor inicia el streaming via WebRTC. Los interesados se unen a la "Bid Room".
+### 1. Clonar el repositorio
 
-    Bidding War: Cada puja actualiza el estado global en Redis y se comunica a todos los clientes via WebSockets.
+```bash
+git clone https://github.com/inspedralbes/prj-final-front-back-g1_bidlive.git
+cd prj-final-front-back-g1_bidlive
+```
 
-    Cierre y Pago: Al terminar el contador, Stripe procesa el pago automáticamente del ganador y genera la orden de envío.
+### 2. Configurar variables de entorno
 
-🧭 Navegación Principal
+Copia el fichero `.env` de ejemplo y ajusta los valores:
 
-Pantalla	                    Descripción	                                        Tecnología
-🏠 Home	                    Feed de subastas "Trending" y categorías.	        Algoritmo de relevancia.
-🔍 Buscar	                Filtros avanzados por proximidad y tiempo.	        Full-text search.
-🔴 Bid Room	                Vídeo en vivo, puja rápida y chat.	                WebRTC + Socket.io.
-❤️ Favoritos	            Lista de deseos y alertas de inicio.	            Push Notifications.
-👤 Perfil	                Wallet, historial y reputación.	                    Stripe API Integration.
+```bash
+cp .env .env.local
+```
 
-👥 Equipo del Proyecto
+Variables clave a revisar:
 
-    Eduard Vilaseca – [DevOps & Docker]
+```env
+# Base de datos
+DB_ROOT_PASSWORD=rootpassword
+DB_DATABASE=bidlive
+DB_USER=root
+DB_PASSWORD=rootpassword
 
-    Jordi Rocha – [Frontend Developer]
+# Puertos
+PORT_FRONTEND=5173
+PORT_GATEWAY=8080
 
-    Hugo Córdoba – [Backend Developer]
+# URLs del frontend (apuntan al gateway)
+VITE_API_URL=http://localhost:8080
+VITE_WS_URL=ws://localhost:8080/bidding/
 
-    Roberto Lotreanu – [Production & Development]
+# Google OAuth
+VITE_GOOGLE_CLIENT_ID=TU_GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_ID=TU_GOOGLE_CLIENT_ID
 
-📄 Licencia
+# Stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
 
-Este proyecto se distribuye bajo la licencia MIT.
+# JWT
+JWT_SECRET=tu_secreto_jwt
+```
+
+### 3. Arrancar en desarrollo
+
+```bash
+docker compose up --build
+```
+
+| Servicio | URL |
+|---|---|
+| Frontend | http://localhost:5173 |
+| API Gateway | http://localhost:8080 |
+| phpMyAdmin | http://localhost:8081 |
+
+### 4. Arrancar en producción
+
+```bash
+docker compose -f docker-compose.prod.yml up --build -d
+```
+
+En producción el frontend se compila estáticamente y se sirve con Nginx. La base de datos **no expone** su puerto al exterior.
+
+---
+
+## 🔌 API Gateway — Enrutado
+
+El gateway Nginx redirige las peticiones del frontend a cada microservicio:
+
+| Prefijo | Servicio destino |
+|---|---|
+| `/auth/` | auth-service:3000 |
+| `/auction/` | auction-service:3001 |
+| `/bidding/` | bidding-service:3002 (WebSocket) |
+| `/chat/` | chat-service:3004 |
+
+---
+
+## 📐 Contratos OpenAPI
+
+Los contratos de la API están definidos en `openspec/specs/`:
+
+- `auth-spec.yaml` — Autenticación, usuarios, wallet
+- `auction-spec.yaml` — Subastas, imágenes, categorías
+- `bidding-spec.yaml` — Pujas en tiempo real
+
+Los tipos TypeScript del frontend se generan automáticamente desde estas specs:
+
+```bash
+cd frontend
+npm run api:generate
+```
+
+---
+
+## 👥 Equipo
+
+| Nombre | Rol |
+|---|---|
+| **Eduard Vilaseca** | DevOps & Docker |
+| **Jordi Rocha** | Frontend Developer |
+| **Hugo Córdoba** | Backend Developer |
+| **Roberto Lotreanu** | Full Stack / Production |
+
+---
+
+## 📄 Licencia
+
+Este proyecto se distribuye bajo la licencia **MIT**. Consulta el fichero [LICENSE](./LICENSE) para más detalles.
