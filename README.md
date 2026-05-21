@@ -11,7 +11,7 @@ BidLive es una aplicación web full-stack construida con arquitectura de microse
 - 🎥 **Subastas en vivo** — el vendedor emite vídeo y los compradores pujan en tiempo real
 - ⚡ **Pujas con WebSockets** — sincronización instantánea del precio actual entre todos los participantes
 - 💬 **Chat en directo** — mensajería en vivo durante la subasta
-- 🔐 **Autenticación segura** — registro/login con JWT, Google OAuth y verificación en dos pasos (2FA)
+- 🔐 **Autenticación segura** — registro/login con JWT y Google OAuth
 - 💳 **Pagos con Stripe** — gestión de wallet, depósitos y cobros automáticos al ganador
 - 📧 **Notificaciones por email** — alertas de inicio/fin de subasta via SMTP
 - 🌍 **Multiidioma** — interfaz disponible en Español, Catalán e Inglés
@@ -24,24 +24,25 @@ BidLive es una aplicación web full-stack construida con arquitectura de microse
 ### Frontend
 | Tecnología | Uso |
 |---|---|
-| **React 19** + Vite | Framework UI y bundler |
-| **React Router v7** | Enrutado cliente |
-| **Socket.io-client** | WebSockets para pujas y chat en tiempo real |
-| **Axios** | Comunicación con la API |
+| **React 18** + Vite | Framework UI y bundler |
+| **React Router v6** | Enrutado cliente |
+| **Fetch API nativa** | Comunicación HTTP con los microservicios |
+| **Socket.io-client** | WebSockets para el chat privado en tiempo real |
+| **WebSocket API nativa** | Tiempo real en el live de pujas (bidding-service) |
+| **WebRTC** | Streaming de vídeo P2P vendedor → compradores |
 | **@react-oauth/google** | Login con Google |
-| **Tailwind CSS v4** | Estilos utilitarios |
-| **openapi-typescript** | Tipos TypeScript generados desde las specs OpenAPI |
+| **CSS Vanilla + Custom Properties** | Sistema de diseño propio sin frameworks |
 
 ### Backend (Microservicios)
 | Servicio | Puerto interno | Responsabilidad |
 |---|---|---|
-| **auth-service** | 3000 | Registro, login, JWT, Google OAuth, Stripe wallet, 2FA |
+| **auth-service** | 3000 | Registro, login, JWT, Google OAuth, Stripe wallet |
 | **auction-service** | 3001 | CRUD de subastas, imágenes, emails SMTP |
-| **bidding-service** | 3002 | Motor de pujas en tiempo real via WebSockets |
-| **chat-service** | 3004 | Chat en directo por sala de subasta |
-| **gateway** (Nginx) | 8080 | API Gateway — enrutado y reverse proxy |
+| **bidding-service** | 3002 | Motor de pujas en tiempo real via WebSocket nativo |
+| **chat-service** | 3004 | Mensajería privada via Socket.IO |
+| **gateway** (Nginx) | 80 | API Gateway — enrutado y reverse proxy |
 
-Todos los servicios usan **Node.js + Express**, **Sequelize** sobre **MySQL 8**, y **nodemon** en desarrollo.
+Todos los servicios usan **Node.js + Express** con **mysql2** sobre **MySQL 8**, y **nodemon** en desarrollo.
 
 ### Infraestructura
 | Tecnología | Uso |
