@@ -460,7 +460,7 @@ export default function SellerLiveVideo() {
   const timerUrgent = timeLeft !== null && timeLeft <= 60;
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
+    <div className="h-screen flex flex-col overflow-hidden overflow-x-hidden" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
       {/* Top bar */}
       <header className="shrink-0 h-14 flex items-center justify-between px-5 gap-4"
         style={{ background: 'rgba(8,8,15,0.9)', borderBottom: '1px solid var(--border)', backdropFilter: 'blur(16px)' }}>
@@ -485,7 +485,7 @@ export default function SellerLiveVideo() {
             <div style={{ position: 'absolute', top: '20%', left: '50%', transform: 'translateX(-50%)', width: '600px', height: '400px', background: 'radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
           )}
 
-          <div className="flex flex-col items-center gap-6 rounded-3xl p-10 text-center max-w-md w-full mx-4 relative"
+          <div className="flex flex-col items-center gap-5 rounded-3xl p-6 sm:p-10 text-center max-w-md w-full mx-4 relative max-h-[90vh] overflow-y-auto"
             style={{
               background: 'rgba(255,255,255,0.04)',
               border: '1px solid rgba(245,158,11,0.25)',
@@ -534,9 +534,9 @@ export default function SellerLiveVideo() {
       )}
 
       {/* Main */}
-      <main className="flex-1 flex flex-col md:grid overflow-hidden md:grid-cols-[1fr_380px]">
+      <main className="flex-1 flex flex-col overflow-hidden md:grid md:grid-cols-[1fr_380px]">
         {/* Left: video fills the column */}
-        <div className="flex items-center justify-center overflow-hidden min-h-[300px] md:min-h-0" style={{ background: '#000' }}>
+        <div className="w-full aspect-video md:aspect-auto md:h-full flex items-center justify-center overflow-hidden" style={{ background: '#000', flexShrink: 0 }}>
           <SellerVideo
             localRef={localRef}
             status={status}

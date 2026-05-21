@@ -102,7 +102,7 @@ export default function BiddingHUD({ currentBid = 0, hasBids = false, placeBid, 
                         key={amt}
                         onClick={() => handleBid(amt)}
                         disabled={disabled}
-                        className="py-2.5 px-4 rounded-xl text-sm font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="min-h-[44px] py-2 px-3 rounded-xl text-xs sm:text-sm font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                         style={{
                             background: 'rgba(245,158,11,0.08)',
                             border: '1px solid rgba(245,158,11,0.2)',
@@ -114,7 +114,7 @@ export default function BiddingHUD({ currentBid = 0, hasBids = false, placeBid, 
                         {amt === current ? (
                             `Puja Inicial (${amt.toLocaleString()}€)`
                         ) : (
-                            <>+{amt - current}€ <span className="font-normal opacity-60">({amt.toLocaleString()}€)</span></>
+                            <><span className="font-black">+{amt - current}€</span> <span className="font-normal opacity-60">({amt.toLocaleString()}€)</span></>
                         )}
                     </button>
                 ))}

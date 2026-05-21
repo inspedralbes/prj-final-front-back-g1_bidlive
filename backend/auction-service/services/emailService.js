@@ -16,6 +16,7 @@ const getTransporter = async () => {
             return nodemailer.createTransport({
                 host: process.env.SMTP_HOST || 'smtp.ethereal.email',
                 port: Number(process.env.SMTP_PORT) || 587,
+                secure: Number(process.env.SMTP_PORT) === 465,
                 auth: {
                     user: process.env.SMTP_USER,
                     pass: process.env.SMTP_PASS,
@@ -24,7 +25,7 @@ const getTransporter = async () => {
         }
 
         // Development fallback: auto-create an Ethereal test account
-        console.log('[EmailService] No SMTP_USER set — creating Ethereal test account...');
+        console.warn('[EmailService] ⚠️  SMTP_USER not set — using Ethereal test account. Emails will NOT be delivered in production!');
         const testAccount = await nodemailer.createTestAccount();
         console.log(`[EmailService] Ethereal account created: ${testAccount.user}`);
         return nodemailer.createTransport({

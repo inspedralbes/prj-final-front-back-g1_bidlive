@@ -189,6 +189,7 @@ export default function ChatSidebar({
                     <input
                         ref={inputRef}
                         className="input-field text-sm py-2.5 px-3 flex-1"
+                        style={{ fontSize: '16px' }}
                         placeholder={status === 'connected' ? 'Say something...' : 'Connecting...'}
                         value={input}
                         onChange={e => setInput(e.target.value)}

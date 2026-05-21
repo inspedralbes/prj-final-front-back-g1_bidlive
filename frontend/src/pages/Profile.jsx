@@ -293,7 +293,7 @@ const Profile = () => {
 
                     <div className="flex flex-col md:flex-row items-center md:items-start gap-8 relative z-10">
                         <div className="relative group">
-                            <div className="w-40 h-40 rounded-full bg-gradient-to-tr from-amber-500 via-orange-400 to-indigo-500 p-1.5 shadow-[0_0_30px_rgba(245,158,11,0.3)]">
+                            <div className="w-28 h-28 sm:w-40 sm:h-40 rounded-full bg-gradient-to-tr from-amber-500 via-orange-400 to-indigo-500 p-1.5 shadow-[0_0_30px_rgba(245,158,11,0.3)]">
                                 <div className="w-full h-full rounded-full bg-[#08080f] flex items-center justify-center overflow-hidden">
                                     {(profile?.avatar_url) ? (
                                         <img
@@ -350,14 +350,14 @@ const Profile = () => {
                             )}
                         </div>
 
-                        <div className="flex-1 text-center md:text-left pt-4">
-                            <h1 className="text-5xl font-black text-white tracking-tight flex justify-center md:justify-start items-center gap-3">
-                                {profile?.username || 'User'}
-                                <svg className="w-8 h-8 text-blue-400" viewBox="0 0 24 24" fill="currentColor">
+                        <div className="flex-1 text-center md:text-left pt-4 min-w-0">
+                            <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight flex justify-center md:justify-start items-center gap-3 truncate max-w-full">
+                                <span className="truncate">{profile?.username || 'User'}</span>
+                                <svg className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400 shrink-0" viewBox="0 0 24 24" fill="currentColor">
                                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                                 </svg>
                             </h1>
-                            <p className="text-gray-400 mt-2 text-lg mb-2">{isOwnProfile ? user?.email : ''}</p>
+                            <p className="text-gray-400 mt-2 text-base sm:text-lg mb-2 truncate">{isOwnProfile ? user?.email : ''}</p>
                             {(profile?.bio) && (
                                 <p className="text-gray-300 italic mb-6 max-w-xl">
                                     {profile?.bio}
@@ -373,24 +373,26 @@ const Profile = () => {
                                         </h3>
                                         <p className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">{walletBalance}€</p>
                                     </div>
-                                    <div className="flex flex-col gap-3">
+                                <div className="flex flex-col gap-3">
                                         <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">
                                             Añadir Fondos (€)
                                         </label>
-                                        <div className="flex gap-3">
+                                        <div className="flex flex-col sm:flex-row gap-3">
                                             <input
                                                 type="number"
                                                 min="10"
                                                 max="1000"
                                                 value={rechargeAmount}
                                                 onChange={(e) => setRechargeAmount(Number(e.target.value))}
-                                                className="w-1/2 p-3 bg-[#08080f] border border-white/10 rounded-xl text-white font-bold focus:outline-none focus:border-amber-500 transition-colors"
+                                                className="w-full sm:w-1/2 p-3 bg-[#08080f] border border-white/10 rounded-xl text-white font-bold focus:outline-none focus:border-amber-500 transition-colors"
+                                                style={{ fontSize: '16px', minHeight: '44px' }}
                                                 placeholder="Ej: 50"
                                             />
                                             <button
                                                 onClick={handleRecharge}
                                                 disabled={recharging}
-                                                className="w-1/2 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-black hover:from-green-400 hover:to-emerald-500 transition-all shadow-lg flex items-center justify-center gap-2"
+                                                className="w-full sm:w-1/2 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-black hover:from-green-400 hover:to-emerald-500 transition-all shadow-lg flex items-center justify-center gap-2"
+                                                style={{ minHeight: '44px' }}
                                             >
                                                 <span className="material-symbols-outlined text-sm">add_card</span>
                                                 {recharging ? 'Procesando...' : 'Recargar'}
@@ -503,11 +505,11 @@ const Profile = () => {
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-gray-400 text-sm font-bold mb-2">Nombre de usuario (Nick)</label>
-                                    <input type="text" name="username" value={formData.username} onChange={handleInputChange} className="w-full bg-[#08080f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                                    <input type="text" name="username" value={formData.username} onChange={handleInputChange} className="w-full bg-[#08080f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors" style={{ fontSize: '16px', minHeight: '44px' }} />
                                 </div>
                                 <div>
                                     <label className="block text-gray-400 text-sm font-bold mb-2">Biografía</label>
-                                    <textarea name="bio" value={formData.bio || ''} onChange={handleInputChange} rows="3" className="w-full bg-[#08080f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors resize-none" placeholder="Cuéntanos algo sobre ti..."></textarea>
+                                    <textarea name="bio" value={formData.bio || ''} onChange={handleInputChange} rows="3" className="w-full bg-[#08080f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors resize-none" style={{ fontSize: '16px' }} placeholder="Cuéntanos algo sobre ti..."></textarea>
                                 </div>
                                 <div>
                                     <p className="block text-gray-400 text-sm font-bold mb-2">Foto de Perfil</p>
@@ -517,11 +519,11 @@ const Profile = () => {
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-gray-400 text-sm font-bold mb-2">Dirección de facturación</label>
-                                    <input type="text" name="billing_address" value={formData.billing_address} onChange={handleInputChange} placeholder="Calle Principal 123..." className="w-full bg-[#08080f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors" />
+                                    <input type="text" name="billing_address" value={formData.billing_address} onChange={handleInputChange} placeholder="Calle Principal 123..." className="w-full bg-[#08080f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors" style={{ fontSize: '16px', minHeight: '44px' }} />
                                 </div>
                                 <div>
                                     <label className="block text-gray-400 text-sm font-bold mb-2">Método de pago favorito</label>
-                                    <select name="payment_method" value={formData.payment_method} onChange={handleInputChange} className="w-full bg-[#08080f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors appearance-none">
+                                    <select name="payment_method" value={formData.payment_method} onChange={handleInputChange} className="w-full bg-[#08080f] border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500 transition-colors appearance-none" style={{ fontSize: '16px', minHeight: '44px' }}>
                                         <option value="credit_card">Tarjeta de Crédito</option>
                                         <option value="paypal">PayPal</option>
                                         <option value="crypto">Criptomonedas</option>
@@ -687,11 +689,16 @@ const Profile = () => {
                                                 </div>
                                                 <div className="p-5">
                                                     <h3 className="text-white font-bold text-lg mb-1 truncate">{p.title}</h3>
-                                                    <p className="text-gray-500 text-xs mb-4">Vendedor: {p.seller_username}</p>
+                                                    <p className="text-gray-500 text-xs mb-1">Vendedor: {p.seller_username || 'Desconocido'}</p>
+                                                    {p.created_at && (
+                                                        <p className="text-gray-600 text-xs mb-4">
+                                                            {new Date(p.created_at).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                        </p>
+                                                    )}
                                                     <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/5">
                                                         <div>
                                                             <p className="text-[10px] text-gray-500 uppercase font-black tracking-widest mb-0.5">Precio Final</p>
-                                                            <p className="text-xl font-black text-white">${p.current_price?.toLocaleString()}</p>
+                                                            <p className="text-xl font-black text-white">{p.current_price?.toLocaleString('es-ES')}€</p>
                                                         </div>
                                                         {p.payment_status === 'pending' && p.status !== 'cancelled_unpaid' ? (
                                                             <button

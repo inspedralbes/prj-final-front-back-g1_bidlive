@@ -232,13 +232,18 @@ const pujaController = {
 
                 // Send email win confirmation email to winner
                 try {
-                    const [userRows] = await db.query('SELECT email FROM users WHERE id = ?', [winnerId]);
-                    if (userRows.length > 0 && userRows[0].email) {
-                        await sendAuctionWinEmail(userRows[0].email, puja.title, finalPrice || puja.current_price, id);
-                        console.log(`[Auction] Email win confirmation triggered for winner ${winnerId}`);
+                    console.log(`[Auction] Looking up winner email for userId ${winnerId}`);
+                    const userRows = await db.query('SELECT email, username FROM users WHERE id = ?', [winnerId]);
+                    const winnerRow = Array.isArray(userRows) ? userRows[0] : null;
+                    if (winnerRow && winnerRow.email) {
+                        console.log(`[Auction] Winner email found: ${winnerRow.email} — sending win confirmation`);
+                        await sendAuctionWinEmail(winnerRow.email, puja.title, finalPrice || puja.current_price, id);
+                        console.log(`[Auction] Email win confirmation sent to ${winnerRow.email} for winner ${winnerId}`);
+                    } else {
+                        console.warn(`[Auction] Winner ${winnerId} not found in DB or has no email — email not sent`);
                     }
                 } catch (emailErr) {
-                    console.error('[Auction] Failed to fetch winner email or send email:', emailErr.message);
+                    console.error('[Auction] Email pipeline error (auction end continues):', emailErr);
                 }
             } else {
                 // No winner: Notify Seller

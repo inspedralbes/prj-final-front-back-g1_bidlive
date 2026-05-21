@@ -51,6 +51,12 @@ export default function LiveAuctionVideo() {
                     setAuctionStatus(data?.status ?? 'upcoming');
                     setEndTime(data?.end_time);
                     setSellerInfo({ id: data?.seller_id, username: data?.seller_username });
+
+                    // ── FIX: Initialize isWinning from DB last_bidder_id so reconnecting
+                    // leader gets the correct badge without waiting for WS messages.
+                    if (data?.last_bidder_id && user?.id) {
+                        setIsWinning(Number(data.last_bidder_id) === Number(user.id));
+                    }
                     
                     // Check balance warning
                     fetch(`${API_URL}/auth/wallet/balance`, {
@@ -78,7 +84,7 @@ export default function LiveAuctionVideo() {
             .then(r => r.json())
             .then(data => setBalance(data.balance || 0))
             .catch(err => console.error('Error fetching balance:', err));
-    }, [id, navigate]);
+    }, [id, navigate, user?.id]);
 
     // ── 5. Auction-ended popup + auto-redirect ────────────────────────────────────
     useEffect(() => {
@@ -94,8 +100,12 @@ export default function LiveAuctionVideo() {
     const latestBid = Number(latestBidMsg?.payload?.amount) || Number(auctionData?.current_price) || Number(auctionData?.starting_price) || 0;
 
     // Logic to update winning status and trigger toast
+    // Guard: only runs when there's a real new live bid message (not on mount)
     useEffect(() => {
+        // latestBidMsg is undefined on mount or after reconnect with empty messages
         if (!latestBidMsg) return;
+        // Skip historical messages (they come in on JOIN_ROOM replay)
+        if (latestBidMsg.payload?.historical) return;
 
         const bidder = latestBidMsg.payload.username;
         const wasWinning = isWinning;
@@ -103,10 +113,11 @@ export default function LiveAuctionVideo() {
 
         setIsWinning(nowWinning);
 
+        // Only show "superado" toast if a REAL new bid just outbid us
         if (wasWinning && !nowWinning) {
             setToast({ message: '¡Has sido superado!', type: 'warning' });
         }
-    }, [latestBidMsg, username]);
+    }, [latestBidMsg]);
 
     // Update endTime if NEW_END_TIME received
     useEffect(() => {
@@ -143,6 +154,7 @@ export default function LiveAuctionVideo() {
     }, [redirectCountdown, navigate]);
 
     // ── Client-side fallback for viewer: if timer expired but WS AUCTION_ENDED missed ──
+    // Fetches real winner from REST so popup always shows correct data.
     const viewerFallbackFiredRef = React.useRef(false);
     useEffect(() => {
         if (!endTime || auctionEnded || viewerFallbackFiredRef.current) return;
@@ -153,12 +165,30 @@ export default function LiveAuctionVideo() {
                 clearInterval(check);
                 if (viewerFallbackFiredRef.current) return;
                 viewerFallbackFiredRef.current = true;
-                console.log('[Viewer] Fallback: endTime expired, triggering ended UI');
-                setShowEndedPopup(true);
+                console.log('[Viewer] Fallback: endTime expired, fetching winner from REST...');
+                // Fetch real auction state so we show the correct winner (not "Subasta Desierta")
+                fetch(`${API_URL}/auction/pujas/${id}`, {
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+                })
+                    .then(r => r.json())
+                    .then(data => {
+                        const fallbackWinnerId = data?.winner_id || data?.last_bidder_id || null;
+                        const fallbackWinnerUsername = data?.winner_username || null;
+                        const fallbackPrice = data?.current_price || data?.starting_price || 0;
+                        console.log(`[Viewer] Fallback winner: ${fallbackWinnerId} (${fallbackWinnerUsername}), price: ${fallbackPrice}`);
+                        if (fallbackWinnerId) {
+                            setEndData({ winnerId: fallbackWinnerId, winnerUsername: fallbackWinnerUsername, finalPrice: fallbackPrice });
+                        }
+                        setShowEndedPopup(true);
+                    })
+                    .catch(() => {
+                        // If fetch fails, still show popup (may show desierta)
+                        setShowEndedPopup(true);
+                    });
             }
         }, 1000);
         return () => clearInterval(check);
-    }, [endTime, auctionEnded, wsHook.serverTimeOffset]);
+    }, [endTime, auctionEnded, wsHook.serverTimeOffset, id]);
 
     // ── Loading screen — placed AFTER all hooks ────────────────────────────
     if (auctionStatus === null) {
@@ -204,7 +234,7 @@ export default function LiveAuctionVideo() {
 
     return (
         <div
-            className="h-screen flex flex-col overflow-hidden relative"
+            className="h-screen flex flex-col overflow-hidden overflow-x-hidden relative"
             style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}
         >
             {/* ── Auction Ended Popup ──────────────────────────────────────── */}
@@ -217,7 +247,7 @@ export default function LiveAuctionVideo() {
                         <div style={{ position: 'absolute', top: '20%', left: '50%', transform: 'translateX(-50%)', width: '600px', height: '400px', background: 'radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
                     )}
 
-                    <div className="flex flex-col items-center gap-6 rounded-3xl p-10 text-center max-w-md w-full mx-4 relative"
+                    <div className="flex flex-col items-center gap-5 rounded-3xl p-6 sm:p-10 text-center max-w-md w-full mx-4 relative max-h-[90vh] overflow-y-auto"
                         style={{
                             background: 'rgba(255,255,255,0.04)',
                             border: '1px solid rgba(245,158,11,0.25)',
@@ -332,9 +362,9 @@ export default function LiveAuctionVideo() {
             </header>
 
             {/* ── Main layout ─────────────────────────────────────────────── */}
-            <main className="flex-1 flex flex-col md:grid overflow-hidden md:grid-cols-[1fr_380px]">
+            <main className="flex-1 flex flex-col overflow-hidden md:grid md:grid-cols-[1fr_380px]">
                 {/* Left: video fills the column */}
-                <div className="flex items-center justify-center overflow-hidden min-h-[300px] md:min-h-0" style={{ background: '#000' }}>
+                <div className="w-full aspect-video md:aspect-auto md:h-full flex items-center justify-center overflow-hidden" style={{ background: '#000', flexShrink: 0 }}>
                     <VideoPlayer 
                         auctionId={id} 
                         role="viewer" 
@@ -349,10 +379,10 @@ export default function LiveAuctionVideo() {
                     />
                 </div>
 
-                {/* Right: bidding + chat stacked */}
-                <div className="flex flex-col h-full overflow-hidden" style={{ borderLeft: '1px solid var(--border)' }}>
+                {/* Right: bidding + chat stacked — scrollable on mobile */}
+                <div className="flex flex-col flex-1 overflow-hidden md:max-h-none md:h-full" style={{ borderTop: '1px solid var(--border)', borderLeft: 'none' }}>
                     {/* Bidding HUD — always visible, never pushed out */}
-                    <div className="shrink-0 p-4 overflow-y-auto scroll-area" style={{ borderBottom: '1px solid var(--border)', maxHeight: '45%' }}>
+                    <div className="shrink-0 p-3 sm:p-4 overflow-y-auto scroll-area max-h-[30vh] md:max-h-[50%]" style={{ borderBottom: '1px solid var(--border)' }}>
                         <BiddingHUD
                             currentBid={latestBid}
                             hasBids={!!latestBidMsg || (auctionData?.last_bidder_id !== null)}

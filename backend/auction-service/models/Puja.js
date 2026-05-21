@@ -136,8 +136,13 @@ const Puja = {
 
     findById: async (id) => {
         const rows = await db.query(
-            `SELECT p.*, c.name AS category_name, c.icon AS category_icon
-             FROM pujas p LEFT JOIN categories c ON p.category_id = c.id
+            `SELECT p.*, c.name AS category_name, c.icon AS category_icon,
+                    u.username AS seller_username,
+                    w.username AS winner_username
+             FROM pujas p
+             LEFT JOIN categories c ON p.category_id = c.id
+             LEFT JOIN users u ON p.seller_id = u.id
+             LEFT JOIN users w ON p.winner_id = w.id
              WHERE p.id = ?`,
             [id]
         );
