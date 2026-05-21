@@ -392,6 +392,7 @@ export default function LiveAuctionVideo() {
                             balance={balance}
                             endTime={endTime}
                             serverTimeOffset={wsHook.serverTimeOffset}
+                            serverSecondsLeft={wsHook.serverSecondsLeft}
                         />
                     </div>
 

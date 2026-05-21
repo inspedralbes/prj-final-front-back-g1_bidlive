@@ -8,7 +8,7 @@ import AuctionTimer from './AuctionTimer';
  *   placeBid     function(amount)  – from useWebSocket
  *   disabled     bool              – when not connected
  */
-export default function BiddingHUD({ currentBid = 0, hasBids = false, placeBid, disabled = false, status = 'none', balance = 0, endTime = null, serverTimeOffset = 0 }) {
+export default function BiddingHUD({ currentBid = 0, hasBids = false, placeBid, disabled = false, status = 'none', balance = 0, endTime = null, serverTimeOffset = 0, serverSecondsLeft = null }) {
     const current = typeof currentBid === 'string'
         ? parseFloat(currentBid.replace(/[^0-9.]/g, '')) || 0
         : Number(currentBid) || 0;
@@ -58,7 +58,7 @@ export default function BiddingHUD({ currentBid = 0, hasBids = false, placeBid, 
         <div className="rounded-2xl p-5" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
             {/* Timer & Balance */}
             <div className="flex items-center justify-between mb-6 pb-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                <AuctionTimer endTime={endTime} serverTimeOffset={serverTimeOffset} />
+                <AuctionTimer endTime={endTime} serverTimeOffset={serverTimeOffset} serverSecondsLeft={serverSecondsLeft} />
                 <div className="text-right">
                     <p className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1">Tu Saldo</p>
                     <p className="text-white font-black text-lg">{balance.toLocaleString()}€</p>
