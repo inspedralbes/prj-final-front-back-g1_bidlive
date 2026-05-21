@@ -45,15 +45,9 @@ const getTransporter = async () => {
     return _transporterPromise;
 };
 
-// BidLive logo as inline HTML (no external image, works in all email clients)
-const BIDLIVE_LOGO_HTML = `
-    <div style="display:inline-flex;align-items:center;gap:6px;margin-bottom:12px;">
-        <div style="width:36px;height:36px;background:#f59e0b;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;">
-            <span style="color:#08080f;font-weight:900;font-size:18px;line-height:1;">B</span>
-        </div>
-        <span style="font-size:22px;font-weight:900;color:#08080f;letter-spacing:-0.5px;">Bid<span style="color:rgba(0,0,0,0.6);">Live</span></span>
-    </div>
-`;
+// NOTE: To show the BidLive logo as the sender avatar in Gmail / Apple Mail / Outlook:
+// → Go to https://gravatar.com and create an account with the same email as SMTP_USER / EMAIL_FROM.
+// → Upload the BidLive logo there. Email clients will fetch it automatically as the sender avatar.
 
 /**
  * Sends a win confirmation email to the highest bidder.
@@ -78,8 +72,8 @@ const sendAuctionWinEmail = async (toEmail, itemName, winningBid, auctionId, con
                 <div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;background:#08080f;color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid rgba(245,158,11,0.3);">
                     <!-- Header -->
                     <div style="background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);padding:32px;text-align:center;">
-                        ${BIDLIVE_LOGO_HTML}
-                        <div style="width:56px;height:56px;background:rgba(0,0,0,0.2);border-radius:16px;margin:8px auto 16px;line-height:56px;font-size:28px;">🏆</div>
+                        <p style="margin:0 0 12px;font-size:13px;font-weight:900;color:rgba(0,0,0,0.5);letter-spacing:0.15em;text-transform:uppercase;">BidLive</p>
+                        <div style="width:56px;height:56px;background:rgba(0,0,0,0.2);border-radius:16px;margin:0 auto 16px;line-height:56px;font-size:28px;">🏆</div>
                         <h1 style="margin:0;color:#08080f;font-size:26px;font-weight:900;letter-spacing:-0.5px;">¡Has Ganado!</h1>
                         <p style="margin:8px 0 0;color:rgba(0,0,0,0.65);font-size:14px;font-weight:500;">Tu puja ha sido la más alta</p>
                     </div>
@@ -147,7 +141,7 @@ const sendWelcomeEmail = async (toEmail, username) => {
                 <div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;background:#08080f;color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid rgba(245,158,11,0.2);">
                     <!-- Header -->
                     <div style="background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);padding:32px;text-align:center;">
-                        ${BIDLIVE_LOGO_HTML}
+                        <p style="margin:0 0 8px;font-size:13px;font-weight:900;color:rgba(0,0,0,0.5);letter-spacing:0.15em;text-transform:uppercase;">BidLive</p>
                         <h1 style="margin:8px 0 0;color:#08080f;font-size:24px;font-weight:900;">¡Bienvenido/a, ${username}!</h1>
                         <p style="margin:8px 0 0;color:rgba(0,0,0,0.65);font-size:14px;">Tu cuenta en BidLive ya está activa</p>
                     </div>
@@ -239,8 +233,8 @@ const sendPasswordResetEmail = async (toEmail, username, resetToken, resetUrl) =
                 <div style="font-family:'Helvetica Neue',Arial,sans-serif;max-width:600px;margin:0 auto;background:#08080f;color:#ffffff;border-radius:16px;overflow:hidden;border:1px solid rgba(245,158,11,0.2);">
                     <!-- Header -->
                     <div style="background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);padding:32px;text-align:center;">
-                        ${BIDLIVE_LOGO_HTML}
-                        <div style="width:48px;height:48px;background:rgba(0,0,0,0.2);border-radius:14px;margin:8px auto 16px;line-height:48px;font-size:24px;">🔒</div>
+                        <p style="margin:0 0 8px;font-size:13px;font-weight:900;color:rgba(0,0,0,0.5);letter-spacing:0.15em;text-transform:uppercase;">BidLive</p>
+                        <div style="width:48px;height:48px;background:rgba(0,0,0,0.2);border-radius:14px;margin:0 auto 16px;line-height:48px;font-size:24px;">🔒</div>
                         <h1 style="margin:0;color:#08080f;font-size:22px;font-weight:900;">Restablecer contraseña</h1>
                         <p style="margin:8px 0 0;color:rgba(0,0,0,0.65);font-size:13px;">Has solicitado un enlace de recuperación</p>
                     </div>
