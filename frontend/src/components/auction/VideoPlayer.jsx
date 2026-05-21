@@ -106,6 +106,34 @@ export default function VideoPlayer({
       streamRef.current.getTracks().forEach(track => pc.addTrack(track, streamRef.current));
     }
 
+    // Prioritize H.264 and VP8 video codecs for mobile compatibility
+    try {
+      const videoTransceiver = pc.getTransceivers().find(t => t.sender.track?.kind === 'video');
+      if (videoTransceiver && RTCRtpSender.getCapabilities) {
+        const capabilities = RTCRtpSender.getCapabilities('video');
+        if (capabilities && capabilities.codecs) {
+          const sortedCodecs = [...capabilities.codecs].sort((a, b) => {
+            const mimeA = a.mimeType.toLowerCase();
+            const mimeB = b.mimeType.toLowerCase();
+            const isAH264 = mimeA === 'video/h264';
+            const isBH264 = mimeB === 'video/h264';
+            const isAVP8 = mimeA === 'video/vp8';
+            const isBVP8 = mimeB === 'video/vp8';
+
+            if (isAH264 && !isBH264) return -1;
+            if (!isAH264 && isBH264) return 1;
+            if (isAVP8 && !isBVP8) return -1;
+            if (!isAVP8 && isBVP8) return 1;
+            return 0;
+          });
+          videoTransceiver.setCodecPreferences(sortedCodecs);
+          console.log('[Seller/VideoPlayer] Prioritized H.264 and VP8 codecs for viewer', viewerSessionId);
+        }
+      }
+    } catch (cErr) {
+      console.warn('[Seller/VideoPlayer] Failed to set codec preferences:', cErr);
+    }
+
     pc.onicecandidate = (e) => {
       if (e.candidate) sendSignal('ICE_CANDIDATE', { candidate: e.candidate, targetId: viewerSessionId });
     };
@@ -139,9 +167,9 @@ export default function VideoPlayer({
       // Request the highest available resolution from the webcam
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-          frameRate: { ideal: 30 },
+          width: { ideal: 1280, max: 1280 },
+          height: { ideal: 720, max: 720 },
+          frameRate: { ideal: 30, max: 30 },
         },
         audio: true,
       });
@@ -182,6 +210,11 @@ export default function VideoPlayer({
         remoteRef.current.srcObject = e.streams[0];
         remoteRef.current.volume = volume;
         setHasStream(true);
+        
+        // Force play on mobile devices immediately
+        remoteRef.current.play().catch(playErr => {
+          console.warn('[Viewer] play() failed, retrying on interaction:', playErr);
+        });
       }
     };
 
@@ -487,9 +520,18 @@ export default function VideoPlayer({
       {/* ── Tap to unmute overlay (viewer only, when muted) ── */}
       {role === 'viewer' && hasStream && isMuted && !streamEnded && (
         <button
-          onClick={() => {
+          onClick={async () => {
             setIsMuted(false);
             if (volume === 0) setVolume(1);
+            if (remoteRef.current) {
+              remoteRef.current.muted = false;
+              if (volume === 0) remoteRef.current.volume = 1;
+              try {
+                await remoteRef.current.play();
+              } catch (pErr) {
+                console.warn('[Viewer] Play failed on unmute click:', pErr);
+              }
+            }
           }}
           className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border transition-all active:scale-95 hover:scale-105"
           style={{

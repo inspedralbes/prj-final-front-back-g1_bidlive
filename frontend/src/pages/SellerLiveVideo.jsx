@@ -292,6 +292,34 @@ export default function SellerLiveVideo() {
       streamRef.current.getTracks().forEach(track => pc.addTrack(track, streamRef.current));
     }
 
+    // Prioritize H.264 and VP8 video codecs for mobile compatibility
+    try {
+      const videoTransceiver = pc.getTransceivers().find(t => t.sender.track?.kind === 'video');
+      if (videoTransceiver && RTCRtpSender.getCapabilities) {
+        const capabilities = RTCRtpSender.getCapabilities('video');
+        if (capabilities && capabilities.codecs) {
+          const sortedCodecs = [...capabilities.codecs].sort((a, b) => {
+            const mimeA = a.mimeType.toLowerCase();
+            const mimeB = b.mimeType.toLowerCase();
+            const isAH264 = mimeA === 'video/h264';
+            const isBH264 = mimeB === 'video/h264';
+            const isAVP8 = mimeA === 'video/vp8';
+            const isBVP8 = mimeB === 'video/vp8';
+
+            if (isAH264 && !isBH264) return -1;
+            if (!isAH264 && isBH264) return 1;
+            if (isAVP8 && !isBVP8) return -1;
+            if (!isAVP8 && isBVP8) return 1;
+            return 0;
+          });
+          videoTransceiver.setCodecPreferences(sortedCodecs);
+          console.log('[Seller] Prioritized H.264 and VP8 codecs for viewer', viewerSessionId);
+        }
+      }
+    } catch (cErr) {
+      console.warn('[Seller] Failed to set codec preferences:', cErr);
+    }
+
     pc.onicecandidate = (e) => {
       if (e.candidate) sendSignal('ICE_CANDIDATE', { candidate: e.candidate, targetId: viewerSessionId });
     };
@@ -391,7 +419,12 @@ export default function SellerLiveVideo() {
         console.log('[Seller] SELLER_LIVE sent (photo mode)');
       } else {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 1280 } },
+          video: { 
+            facingMode: 'user', 
+            width: { ideal: 1280, max: 1280 }, 
+            height: { ideal: 720, max: 720 },
+            frameRate: { ideal: 30, max: 30 }
+          },
           audio: true,
         });
         streamRef.current = stream;
