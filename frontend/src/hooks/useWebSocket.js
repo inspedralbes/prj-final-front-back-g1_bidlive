@@ -86,8 +86,16 @@ export const useWebSocket = (auctionId, username, role = 'viewer', userId = null
                     case 'CHAT_MESSAGE':
                     case 'BID_PLACED':
                     case 'SYSTEM':
-                    case 'NEW_END_TIME':
                     case 'ERROR':
+                        setMessages(prev => [...prev, data]);
+                        break;
+
+                    case 'NEW_END_TIME':
+                        // Re-sync serverTimeOffset using the server timestamp included in this message.
+                        // This fixes timer drift for viewers who join mid-stream or connect late.
+                        if (data.payload?.serverTime) {
+                            setServerTimeOffset(Date.now() - new Date(data.payload.serverTime).getTime());
+                        }
                         setMessages(prev => [...prev, data]);
                         break;
 

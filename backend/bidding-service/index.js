@@ -333,7 +333,7 @@ wss.on("connection", (ws) => {
                                 room.viewers.forEach(v => sendJson(v, extMsg));
                                 
                                 // Broadcast NEW_END_TIME
-                                const timeMsg = { type: "NEW_END_TIME", payload: { endTime: extData.newEndTime } };
+                                const timeMsg = { type: "NEW_END_TIME", payload: { endTime: extData.newEndTime, serverTime: new Date().toISOString() } };
                                 if (room.seller) sendJson(room.seller, timeMsg);
                                 room.viewers.forEach(v => sendJson(v, timeMsg));
                             }
