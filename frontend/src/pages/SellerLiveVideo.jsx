@@ -196,7 +196,6 @@ export default function SellerLiveVideo() {
   const [timeLeft, setTimeLeft] = React.useState(null);
   const [currentBid, setCurrentBid] = React.useState(0);
   const [currentBidder, setCurrentBidder] = React.useState('');
-  const [isDeclaring, setIsDeclaring] = React.useState(false);
 
   // Fetch auction data on mount
   React.useEffect(() => {
@@ -385,30 +384,6 @@ export default function SellerLiveVideo() {
   const wsLatestBidder = [...messages].reverse().find(m => m.type === 'BID_PLACED')?.payload?.username;
   const latestBidder = wsLatestBidder || currentBidder;
 
-  // Declare winner handler
-  const declareWinner = async () => {
-    if (!latestBid || !window.confirm('\u00bfSeguro que quieres cerrar la subasta y dar el premio al ganador?')) return;
-    setIsDeclaring(true);
-    try {
-      const res = await fetch(`${API_URL}/auction/pujas/${id}/end`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-      });
-      if (res.ok) {
-        sendSignal('END_AUCTION', { finalPrice: latestBid, winner: latestBidder });
-        setIsEnding(true);
-        streamRef.current?.getTracks().forEach(t => t.stop());
-        setTimeout(() => navigate('/seller'), 2000);
-      } else {
-        alert('Error al cerrar la subasta');
-      }
-    } catch (e) {
-      alert('Error de red');
-    } finally {
-      setIsDeclaring(false);
-    }
-  };
-
   const formatTime = (secs) => {
     if (secs === null) return '--:--';
     const m = Math.floor(secs / 60).toString().padStart(2, '0');
@@ -473,21 +448,6 @@ export default function SellerLiveVideo() {
                 </p>
               </div>
             </div>
-
-            {/* Declare winner button */}
-            <button
-              onClick={declareWinner}
-              disabled={isDeclaring || !isStreaming}
-              className="w-full py-2.5 rounded-xl font-black text-sm transition-all"
-              style={{
-                background: isDeclaring || !isStreaming ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #f59e0b, #d97706)',
-                color: isDeclaring || !isStreaming ? '#6b7280' : '#08080f',
-                cursor: isDeclaring || !isStreaming ? 'not-allowed' : 'pointer',
-                border: '1px solid rgba(245,158,11,0.3)',
-              }}
-            >
-              {isDeclaring ? 'Cerrando...' : latestBid ? `🏆 Dar Ganador (${latestBid}€)` : '⏹ Cerrar sin ganador'}
-            </button>
           </div>
 
           {/* Chat */}

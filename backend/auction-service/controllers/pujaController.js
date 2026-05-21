@@ -110,15 +110,17 @@ const pujaController = {
                 return res.status(400).json({ message: 'Cannot restart an ended auction' });
             }
 
-            // Calculate end_time based on duration
+            // Calculate duration in minutes
             let durationMinutes = parseInt(puja.duration) || 60;
 
+            // Update to live and let MySQL calculate end_time accurately using NOW()
+            await db.query('UPDATE pujas SET status = "live", end_time = DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE id = ?', [durationMinutes, id]);
             
-            const endTime = new Date(Date.now() + durationMinutes * 60000);
-
-            // Update to live and set end_time
-            await db.query('UPDATE pujas SET status = "live", end_time = ? WHERE id = ?', [endTime, id]);
-            console.log(`[Auction] Puja ${id} started (status → live, end_time → ${endTime.toISOString()})`);
+            // Fetch the freshly generated end_time so we return exactly what the DB uses
+            const rows = await db.query('SELECT end_time FROM pujas WHERE id = ?', [id]);
+            const endTime = rows[0]?.end_time;
+            
+            console.log(`[Auction] Puja ${id} started (status → live, duration → ${durationMinutes}m, end_time → ${endTime})`);
 
             // --- NOTIFICATIONS ---
             // 1. Notify users who favorited this auction
