@@ -12,7 +12,15 @@ const Messages = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
     const { conversations, refreshConversations } = useChat(urlId);
-    
+
+    // Mobile: show thread panel when a conversation is selected
+    const [showThread, setShowThread] = useState(!!urlId);
+
+    // When URL changes (e.g. navigating to /messages/:id), show the thread
+    useEffect(() => {
+        if (urlId) setShowThread(true);
+    }, [urlId]);
+
     // Find active conversation to get other user's info
     const activeConv = conversations.find(c => Number(c.id) === Number(urlId));
     const otherUser = activeConv ? {
@@ -21,23 +29,38 @@ const Messages = () => {
         avatar_url: activeConv.other_avatar_url
     } : null;
 
+    const handleSelectConversation = (convId) => {
+        navigate(`/messages/${convId}`);
+        setShowThread(true);
+    };
+
+    const handleBack = () => {
+        setShowThread(false);
+    };
+
     return (
         <div className="min-h-screen bg-[#08080f] text-white font-sans flex flex-col overflow-hidden h-screen">
             <Header />
             
-            <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 overflow-hidden flex">
-                <div className="w-full bg-white/5 border border-white/10 rounded-3xl overflow-hidden backdrop-blur-xl shadow-2xl flex h-full">
+            <main className="flex-1 max-w-7xl mx-auto w-full px-0 sm:px-4 lg:px-8 sm:py-4 md:py-8 overflow-hidden flex min-h-0">
+                <div className="w-full bg-white/5 border-0 sm:border border-white/10 sm:rounded-3xl overflow-hidden backdrop-blur-xl shadow-2xl flex h-full min-h-0">
                     
                     {/* Sidebar: Conversation List */}
-                    <div className="w-80 border-r border-white/10 flex flex-col bg-white/5">
-                        <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
-                            <h2 className="text-xl font-black tracking-tight">Mensajes</h2>
-                            <button onClick={refreshConversations} className="p-2 hover:bg-white/10 rounded-xl transition-all">
+                    {/* On mobile: full width, hidden when thread is showing */}
+                    {/* On desktop: always visible, fixed width */}
+                    <div className={`
+                        ${showThread ? 'hidden md:flex' : 'flex'}
+                        flex-col w-full md:w-80 md:flex-shrink-0
+                        border-r border-white/10 bg-white/5
+                    `}>
+                        <div className="p-4 sm:p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+                            <h2 className="text-lg sm:text-xl font-black tracking-tight">Mensajes</h2>
+                            <button onClick={refreshConversations} className="p-2 hover:bg-white/10 rounded-xl transition-all" title="Actualizar">
                                 <span className="material-symbols-outlined text-sm">refresh</span>
                             </button>
                         </div>
                         
-                        <div className="flex-1 overflow-y-auto custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0">
                             {conversations.length === 0 ? (
                                 <div className="p-10 text-center text-gray-500">
                                     <p className="text-sm">No tienes mensajes aún.</p>
@@ -46,7 +69,7 @@ const Messages = () => {
                                 conversations.map(conv => (
                                     <div 
                                         key={conv.id}
-                                        onClick={() => navigate(`/messages/${conv.id}`)}
+                                        onClick={() => handleSelectConversation(conv.id)}
                                         className={`p-4 flex items-center gap-4 cursor-pointer transition-all border-b border-white/5 ${
                                             Number(urlId) === Number(conv.id) 
                                             ? 'bg-amber-500/10 border-l-4 border-l-amber-500' 
@@ -73,7 +96,7 @@ const Messages = () => {
                                                         <span className="w-2 h-2 bg-amber-500 rounded-full animate-pulse flex-shrink-0" />
                                                     )}
                                                 </div>
-                                                <span className="text-[10px] text-gray-500">
+                                                <span className="text-[10px] text-gray-500 flex-shrink-0 ml-2">
                                                     {new Date(conv.last_message_at).toLocaleDateString([], { day: '2-digit', month: '2-digit' })}
                                                 </span>
                                             </div>
@@ -88,8 +111,13 @@ const Messages = () => {
                     </div>
 
                     {/* Main: Chat Thread */}
-                    <div className="flex-1">
-                        <ChatThread conversationId={urlId} otherUser={otherUser} />
+                    {/* On mobile: full width, shown only when thread is active */}
+                    {/* On desktop: always visible, takes remaining space */}
+                    <div className={`
+                        ${showThread ? 'flex' : 'hidden md:flex'}
+                        flex-1 flex-col min-w-0 min-h-0
+                    `}>
+                        <ChatThread conversationId={urlId} otherUser={otherUser} onBack={handleBack} />
                     </div>
 
                 </div>

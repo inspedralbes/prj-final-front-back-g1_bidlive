@@ -280,8 +280,13 @@ export default function LiveAuctionVideo() {
                                 <div className="flex flex-col gap-3 w-full">
                                     {isFinalWinner && (
                                         <button
-                                            onClick={() => {
-                                                // Navigate to chat with seller
+                                        onClick={() => {
+                                                // Use server-provided conversationId if available (faster, no duplicate)
+                                                if (endData?.conversationId) {
+                                                    navigate(`/messages/${endData.conversationId}`);
+                                                    return;
+                                                }
+                                                // Fallback: create/find conversation via API
                                                 const token = localStorage.getItem('token');
                                                 fetch(`${API_URL}/chat/conversations`, {
                                                     method: 'POST',
@@ -295,7 +300,7 @@ export default function LiveAuctionVideo() {
                                             style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#08080f', boxShadow: '0 8px 24px rgba(245,158,11,0.3)' }}
                                         >
                                             <span className="material-symbols-outlined">forum</span>
-                                            Contactar con vendedor
+                                            💬 Ver conversación con vendedor
                                         </button>
                                     )}
                                     <button

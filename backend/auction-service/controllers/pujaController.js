@@ -211,33 +211,62 @@ const pujaController = {
                     `/auction/${id}`
                 );
 
-                // --- PRIVATE CHAT SYSTEM NOTIFICATION ---
+                // --- PRIVATE CHAT SYSTEM NOTIFICATION --- capture conversationId for email+broadcast
+                let conversationId = null;
                 const chatUrl = process.env.CHAT_SERVICE_URL || 'http://chat-service:3004';
                 const internalSecret = process.env.INTERNAL_SECRET || 'bidlive_secret';
+                const closedAt = new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid', dateStyle: 'short', timeStyle: 'short' });
                 try {
-                    await fetch(`${chatUrl}/internal/system-message`, {
+                    const chatRes = await fetch(`${chatUrl}/internal/system-message`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             secret: internalSecret,
                             winnerId: winnerId,
                             sellerId: puja.seller_id,
-                            content: `¡Enhorabuena! Has ganado la subasta "${puja.title}" por ${finalPrice || puja.current_price}€. Ponte en contacto con el vendedor para finalizar los detalles del pago y envío.`
+                            content: `🏆 ¡Enhorabuena! Has ganado la subasta "${puja.title}"\n💰 Precio final: ${finalPrice}€\n📅 Finalizada: ${closedAt}\n💳 Estado del pago: Pendiente\n\nPonte en contacto con el vendedor para coordinar el envío.`
                         })
                     });
-                    console.log(`[Auction] Private chat notification sent for Puja ${id}`);
+                    if (chatRes.ok) {
+                        const chatData = await chatRes.json();
+                        conversationId = chatData.conversationId || null;
+                        console.log(`[Auction] Chat conversation created/found: ${conversationId}`);
+                    }
                 } catch (chatErr) {
                     console.error('[Auction] Failed to send private chat notification:', chatErr.message);
                 }
 
-                // Send email win confirmation email to winner
+                // --- AUTO-PAYMENT: debit winner wallet if sufficient balance ---
+                try {
+                    const AUTH_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:3000';
+                    const debitRes = await fetch(`${AUTH_URL}/wallet/debit`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId: winnerId,
+                            amount: finalPrice,
+                            secret: process.env.INTERNAL_SECRET || 'bidlive_secret'
+                        })
+                    });
+                    if (debitRes.ok) {
+                        await db.query('UPDATE pujas SET payment_status = ? WHERE id = ?', ['paid', id]);
+                        console.log(`[Auction] Auto-payment successful for winner ${winnerId} — payment_status set to 'paid'`);
+                    } else {
+                        const debitErr = await debitRes.text();
+                        console.warn(`[Auction] Auto-payment skipped: ${debitErr} — payment_status stays 'pending'`);
+                    }
+                } catch (payErr) {
+                    console.warn(`[Auction] Auto-payment skipped: ${payErr.message} — payment_status stays 'pending'`);
+                }
+
+                // Send win confirmation email to winner
                 try {
                     console.log(`[Auction] Looking up winner email for userId ${winnerId}`);
                     const userRows = await db.query('SELECT email, username FROM users WHERE id = ?', [winnerId]);
                     const winnerRow = Array.isArray(userRows) ? userRows[0] : null;
                     if (winnerRow && winnerRow.email) {
                         console.log(`[Auction] Winner email found: ${winnerRow.email} — sending win confirmation`);
-                        await sendAuctionWinEmail(winnerRow.email, puja.title, finalPrice || puja.current_price, id);
+                        await sendAuctionWinEmail(winnerRow.email, puja.title, finalPrice || puja.current_price, id, conversationId);
                         console.log(`[Auction] Email win confirmation sent to ${winnerRow.email} for winner ${winnerId}`);
                     } else {
                         console.warn(`[Auction] Winner ${winnerId} not found in DB or has no email — email not sent`);
@@ -500,3 +529,41 @@ const pujaController = {
 };
 
 module.exports = pujaController;
+
+// ── Auto-close job: runs every 30s, closes expired live auctions ─────────────
+const autoCloseExpiredAuctions = async () => {
+    try {
+        const [rows] = await db.query(
+            "SELECT id FROM pujas WHERE status = 'live' AND end_time <= NOW()"
+        );
+        const auctions = Array.isArray(rows) ? rows : (rows ? [rows] : []);
+        if (auctions.length === 0) return;
+
+        console.log(`[AutoClose] Found ${auctions.length} expired auction(s) to close`);
+        for (const row of auctions) {
+            try {
+                console.log(`[AutoClose] Closing auction ${row.id}`);
+                // Build a mock req/res to reuse endPuja logic
+                const mockReq = { params: { id: row.id }, body: {} };
+                const mockRes = {
+                    json: (data) => console.log(`[AutoClose] Auction ${row.id} closed:`, JSON.stringify(data)),
+                    status: (code) => ({ json: (data) => console.error(`[AutoClose] Error closing ${row.id} (${code}):`, JSON.stringify(data)) })
+                };
+                await pujaController.endPuja(mockReq, mockRes);
+            } catch (err) {
+                console.error(`[AutoClose] Failed to close auction ${row.id}:`, err.message);
+            }
+        }
+    } catch (err) {
+        console.error('[AutoClose] Job error:', err.message);
+    }
+};
+
+// Start the auto-close job after a short delay to allow DB initialization
+setTimeout(() => {
+    console.log('[AutoClose] Starting auto-close job (every 30s)');
+    autoCloseExpiredAuctions(); // Run immediately
+    setInterval(autoCloseExpiredAuctions, 30_000);
+}, 5000);
+
+module.exports.autoCloseExpiredAuctions = autoCloseExpiredAuctions;

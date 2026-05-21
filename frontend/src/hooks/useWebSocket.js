@@ -144,6 +144,13 @@ export const useWebSocket = (auctionId, username, role = 'viewer', userId = null
                         // Server acknowledged our ping — connection alive
                         break;
 
+                    case 'PING':
+                        // Server-initiated heartbeat — respond with PONG
+                        if (socket.readyState === WebSocket.OPEN) {
+                            socket.send(JSON.stringify({ type: 'PONG' }));
+                        }
+                        break;
+
                     default:
                         break;
                 }

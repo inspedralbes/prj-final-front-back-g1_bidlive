@@ -30,7 +30,7 @@ db.query(`
     console.error('[BiddingDB] Failed to create live_messages table:', err.message);
 });
 
-// { auctionId: { seller: ws|null, viewers: Map<sessionId, ws>, mutedUsers: Map<username, expireTimeMs> } }
+// { auctionId: { seller: ws|null, viewers: Map<sessionId, ws>, mutedUsers: Map<username, expireTimeMs>, ended: bool, winnerId, winnerUsername, finalPrice, conversationId } }
 const rooms = new Map();
 // { userId: Set<ws> }  -- A user can have multiple sockets open
 const userSockets = new Map();
@@ -38,6 +38,21 @@ const userSockets = new Map();
 const sendJson = (ws, data) => {
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
 };
+
+// ── Heartbeat: prevent idle disconnects from Nginx/proxy timeouts ──────────
+// Every 30s ping all sockets. Close any that don't respond (isAlive = false).
+const heartbeatInterval = setInterval(() => {
+    wss.clients.forEach(ws => {
+        if (ws.isAlive === false) {
+            console.log(`[Heartbeat] Terminating unresponsive socket ${ws.sessionId || '?'}`);
+            return ws.terminate();
+        }
+        ws.isAlive = false;
+        sendJson(ws, { type: 'PING' });
+    });
+}, 30_000);
+
+wss.on('close', () => clearInterval(heartbeatInterval));
 
 const broadcastViewerCount = (room) => {
     const count = room.viewers.size;
@@ -101,6 +116,8 @@ const isUserMuted = (room, username, ws) => {
 
 wss.on("connection", (ws) => {
     ws.sessionId = randomUUID();
+    ws.isAlive = true; // heartbeat: mark alive on connect
+    ws.on('pong', () => { ws.isAlive = true; }); // native pong also marks alive
     sendJson(ws, { type: "SESSION_INIT", payload: { sessionId: ws.sessionId, serverTime: new Date().toISOString() } });
 
     ws.on("message", async (raw) => {
@@ -125,8 +142,24 @@ wss.on("connection", (ws) => {
                     ws.userId = userId;
                     ws.role = role === "seller" ? "seller" : "viewer";
 
-                    if (!rooms.has(auctionId)) rooms.set(auctionId, { seller: null, viewers: new Map(), mutedUsers: new Map() });
+                    if (!rooms.has(auctionId)) rooms.set(auctionId, { seller: null, viewers: new Map(), mutedUsers: new Map(), ended: false });
                     const room = rooms.get(auctionId);
+
+                    // If the auction already ended, immediately notify the reconnecting client
+                    if (room.ended) {
+                        console.log(`[Room ${auctionId}] Viewer [${ws.sessionId}] joined ended auction — sending AUCTION_ENDED`);
+                        sendJson(ws, {
+                            type: 'AUCTION_ENDED',
+                            payload: {
+                                auctionId,
+                                winnerId: room.winnerId,
+                                winnerUsername: room.winnerUsername,
+                                finalPrice: room.finalPrice,
+                                conversationId: room.conversationId,
+                            }
+                        });
+                        break; // Don't add to active viewers
+                    }
 
                     if (ws.role === "seller") {
                         room.seller = ws;
@@ -428,19 +461,86 @@ wss.on("connection", (ws) => {
                     break;
                 }
 
-                // Seller ends auction → broadcast AUCTION_ENDED to all
+                // Seller ends auction → fetch winner + chat conversationId → broadcast AUCTION_ENDED
                 case "END_AUCTION": {
                     const room = rooms.get(ws.auctionId);
                     if (!room || ws.role !== "seller") break;
-                    console.log(`[Room ${ws.auctionId}] END_AUCTION → broadcasting AUCTION_ENDED`);
-                    const endMsg = { type: "AUCTION_ENDED", payload: { auctionId: ws.auctionId, ...payload } };
+                    console.log(`[Room ${ws.auctionId}] END_AUCTION → fetching winner data + chat conversationId`);
+
+                    let winnerId = null, winnerUsername = null, finalPrice = null, conversationId = null;
+                    try {
+                        const AUCTION_SERVICE_URL = process.env.AUCTION_SERVICE_URL || 'http://auction-service:3001';
+                        const auctionRes = await fetch(`${AUCTION_SERVICE_URL}/pujas/${ws.auctionId}`);
+                        if (auctionRes.ok) {
+                            const auctionData = await auctionRes.json();
+                            winnerId = auctionData.last_bidder_id || null;
+                            finalPrice = auctionData.current_price || auctionData.starting_price || 0;
+                            winnerUsername = auctionData.winner_username || null;
+                            // Fallback: fetch winner username from auth-service
+                            if (winnerId && !winnerUsername) {
+                                try {
+                                    const AUTH_URL = process.env.AUTH_SERVICE_URL || 'http://auth-service:3000';
+                                    const INTERNAL_SECRET = process.env.INTERNAL_SECRET || 'bidlive_secret';
+                                    const profileRes = await fetch(`${AUTH_URL}/profile/${winnerId}?secret=${INTERNAL_SECRET}`);
+                                    if (profileRes.ok) {
+                                        const profileData = await profileRes.json();
+                                        winnerUsername = profileData.username || null;
+                                    }
+                                } catch (profileErr) {
+                                    console.error(`[Room ${ws.auctionId}] Failed to fetch winner profile:`, profileErr.message);
+                                }
+                            }
+                        }
+                    } catch (fetchErr) {
+                        console.error(`[Room ${ws.auctionId}] Failed to fetch auction data for END_AUCTION:`, fetchErr.message);
+                    }
+
+                    // Create/retrieve chat conversation and get conversationId
+                    if (winnerId && ws.userId) {
+                        try {
+                            const CHAT_URL = process.env.CHAT_SERVICE_URL || 'http://chat-service:3004';
+                            const INTERNAL_SECRET = process.env.INTERNAL_SECRET || 'bidlive_secret';
+                            const chatRes = await fetch(`${CHAT_URL}/internal/system-message`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    secret: INTERNAL_SECRET,
+                                    winnerId,
+                                    sellerId: ws.userId,
+                                    content: `🏆 ¡Subasta finalizada! Has ganado este artículo por ${finalPrice}€.`,
+                                })
+                            });
+                            if (chatRes.ok) {
+                                const chatData = await chatRes.json();
+                                conversationId = chatData.conversationId || null;
+                                console.log(`[Room ${ws.auctionId}] Chat conversation: ${conversationId}`);
+                            }
+                        } catch (chatErr) {
+                            console.error(`[Room ${ws.auctionId}] Failed to create chat conversation:`, chatErr.message);
+                        }
+                    }
+
+                    // Persist ended state in room for viewers who reconnect later
+                    room.ended = true;
+                    room.winnerId = winnerId;
+                    room.winnerUsername = winnerUsername;
+                    room.finalPrice = finalPrice;
+                    room.conversationId = conversationId;
+
+                    console.log(`[Room ${ws.auctionId}] AUCTION_ENDED → winnerId=${winnerId}, winnerUsername=${winnerUsername}, finalPrice=${finalPrice}, conversationId=${conversationId}`);
+                    const endMsg = {
+                        type: "AUCTION_ENDED",
+                        payload: { auctionId: ws.auctionId, winnerId, winnerUsername, finalPrice, conversationId, ...payload }
+                    };
                     if (room.seller) sendJson(room.seller, endMsg);
                     room.viewers.forEach(v => sendJson(v, endMsg));
                     break;
                 }
 
                 case "PING":
+                    // Application-level PONG (for clients that send PING themselves)
                     sendJson(ws, { type: "PONG" });
+                    ws.isAlive = true; // also mark alive on app-level ping
                     break;
 
                 default:

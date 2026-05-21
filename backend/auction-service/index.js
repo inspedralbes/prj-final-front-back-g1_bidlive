@@ -148,6 +148,22 @@ app.get('/payments/:userId', authMiddleware, pujaController.getPayments);
 app.post('/pujas/:id/pay', authMiddleware, pujaController.processPayment);
 app.post('/pujas/:id/mark-paid', pujaController.markPaid);
 
+// Internal email endpoint (called by other services that don't have nodemailer)
+app.post('/internal/send-welcome-email', async (req, res) => {
+    const { email, username, secret } = req.body;
+    if (secret !== (process.env.INTERNAL_SECRET || 'bidlive_secret')) {
+        return res.status(403).json({ message: 'Forbidden' });
+    }
+    try {
+        const { sendWelcomeEmail } = require('./services/emailService');
+        await sendWelcomeEmail(email, username);
+        res.json({ success: true });
+    } catch (err) {
+        console.error('[AuctionService] Failed to send welcome email:', err.message);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 
 // Global Error Handler
 app.use((err, req, res, next) => {

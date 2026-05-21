@@ -129,9 +129,9 @@ app.post('/internal/system-message', async (req, res) => {
         io.to(`user_${winnerId}`).to(`user_${sellerId}`).emit('new_message', message);
         
         // Global notification for winner
-        await notifyUserGlobal(winnerId, 'Auction Winner!', content, `/messages/${conversation.id}`);
+        await notifyUserGlobal(winnerId, '¡Has ganado la subasta! 🏆', content.split('\n')[0] || content, `/messages/${conversation.id}`);
 
-        res.json({ success: true, message });
+        res.json({ success: true, message, conversationId: conversation.id });
     } catch (error) {
         console.error('System message error:', error);
         res.status(500).json({ message: 'Internal error' });

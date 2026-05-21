@@ -7,6 +7,17 @@ const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || "YOUR_GOOGLE_CLI
 
 const JWT_SECRET = process.env.JWT_SECRET || "your_jwt_secret_key";
 
+// Fire-and-forget welcome email via auction-service (which has nodemailer)
+const sendWelcomeEmailAsync = (email, username) => {
+    const AUCTION_URL = process.env.AUCTION_SERVICE_URL || 'http://auction-service:3001';
+    const INTERNAL_SECRET = process.env.INTERNAL_SECRET || 'bidlive_secret';
+    fetch(`${AUCTION_URL}/internal/send-welcome-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, username, secret: INTERNAL_SECRET })
+    }).catch(err => console.error('[Auth] Welcome email request failed:', err.message));
+};
+
 const authController = {
   register: async (req, res) => {
     try {
@@ -22,6 +33,10 @@ const authController = {
       }
 
       await User.create(username, email, password);
+
+      // Fire-and-forget: send welcome email without blocking the response
+      sendWelcomeEmailAsync(email, username);
+
       res.status(201).json({ message: "User registered successfully" });
     } catch (error) {
       console.error("Registration error:", error);
@@ -96,6 +111,8 @@ const authController = {
         const randomPassword = require('crypto').randomBytes(16).toString('hex');
         await User.create(username, email, randomPassword);
         user = await User.findByEmail(email);
+        // Fire-and-forget: send welcome email to new Google users
+        sendWelcomeEmailAsync(email, username);
       }
 
       // Generate app JWT token
