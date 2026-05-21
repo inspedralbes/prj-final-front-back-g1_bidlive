@@ -192,8 +192,13 @@ export default function SellerLiveVideo() {
   const [auctionStreamImageUrl, setAuctionStreamImageUrl] = React.useState(null);
   const [auctionTitle, setAuctionTitle] = React.useState('');
   const [auctionDescription, setAuctionDescription] = React.useState('');
+  const [endTime, setEndTime] = React.useState(null);
+  const [timeLeft, setTimeLeft] = React.useState(null);
+  const [currentBid, setCurrentBid] = React.useState(0);
+  const [currentBidder, setCurrentBidder] = React.useState('');
+  const [isDeclaring, setIsDeclaring] = React.useState(false);
 
-  // Fetch auction data on mount to read mode and image_url
+  // Fetch auction data on mount
   React.useEffect(() => {
     fetch(`${API_URL}/auction/pujas/${id}`, {
       headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
@@ -205,9 +210,29 @@ export default function SellerLiveVideo() {
         setAuctionStreamImageUrl(data.stream_image_url || null);
         setAuctionTitle(data.title || '');
         setAuctionDescription(data.description || '');
+        if (data.end_time) setEndTime(new Date(data.end_time));
+        setCurrentBid(Number(data.current_price) || Number(data.starting_price) || 0);
       })
       .catch(err => console.error('[Seller] Failed to fetch auction data:', err.message));
   }, [id]);
+
+  // Countdown timer
+  React.useEffect(() => {
+    if (!endTime) return;
+    const tick = () => {
+      const diff = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+      setTimeLeft(diff);
+    };
+    tick();
+    const iv = setInterval(tick, 1000);
+    return () => clearInterval(iv);
+  }, [endTime]);
+
+  // Update end_time when NEW_END_TIME arrives via WS
+  React.useEffect(() => {
+    const last = [...messages].reverse().find(m => m.type === 'NEW_END_TIME');
+    if (last?.payload?.endTime) setEndTime(new Date(last.payload.endTime));
+  }, [messages]);
 
   // ── Create (or reuse) one RTCPeerConnection per viewer ──────────────────
   const createPcForViewer = useCallback((viewerSessionId) => {
@@ -352,11 +377,45 @@ export default function SellerLiveVideo() {
     };
   }, []);
 
-  // Latest bid from WS messages
-  const latestBid = messages
+  // Latest bid: merge DB value with live WS messages
+  const wsLatestBid = messages
     .filter(m => m.type === 'BID_PLACED')
     .reduce((acc, m) => Math.max(acc, Number(m.payload?.amount) || 0), 0);
-  const latestBidder = [...messages].reverse().find(m => m.type === 'BID_PLACED')?.payload?.username;
+  const latestBid = Math.max(currentBid, wsLatestBid);
+  const wsLatestBidder = [...messages].reverse().find(m => m.type === 'BID_PLACED')?.payload?.username;
+  const latestBidder = wsLatestBidder || currentBidder;
+
+  // Declare winner handler
+  const declareWinner = async () => {
+    if (!latestBid || !window.confirm('\u00bfSeguro que quieres cerrar la subasta y dar el premio al ganador?')) return;
+    setIsDeclaring(true);
+    try {
+      const res = await fetch(`${API_URL}/auction/pujas/${id}/end`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        sendSignal('END_AUCTION', { finalPrice: latestBid, winner: latestBidder });
+        setIsEnding(true);
+        streamRef.current?.getTracks().forEach(t => t.stop());
+        setTimeout(() => navigate('/seller'), 2000);
+      } else {
+        alert('Error al cerrar la subasta');
+      }
+    } catch (e) {
+      alert('Error de red');
+    } finally {
+      setIsDeclaring(false);
+    }
+  };
+
+  const formatTime = (secs) => {
+    if (secs === null) return '--:--';
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+  const timerUrgent = timeLeft !== null && timeLeft <= 60;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
@@ -397,25 +456,38 @@ export default function SellerLiveVideo() {
         <div className="flex flex-col h-full overflow-hidden" style={{ borderLeft: '1px solid var(--border)' }}>
           {/* Stats panel */}
           <div className="shrink-0 p-4" style={{ borderBottom: '1px solid var(--border)' }}>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-3 mb-3">
               <div>
                 <p className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold mb-1">Viewers</p>
                 <p className="text-white font-black text-2xl">{viewerCount}</p>
               </div>
               <div>
-                <p className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold mb-1">Current bid</p>
+                <p className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold mb-1">Puja actual</p>
                 <p className="text-amber-400 font-black text-2xl">{latestBid.toLocaleString()}€</p>
-                {latestBidder && <p className="text-gray-600 text-[10px] mt-0.5">by {latestBidder}</p>}
+                {latestBidder && <p className="text-gray-500 text-[10px] mt-0.5 truncate">por {latestBidder}</p>}
               </div>
               <div>
-                <p className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold mb-1">Status</p>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <div className="w-2 h-2 rounded-full"
-                    style={{ background: status === 'connected' ? '#22c55e' : '#6b7280', boxShadow: status === 'connected' ? '0 0 8px #22c55e' : 'none' }} />
-                  <span className="text-white font-semibold text-sm capitalize">{status}</span>
-                </div>
+                <p className="text-gray-500 text-[10px] uppercase tracking-wider font-semibold mb-1">Tiempo</p>
+                <p className="font-black text-2xl" style={{ color: timerUrgent ? '#ef4444' : '#ffffff', textShadow: timerUrgent ? '0 0 12px #ef444480' : 'none' }}>
+                  {formatTime(timeLeft)}
+                </p>
               </div>
             </div>
+
+            {/* Declare winner button */}
+            <button
+              onClick={declareWinner}
+              disabled={isDeclaring || !isStreaming}
+              className="w-full py-2.5 rounded-xl font-black text-sm transition-all"
+              style={{
+                background: isDeclaring || !isStreaming ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, #f59e0b, #d97706)',
+                color: isDeclaring || !isStreaming ? '#6b7280' : '#08080f',
+                cursor: isDeclaring || !isStreaming ? 'not-allowed' : 'pointer',
+                border: '1px solid rgba(245,158,11,0.3)',
+              }}
+            >
+              {isDeclaring ? 'Cerrando...' : latestBid ? `🏆 Dar Ganador (${latestBid}€)` : '⏹ Cerrar sin ganador'}
+            </button>
           </div>
 
           {/* Chat */}
