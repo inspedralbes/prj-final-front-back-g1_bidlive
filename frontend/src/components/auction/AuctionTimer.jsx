@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export default function AuctionTimer({ endTime }) {
+export default function AuctionTimer({ endTime, serverTimeOffset = 0 }) {
     const [timeLeft, setTimeLeft] = useState('');
     const [isLow, setIsLow] = useState(false);
 
@@ -8,7 +8,8 @@ export default function AuctionTimer({ endTime }) {
         if (!endTime) return;
 
         const timer = setInterval(() => {
-            const now = new Date().getTime();
+            const localNow = new Date().getTime();
+            const now = localNow - serverTimeOffset;
             const end = new Date(endTime).getTime();
             const diff = end - now;
 
@@ -34,7 +35,7 @@ export default function AuctionTimer({ endTime }) {
         }, 1000);
 
         return () => clearInterval(timer);
-    }, [endTime]);
+    }, [endTime, serverTimeOffset]);
 
     return (
         <div className="flex flex-col">

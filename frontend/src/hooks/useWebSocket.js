@@ -29,6 +29,7 @@ export const useWebSocket = (auctionId, username, role = 'viewer', userId = null
     const [viewerCount, setViewerCount] = useState(0);
     const [auctionEnded, setAuctionEnded] = useState(false);
     const [endData, setEndData] = useState(null);
+    const [serverTimeOffset, setServerTimeOffset] = useState(0);
 
     const ws = useRef(null);
     const pingIntervalRef = useRef(null);
@@ -77,6 +78,9 @@ export const useWebSocket = (auctionId, username, role = 'viewer', userId = null
                     // ── Application-level messages handled by the hook ──────────
                     case 'SESSION_INIT':
                         setSessionId(data.payload?.sessionId ?? null);
+                        if (data.payload?.serverTime) {
+                            setServerTimeOffset(Date.now() - new Date(data.payload.serverTime).getTime());
+                        }
                         break;
 
                     case 'CHAT_MESSAGE':
@@ -198,5 +202,6 @@ export const useWebSocket = (auctionId, username, role = 'viewer', userId = null
         deleteMessage,
         muteUser,
         ws,
+        serverTimeOffset,
     };
 };

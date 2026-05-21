@@ -173,20 +173,32 @@ const Puja = {
         try {
             await beginTransaction();
             
-            // 1. Get current last_bidder_id and current_price
-            const rows = await query('SELECT last_bidder_id, current_price FROM pujas WHERE id = ? FOR UPDATE', [id]);
+            // 1. Get current last_bidder_id, current_price, and remaining time
+            const rows = await query('SELECT last_bidder_id, current_price, end_time, TIMESTAMPDIFF(SECOND, NOW(), end_time) as time_left FROM pujas WHERE id = ? FOR UPDATE', [id]);
             const puja = rows[0];
             
             if (!puja) throw new Error('Puja not found');
             if (amount <= puja.current_price) throw new Error('Bid must be higher than current price');
 
             const previousBidderId = puja.last_bidder_id;
+            let extended = false;
+            let newEndTime = puja.end_time;
 
-            // 2. Update with new bid
-            await query('UPDATE pujas SET current_price = ?, last_bidder_id = ? WHERE id = ?', [amount, bidderId, id]);
+            // 2. Check anti-sniping (<= 30 seconds left)
+            if (puja.time_left !== null && puja.time_left <= 30 && puja.time_left > 0) {
+                await query('UPDATE pujas SET current_price = ?, last_bidder_id = ?, end_time = DATE_ADD(end_time, INTERVAL 30 SECOND) WHERE id = ?', [amount, bidderId, id]);
+                
+                // Fetch the exact new end_time from DB
+                const updatedRows = await query('SELECT end_time FROM pujas WHERE id = ?', [id]);
+                newEndTime = updatedRows[0].end_time;
+                extended = true;
+            } else {
+                // Normal update
+                await query('UPDATE pujas SET current_price = ?, last_bidder_id = ? WHERE id = ?', [amount, bidderId, id]);
+            }
 
             await commit();
-            return { success: true, previousBidderId };
+            return { success: true, previousBidderId, extended, newEndTime };
         } catch (error) {
             await rollback();
             throw error;

@@ -101,7 +101,7 @@ const isUserMuted = (room, username, ws) => {
 
 wss.on("connection", (ws) => {
     ws.sessionId = randomUUID();
-    sendJson(ws, { type: "SESSION_INIT", payload: { sessionId: ws.sessionId } });
+    sendJson(ws, { type: "SESSION_INIT", payload: { sessionId: ws.sessionId, serverTime: new Date().toISOString() } });
 
     ws.on("message", async (raw) => {
         try {
@@ -169,7 +169,7 @@ wss.on("connection", (ws) => {
                         if (auctionRes.ok) {
                             const auctionData = await auctionRes.json();
                             if (auctionData.end_time) {
-                                sendJson(ws, { type: 'NEW_END_TIME', payload: { endTime: auctionData.end_time } });
+                                sendJson(ws, { type: 'NEW_END_TIME', payload: { endTime: auctionData.end_time, serverTime: new Date().toISOString() } });
                                 console.log(`[Room ${auctionId}] Sent end_time ${auctionData.end_time} to [${ws.sessionId}]`);
                             }
                         }

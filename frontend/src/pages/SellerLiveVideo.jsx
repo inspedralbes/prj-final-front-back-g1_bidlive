@@ -177,7 +177,7 @@ export default function SellerLiveVideo() {
   const username = user?.username || user?.email || 'Anonymous';
 
   // One shared WS connection for the seller
-  const { status, messages, viewerCount, sendMessage, sendSignal, setSignalHandler } =
+  const { status, messages, viewerCount, sendMessage, sendSignal, setSignalHandler, serverTimeOffset } =
     useWebSocket(id, username, 'seller', user?.id);
 
   const localRef = useRef(null);
@@ -219,13 +219,14 @@ export default function SellerLiveVideo() {
   React.useEffect(() => {
     if (!endTime) return;
     const tick = () => {
-      const diff = Math.max(0, Math.floor((endTime - Date.now()) / 1000));
+      const serverNow = Date.now() - serverTimeOffset;
+      const diff = Math.max(0, Math.floor((endTime - serverNow) / 1000));
       setTimeLeft(diff);
     };
     tick();
     const iv = setInterval(tick, 1000);
     return () => clearInterval(iv);
-  }, [endTime]);
+  }, [endTime, serverTimeOffset]);
 
   // Update end_time when NEW_END_TIME arrives via WS (join sync + anti-snipe extension)
   React.useEffect(() => {

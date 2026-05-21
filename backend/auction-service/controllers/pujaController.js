@@ -446,7 +446,28 @@ const pujaController = {
             }
 
             const result = await Puja.updateBid(id, bidderId, amount);
-            res.json({ success: true, previousBidderId: result.previousBidderId });
+            
+            // If anti-sniping extended the auction, broadcast to everyone
+            if (result.extended) {
+                try {
+                    const BIDDING_SERVICE_URL = process.env.BIDDING_SERVICE_URL || 'http://bidding-service:3002';
+                    await fetch(`${BIDDING_SERVICE_URL}/broadcast`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            auctionId: id.toString(),
+                            type: 'NEW_END_TIME',
+                            payload: { endTime: result.newEndTime },
+                            secret
+                        })
+                    });
+                    console.log(`[Auction] Puja ${id} anti-sniped. New end time broadcasted: ${result.newEndTime}`);
+                } catch (bErr) {
+                    console.error('[Auction] Failed to broadcast anti-snipe extension:', bErr.message);
+                }
+            }
+
+            res.json({ success: true, previousBidderId: result.previousBidderId, extended: result.extended, newEndTime: result.newEndTime });
         } catch (error) {
             console.error('Error recording bid:', error);
             res.status(500).json({ message: 'Internal server error' });

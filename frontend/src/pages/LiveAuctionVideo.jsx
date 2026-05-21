@@ -357,6 +357,7 @@ export default function LiveAuctionVideo() {
                             status={latestBid > 0 ? (isWinning ? 'winning' : 'outbid') : 'none'}
                             balance={balance}
                             endTime={endTime}
+                            serverTimeOffset={wsHook.serverTimeOffset}
                         />
                     </div>
 
