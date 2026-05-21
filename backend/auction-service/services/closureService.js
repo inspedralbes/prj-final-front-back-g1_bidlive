@@ -131,14 +131,23 @@ const checkExpiredAuctions = async () => {
             try {
                 const BIDDING_SERVICE_URL = process.env.BIDDING_SERVICE_URL || 'http://bidding-service:3002';
                 const INTERNAL_SECRET = process.env.INTERNAL_SECRET || 'bidlive_secret';
-                
+
+                // Fetch winner username if there is a winner
+                let winnerUsername = null;
+                if (winnerId) {
+                    try {
+                        const [userRows] = await db.query('SELECT username FROM users WHERE id = ?', [winnerId]);
+                        winnerUsername = userRows[0]?.username || null;
+                    } catch (_) {}
+                }
+
                 await fetch(`${BIDDING_SERVICE_URL}/broadcast`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         auctionId: auction.id.toString(),
                         type: 'AUCTION_ENDED',
-                        payload: { winnerId, finalPrice, auctionId: auction.id },
+                        payload: { winnerId, winnerUsername, finalPrice, auctionId: auction.id },
                         secret: INTERNAL_SECRET
                     })
                 });

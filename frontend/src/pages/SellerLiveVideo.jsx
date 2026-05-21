@@ -367,7 +367,29 @@ export default function SellerLiveVideo() {
     }
   };
 
-  // ── Seller ends auction manually is REMOVED ──────────────────────────────
+  // ── Declare winner and close stream ────────────────────────────────────────
+  const declareWinner = async () => {
+    if (!window.confirm('\u00bfSeguro que quieres cerrar la subasta y dar el premio al ganador?')) return;
+    setIsDeclaring(true);
+    try {
+      const res = await fetch(`${API_URL}/auction/pujas/${id}/end`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        sendSignal('END_AUCTION', { finalPrice: latestBid, winnerUsername: latestBidder });
+        setIsEnding(true);
+        streamRef.current?.getTracks().forEach(t => t.stop());
+        setTimeout(() => navigate('/seller'), 2000);
+      } else {
+        alert('Error al cerrar la subasta');
+      }
+    } catch (e) {
+      alert('Error de red');
+    } finally {
+      setIsDeclaring(false);
+    }
+  };
 
   // ── Cleanup on unmount ───────────────────────────────────────────────────
   useEffect(() => {

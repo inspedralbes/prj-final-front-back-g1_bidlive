@@ -180,120 +180,87 @@ export default function LiveAuctionVideo() {
         >
             {/* ── Auction Ended Popup ──────────────────────────────────────── */}
             {showEndedPopup && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center font-inter"
-                    style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(16px)' }}>
-                    <div
-                        className="flex flex-col items-center gap-6 rounded-3xl p-10 text-center max-w-sm w-full mx-4 animate-scale-in"
+                <div className="absolute inset-0 z-50 flex items-center justify-center"
+                    style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(20px)' }}>
+
+                    {/* Ambient glow */}
+                    {endData?.winnerId && (
+                        <div style={{ position: 'absolute', top: '20%', left: '50%', transform: 'translateX(-50%)', width: '600px', height: '400px', background: 'radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
+                    )}
+
+                    <div className="flex flex-col items-center gap-6 rounded-3xl p-10 text-center max-w-md w-full mx-4 relative"
                         style={{
-                            background: 'var(--bg-card)',
-                            border: '1px solid var(--border)',
-                            boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(245,158,11,0.25)',
+                            boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 60px rgba(245,158,11,0.08)',
+                            backdropFilter: 'blur(24px)',
                         }}
                     >
-                        {isFinalWinner ? (
+                        {endData?.winnerId ? (
                             <>
-                                {/* Winner Icon */}
-                                <div className="w-20 h-20 rounded-full flex items-center justify-center mb-2"
-                                    style={{ background: 'rgba(245,158,11,0.15)', border: '2px solid rgba(245,158,11,0.4)', boxShadow: '0 0 20px rgba(245,158,11,0.2)' }}>
-                                    <span className="material-symbols-outlined text-amber-400" style={{ fontSize: '40px', fontVariationSettings: "'FILL' 1" }}>trophy</span>
+                                {/* Trophy */}
+                                <div style={{ width: '96px', height: '96px', borderRadius: '50%', background: 'rgba(245,158,11,0.12)', border: '2px solid rgba(245,158,11,0.4)', boxShadow: '0 0 40px rgba(245,158,11,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>
+                                    🏆
                                 </div>
+
+                                {/* Title */}
                                 <div>
-                                    <h2 className="text-white font-black text-3xl mb-1">¡HAS GANADO!</h2>
-                                    <p className="text-amber-400 font-bold text-lg mb-4">{endData?.finalPrice}€</p>
+                                    <p className="text-amber-400 font-bold text-sm uppercase tracking-widest mb-2">Subasta Finalizada</p>
+                                    <h2 className="text-white font-black text-4xl mb-1" style={{ letterSpacing: '-0.5px' }}>
+                                        {isFinalWinner ? '¡Has Ganado!' : '¡Tenemos Ganador!'}
+                                    </h2>
+                                    {/* Winner name — shown to everyone */}
+                                    <div className="mt-4 px-6 py-3 rounded-2xl" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                                        <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Ganador</p>
+                                        <p className="text-amber-400 font-black text-2xl">{endData?.winnerUsername || 'Usuario'}</p>
+                                        <p className="text-white font-bold text-lg mt-1">{endData?.finalPrice}€</p>
+                                    </div>
                                 </div>
-                                
-                                {!paymentMethod ? (
-                                    <div className="flex flex-col gap-3 w-full">
-                                        <p className="text-gray-400 text-xs uppercase font-bold tracking-widest mb-1">Selecciona método de pago</p>
-                                        <button 
-                                            onClick={() => setPaymentMethod('wallet')}
-                                            className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all w-full group text-left"
+
+                                {/* Buttons */}
+                                <div className="flex flex-col gap-3 w-full">
+                                    {isFinalWinner && (
+                                        <button
+                                            onClick={() => {
+                                                // Navigate to chat with seller
+                                                const token = localStorage.getItem('token');
+                                                fetch(`${API_URL}/chat/conversations`, {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                                                    body: JSON.stringify({ participantId: auctionData?.seller_id })
+                                                }).then(r => r.json()).then(data => {
+                                                    navigate(`/messages/${data.id}`);
+                                                }).catch(() => navigate('/messages'));
+                                            }}
+                                            className="w-full py-4 rounded-2xl font-black text-base flex items-center justify-center gap-2"
+                                            style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#08080f', boxShadow: '0 8px 24px rgba(245,158,11,0.3)' }}
                                         >
-                                            <div className="w-10 h-10 rounded-xl bg-amber-500/20 flex items-center justify-center text-amber-500 group-hover:bg-amber-500 group-hover:text-black transition-all">
-                                                <span className="material-symbols-outlined">account_balance_wallet</span>
-                                            </div>
-                                            <div>
-                                                <p className="text-white font-bold text-sm">Mi Billetera</p>
-                                                <p className="text-gray-500 text-[10px]">Pagar con saldo interno</p>
-                                            </div>
+                                            <span className="material-symbols-outlined">forum</span>
+                                            Contactar con vendedor
                                         </button>
-                                        <button 
-                                            onClick={() => handlePayment('stripe')}
-                                            className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all w-full group text-left"
-                                        >
-                                            <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center text-indigo-500 group-hover:bg-indigo-500 group-hover:text-white transition-all">
-                                                <span className="material-symbols-outlined">credit_card</span>
-                                            </div>
-                                            <div>
-                                                <p className="text-white font-bold text-sm">Tarjeta bancaria</p>
-                                                <p className="text-gray-500 text-[10px]">Pago seguro vía Stripe</p>
-                                            </div>
-                                        </button>
-                                        <button onClick={() => navigate('/profile')} className="btn-ghost py-3 w-full text-xs mt-2">
-                                            Pagar más tarde
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="flex flex-col gap-4 w-full animate-fade-in">
-                                        <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20 text-center">
-                                            <p className="text-gray-400 text-xs mb-1">Confirmar pago desde</p>
-                                            <p className="text-white font-bold">Mi Billetera</p>
-                                        </div>
-                                        <button 
-                                            onClick={() => handlePayment('wallet')}
-                                            disabled={paying}
-                                            className="btn-primary py-3.5 w-full flex items-center justify-center gap-2"
-                                        >
-                                            {paying ? <div className="loading-spinner w-4 h-4 border-2" /> : (
-                                                <>
-                                                    <span className="material-symbols-outlined text-sm">payments</span>
-                                                    Confirmar Pago
-                                                </>
-                                            )}
-                                        </button>
-                                        <button onClick={() => setPaymentMethod(null)} disabled={paying} className="text-gray-500 text-xs font-bold hover:text-white transition-colors">
-                                            Cambiar método
-                                        </button>
-                                    </div>
-                                )}
+                                    )}
+                                    <button
+                                        onClick={() => navigate('/explore')}
+                                        className="w-full py-3.5 rounded-2xl font-bold text-sm"
+                                        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#ffffff' }}
+                                    >
+                                        Volver a las salas
+                                    </button>
+                                </div>
                             </>
-                        ) : !hasWinner ? (
-                            <div className="text-center p-8">
-                                <div className="w-20 h-20 bg-gray-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                                    <span className="material-symbols-outlined text-gray-400 text-4xl">timer_off</span>
-                                </div>
-                                <h2 className="text-white font-black text-2xl mb-2 text-red-400">Subasta Desierta</h2>
-                                <p className="text-gray-400 text-sm leading-relaxed mb-6">
-                                    El tiempo ha finalizado sin recibir ninguna puja.<br />
-                                    La subasta se ha cerrado sin ganador.
-                                </p>
-                                <button onClick={() => navigate('/')} className="btn-ghost w-full py-3">
-                                    Volver al inicio
-                                </button>
-                            </div>
                         ) : (
                             <>
-                                {/* Ended Icon */}
-                                <div className="w-16 h-16 rounded-full flex items-center justify-center"
-                                    style={{ background: 'rgba(259,68,68,0.12)', border: '1.5px solid rgba(239,68,68,0.25)' }}>
-                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="1.8" strokeLinecap="round">
-                                        <path d="M18.36 6.64A9 9 0 1 1 5.64 19.36" />
-                                        <line x1="18.36" y1="18.36" x2="5.64" y2="5.64" />
-                                    </svg>
+                                {/* No winner */}
+                                <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(107,114,128,0.15)', border: '1.5px solid rgba(107,114,128,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px' }}>
+                                    ⏱
                                 </div>
                                 <div>
-                                    <h2 className="text-white font-black text-2xl mb-2">Live Finalizado</h2>
-                                    <p className="text-gray-400 text-sm leading-relaxed">
-                                        El vendedor ha terminado la transmisión en directo.<br />
-                                        Gracias por participar.
-                                    </p>
+                                    <h2 className="text-white font-black text-3xl mb-2">Subasta Desierta</h2>
+                                    <p className="text-gray-400 text-sm leading-relaxed">El tiempo ha finalizado sin recibir ninguna puja.</p>
                                 </div>
-                                <div className="flex flex-col items-center gap-1">
-                                    <span className="text-4xl font-black text-amber-400">{countdown}</span>
-                                    <span className="text-gray-500 text-xs">Redirigiendo a inicio...</span>
-                                </div>
-                                <button onClick={() => navigate('/')} className="btn-primary w-full py-3">
-                                    Ir a inicio ahora
+                                <button onClick={() => navigate('/explore')} className="w-full py-3.5 rounded-2xl font-bold text-sm"
+                                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#ffffff' }}>
+                                    Volver a las salas
                                 </button>
                             </>
                         )}
