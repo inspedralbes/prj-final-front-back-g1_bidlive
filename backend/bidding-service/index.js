@@ -169,8 +169,9 @@ wss.on("connection", (ws) => {
                         if (auctionRes.ok) {
                             const auctionData = await auctionRes.json();
                             if (auctionData.end_time) {
-                                sendJson(ws, { type: 'NEW_END_TIME', payload: { endTime: auctionData.end_time, serverTime: new Date().toISOString() } });
-                                console.log(`[Room ${auctionId}] Sent end_time ${auctionData.end_time} to [${ws.sessionId}]`);
+                                const secondsLeft = Math.max(0, Math.floor((new Date(auctionData.end_time) - new Date()) / 1000));
+                                sendJson(ws, { type: 'NEW_END_TIME', payload: { endTime: auctionData.end_time, serverTime: new Date().toISOString(), secondsLeft } });
+                                console.log(`[Room ${auctionId}] Sent end_time ${auctionData.end_time} (${secondsLeft}s left) to [${ws.sessionId}]`);
                             }
                         }
                     } catch (etErr) {
@@ -332,8 +333,10 @@ wss.on("connection", (ws) => {
                                 if (room.seller) sendJson(room.seller, extMsg);
                                 room.viewers.forEach(v => sendJson(v, extMsg));
                                 
-                                // Broadcast NEW_END_TIME
-                                const timeMsg = { type: "NEW_END_TIME", payload: { endTime: extData.newEndTime, serverTime: new Date().toISOString() } };
+                                // Broadcast NEW_END_TIME with server-authoritative secondsLeft
+                                const newEndDate = new Date(extData.newEndTime);
+                                const secondsLeft = Math.max(0, Math.floor((newEndDate - new Date()) / 1000));
+                                const timeMsg = { type: "NEW_END_TIME", payload: { endTime: extData.newEndTime, serverTime: new Date().toISOString(), secondsLeft } };
                                 if (room.seller) sendJson(room.seller, timeMsg);
                                 room.viewers.forEach(v => sendJson(v, timeMsg));
                             }

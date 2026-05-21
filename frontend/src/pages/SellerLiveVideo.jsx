@@ -177,7 +177,7 @@ export default function SellerLiveVideo() {
   const username = user?.username || user?.email || 'Anonymous';
 
   // One shared WS connection for the seller
-  const { status, messages, viewerCount, sendMessage, sendSignal, setSignalHandler, serverTimeOffset, auctionEnded, endData } =
+  const { status, messages, viewerCount, sendMessage, sendSignal, setSignalHandler, serverTimeOffset, serverSecondsLeft, auctionEnded, endData } =
     useWebSocket(id, username, 'seller', user?.id);
 
   const localRef = useRef(null);
@@ -216,16 +216,29 @@ export default function SellerLiveVideo() {
       .catch(err => console.error('[Seller] Failed to fetch auction data:', err.message));
   }, [id]);
 
-  // Countdown timer
+  // ── Countdown timer (server-authoritative base) ───────────────────────────
+  // When serverSecondsLeft arrives via NEW_END_TIME, reset the base.
+  // The local interval counts down from that exact integer — same for ALL clients.
+  const timerBaseRef = React.useRef({ seconds: null, timestamp: null });
+
   React.useEffect(() => {
+    if (serverSecondsLeft === null || serverSecondsLeft === undefined) return;
+    timerBaseRef.current = { seconds: serverSecondsLeft, timestamp: Date.now() };
+    setTimeLeft(serverSecondsLeft);
+  }, [serverSecondsLeft]);
+
+  React.useEffect(() => {
+    // Also keep a fallback using endTime for the very first render before WS sync
     if (!endTime) return;
-    const tick = () => {
-      const serverNow = Date.now() - serverTimeOffset;
-      const diff = Math.max(0, Math.floor((endTime - serverNow) / 1000));
-      setTimeLeft(diff);
-    };
-    tick();
-    const iv = setInterval(tick, 1000);
+    const iv = setInterval(() => {
+      if (timerBaseRef.current.seconds !== null) {
+        const elapsed = Math.floor((Date.now() - timerBaseRef.current.timestamp) / 1000);
+        setTimeLeft(Math.max(0, timerBaseRef.current.seconds - elapsed));
+      } else {
+        const serverNow = Date.now() - serverTimeOffset;
+        setTimeLeft(Math.max(0, Math.floor((endTime - serverNow) / 1000)));
+      }
+    }, 1000);
     return () => clearInterval(iv);
   }, [endTime, serverTimeOffset]);
 

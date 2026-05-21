@@ -1,41 +1,70 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
-export default function AuctionTimer({ endTime, serverTimeOffset = 0 }) {
-    const [timeLeft, setTimeLeft] = useState('');
+/**
+ * AuctionTimer — displays the countdown to end_time.
+ *
+ * Uses serverSecondsLeft (authoritative integer from the server) as the
+ * starting point and counts down locally using setInterval.
+ * This guarantees ALL clients show the same value regardless of their
+ * local clock, timezone or network latency.
+ *
+ * Falls back to endTime + serverTimeOffset calculation if serverSecondsLeft
+ * is not available (e.g. auction started before this change).
+ */
+export default function AuctionTimer({ endTime, serverTimeOffset = 0, serverSecondsLeft = null }) {
+    const [timeLeft, setTimeLeft] = useState(null);
     const [isLow, setIsLow] = useState(false);
 
+    // Track the base provided by the server so we can restart the local
+    // countdown whenever a new authoritative value arrives.
+    const baseRef = useRef({ seconds: null, timestamp: null });
+
+    // When serverSecondsLeft changes (new NEW_END_TIME from server), reset base
     useEffect(() => {
-        if (!endTime) return;
+        if (serverSecondsLeft === null || serverSecondsLeft === undefined) return;
+        baseRef.current = { seconds: serverSecondsLeft, timestamp: Date.now() };
+        // Immediately update display
+        setTimeLeft(serverSecondsLeft);
+        setIsLow(serverSecondsLeft < 60);
+    }, [serverSecondsLeft]);
 
-        const timer = setInterval(() => {
-            const localNow = new Date().getTime();
-            const now = localNow - serverTimeOffset;
-            const end = new Date(endTime).getTime();
-            const diff = end - now;
+    // Local tick — counts down from the server-provided base using local elapsed time
+    useEffect(() => {
+        const tick = () => {
+            let remaining;
 
-            if (diff <= 0) {
-                setTimeLeft('¡FINALIZADO!');
-                setIsLow(false);
-                clearInterval(timer);
+            if (baseRef.current.seconds !== null) {
+                // Preferred path: count down from server-authoritative base
+                const elapsed = Math.floor((Date.now() - baseRef.current.timestamp) / 1000);
+                remaining = Math.max(0, baseRef.current.seconds - elapsed);
+            } else if (endTime) {
+                // Fallback: compute from endTime and serverTimeOffset
+                const serverNow = Date.now() - serverTimeOffset;
+                remaining = Math.max(0, Math.floor((new Date(endTime).getTime() - serverNow) / 1000));
+            } else {
                 return;
             }
 
-            const h = Math.floor(diff / (1000 * 60 * 60));
-            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const s = Math.floor((diff % (1000 * 60)) / 1000);
+            setTimeLeft(remaining);
+            setIsLow(remaining < 60);
+        };
 
-            setIsLow(diff < 60000); // Low time if < 1 minute
-
-            const parts = [];
-            if (h > 0) parts.push(`${h}h`);
-            if (m > 0 || h > 0) parts.push(`${m}m`);
-            parts.push(`${s}s`);
-
-            setTimeLeft(parts.join(' '));
-        }, 1000);
-
-        return () => clearInterval(timer);
+        tick();
+        const iv = setInterval(tick, 1000);
+        return () => clearInterval(iv);
     }, [endTime, serverTimeOffset]);
+
+    const format = (secs) => {
+        if (secs === null || secs === undefined) return '--:--';
+        const h = Math.floor(secs / 3600);
+        const m = Math.floor((secs % 3600) / 60);
+        const s = secs % 60;
+        const parts = [];
+        if (h > 0) parts.push(`${h}h`);
+        if (m > 0 || h > 0) parts.push(`${m}m`);
+        parts.push(`${s}s`);
+        return parts.join(' ');
+    };
 
     return (
         <div className="flex flex-col">
@@ -45,7 +74,7 @@ export default function AuctionTimer({ endTime, serverTimeOffset = 0 }) {
                     schedule
                 </span>
                 <span className={`text-xl font-black tabular-nums ${isLow ? 'text-red-500' : 'text-white'}`}>
-                    {timeLeft || '--:--'}
+                    {format(timeLeft)}
                 </span>
             </div>
         </div>

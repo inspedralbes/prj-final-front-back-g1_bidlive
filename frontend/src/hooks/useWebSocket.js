@@ -30,6 +30,7 @@ export const useWebSocket = (auctionId, username, role = 'viewer', userId = null
     const [auctionEnded, setAuctionEnded] = useState(false);
     const [endData, setEndData] = useState(null);
     const [serverTimeOffset, setServerTimeOffset] = useState(0);
+    const [serverSecondsLeft, setServerSecondsLeft] = useState(null);
 
     const ws = useRef(null);
     const pingIntervalRef = useRef(null);
@@ -92,9 +93,12 @@ export const useWebSocket = (auctionId, username, role = 'viewer', userId = null
 
                     case 'NEW_END_TIME':
                         // Re-sync serverTimeOffset using the server timestamp included in this message.
-                        // This fixes timer drift for viewers who join mid-stream or connect late.
                         if (data.payload?.serverTime) {
                             setServerTimeOffset(Date.now() - new Date(data.payload.serverTime).getTime());
+                        }
+                        // Set the authoritative secondsLeft from server — all clients get the same integer
+                        if (data.payload?.secondsLeft !== undefined) {
+                            setServerSecondsLeft(data.payload.secondsLeft);
                         }
                         setMessages(prev => [...prev, data]);
                         break;
@@ -211,5 +215,6 @@ export const useWebSocket = (auctionId, username, role = 'viewer', userId = null
         muteUser,
         ws,
         serverTimeOffset,
+        serverSecondsLeft,
     };
 };
