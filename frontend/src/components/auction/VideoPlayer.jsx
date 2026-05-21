@@ -56,6 +56,8 @@ export default function VideoPlayer({
   const [broadcasting, setBroadcasting] = useState(false);
   const [streamEnded, setStreamEnded] = useState(false);
   const [hasStream, setHasStream] = useState(false);
+  const [pcState, setPcState] = useState('new');
+  const [iceState, setIceState] = useState('new');
 
   // Controls UI
   const [showControls, setShowControls] = useState(false);
@@ -219,41 +221,73 @@ export default function VideoPlayer({
     pcRef.current?.close();
     iceQueueRef.current = [];
     remoteDescSetRef.current = false;
+    setPcState('new');
+    setIceState('new');
 
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     pcRef.current = pc;
 
     // Explicitly add transceivers to signal that we want to receive audio and video
     try {
-      pc.addTransceiver('audio', { direction: 'recvonly' });
-      pc.addTransceiver('video', { direction: 'recvonly' });
+      const audioTransceiver = pc.addTransceiver('audio', { direction: 'recvonly' });
+      const videoTransceiver = pc.addTransceiver('video', { direction: 'recvonly' });
       console.log('[Viewer] Explicit recvonly transceivers added to RTCPeerConnection');
+
+      if (videoTransceiver && RTCRtpReceiver.getCapabilities) {
+        const capabilities = RTCRtpReceiver.getCapabilities('video');
+        if (capabilities && capabilities.codecs) {
+          const sortedCodecs = [...capabilities.codecs].sort((a, b) => {
+            const mimeA = a.mimeType.toLowerCase();
+            const mimeB = b.mimeType.toLowerCase();
+            const isAH264 = mimeA === 'video/h264';
+            const isBH264 = mimeB === 'video/h264';
+
+            const fmtpA = (a.sdpFmtpLine || '').toLowerCase();
+            const fmtpB = (b.sdpFmtpLine || '').toLowerCase();
+            const isABaseline = isAH264 && (fmtpA.includes('profile-level-id=42e0') || fmtpA.includes('profile-level-id=4200'));
+            const isBBaseline = isBH264 && (fmtpB.includes('profile-level-id=42e0') || fmtpB.includes('profile-level-id=4200'));
+
+            const isAVP8 = mimeA === 'video/vp8';
+            const isBVP8 = mimeB === 'video/vp8';
+
+            if (isABaseline && !isBBaseline) return -1;
+            if (!isABaseline && isBBaseline) return 1;
+            if (isAH264 && !isBH264) return -1;
+            if (!isAH264 && isBH264) return 1;
+            if (isAVP8 && !isBVP8) return -1;
+            if (!isAVP8 && isBVP8) return 1;
+            return 0;
+          });
+          videoTransceiver.setCodecPreferences(sortedCodecs);
+          console.log('[Viewer] Prioritized Constrained Baseline and VP8 codecs on receiver transceiver');
+        }
+      }
     } catch (tErr) {
-      console.warn('[Viewer] Failed to add explicit transceivers:', tErr);
+      console.warn('[Viewer] Failed to add/configure transceivers:', tErr);
     }
 
     pc.ontrack = (e) => {
       console.log('[Viewer] ontrack fired:', e.track.kind);
-      if (remoteRef.current) {
-        // Collect all currently received tracks on the PeerConnection
-        const currentTracks = pc.getReceivers().map(r => r.track).filter(Boolean);
-        const hasVideo = currentTracks.some(t => t.kind === 'video');
-        console.log('[Viewer] Received active tracks:', currentTracks.map(t => t.kind));
+      
+      const stream = e.streams[0] || new MediaStream(pc.getReceivers().map(r => r.track).filter(Boolean));
+      const hasVideo = stream.getVideoTracks().length > 0;
+      console.log('[Viewer] Stream tracks:', stream.getTracks().map(t => t.kind), 'hasVideo:', hasVideo);
 
-        // Reconstruct a brand-new MediaStream with all active tracks to force iOS Safari/WebKit
-        // to re-evaluate and spin up both audio and video decoders simultaneously.
-        const newStream = new MediaStream(currentTracks);
-        remoteRef.current.srcObject = newStream;
-        remoteRef.current.volume = volume;
+      if (hasVideo) {
+        if (remoteRef.current) {
+          if (remoteRef.current.srcObject !== stream) {
+            console.log('[Viewer] Assigning active stream with video track to srcObject');
+            remoteRef.current.srcObject = stream;
+            remoteRef.current.volume = volume;
+            setHasStream(true);
 
-        if (hasVideo) {
-          setHasStream(true);
+            remoteRef.current.play().catch(playErr => {
+              console.warn('[Viewer] play() failed, retrying on interaction:', playErr);
+            });
+          }
         }
-
-        // Force play on mobile devices immediately
-        remoteRef.current.play().catch(playErr => {
-          console.warn('[Viewer] play() failed, retrying on interaction:', playErr);
-        });
+      } else {
+        console.log('[Viewer] Received audio track. Waiting for video track before assigning srcObject...');
       }
     };
 
@@ -263,10 +297,12 @@ export default function VideoPlayer({
 
     pc.oniceconnectionstatechange = () => {
       console.log('[Viewer] ICE connection state changed:', pc.iceConnectionState);
+      setIceState(pc.iceConnectionState);
     };
 
     pc.onconnectionstatechange = () => {
       console.log('[Viewer] Connection state changed:', pc.connectionState);
+      setPcState(pc.connectionState);
     };
 
     return pc;
@@ -554,6 +590,7 @@ export default function VideoPlayer({
           ref={remoteRef}
           autoPlay
           playsInline
+          webkit-playsinline="true"
           muted={isMuted}
           className="w-full h-full"
           style={{
@@ -563,6 +600,17 @@ export default function VideoPlayer({
           }}
         />
       }
+
+      {/* ── Diagnostic Pill ── */}
+      {role === 'viewer' && (
+        <div className="absolute bottom-16 left-3 z-30 flex items-center gap-1.5 text-[10px] font-mono text-white/70 px-2 py-1 rounded-md" style={{ background: 'rgba(0,0,0,0.7)', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <span>Conn: {pcState}</span>
+          <span className="text-white/20">|</span>
+          <span>ICE: {iceState}</span>
+          <span className="text-white/20">|</span>
+          <span>Stream: {hasStream ? 'Active' : 'None'}</span>
+        </div>
+      )}
 
       {/* ── Tap to unmute overlay (viewer only, when muted) ── */}
       {role === 'viewer' && hasStream && isMuted && !streamEnded && (

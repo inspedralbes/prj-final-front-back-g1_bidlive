@@ -308,8 +308,8 @@ export default function SellerLiveVideo() {
             const isBH264 = mimeB === 'video/h264';
 
             // Filter for H.264 Constrained Baseline profile (profile-level-id=42e0 or 4200)
-            const fmtpA = a.sdpFmtpLine || '';
-            const fmtpB = b.sdpFmtpLine || '';
+            const fmtpA = (a.sdpFmtpLine || '').toLowerCase();
+            const fmtpB = (b.sdpFmtpLine || '').toLowerCase();
             const isABaseline = isAH264 && (fmtpA.includes('profile-level-id=42e0') || fmtpA.includes('profile-level-id=4200'));
             const isBBaseline = isBH264 && (fmtpB.includes('profile-level-id=42e0') || fmtpB.includes('profile-level-id=4200'));
 
