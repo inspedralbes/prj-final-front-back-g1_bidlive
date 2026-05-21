@@ -151,9 +151,12 @@ const Puja = {
 
     findBySellerId: async (sellerId) => {
         const sql = `
-            SELECT p.*, u.username as seller_username, u.reputation_score, u.total_sales 
+            SELECT p.*, 
+                   u.username as seller_username, u.reputation_score, u.total_sales,
+                   w.username as winner_username
             FROM pujas p 
             LEFT JOIN users u ON p.seller_id = u.id 
+            LEFT JOIN users w ON p.winner_id = w.id
             WHERE p.seller_id = ? 
             ORDER BY p.created_at DESC
         `;

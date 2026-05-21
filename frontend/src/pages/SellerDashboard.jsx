@@ -170,10 +170,11 @@ export default function SellerDashboard() {
                 <div>
                     <h2 className="text-xl font-black text-white mb-4">{t('dashboard.historyTitle')}</h2>
                     <div className="rounded-2xl overflow-hidden" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                        <div className="hidden md:grid grid-cols-12 gap-4 px-5 py-3"
-                            style={{ background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
-                            {[t('dashboard.colItem'), t('dashboard.colStatus'), t('dashboard.colFinal'), t('dashboard.colActions')].map((h, i) => (
-                                <span key={h} className={`text-xs font-semibold text-gray-500 uppercase tracking-wider ${i === 3 ? 'col-span-2 text-right' : i === 0 ? 'col-span-5' : 'col-span-2'}`}>{h}</span>
+                        {/* Table header */}
+                        <div className="hidden md:grid px-5 py-3"
+                            style={{ gridTemplateColumns: '3fr 2fr 2fr 1.5fr 1.2fr', gap: '1rem', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid var(--border)' }}>
+                            {['Artículo', 'Ganador', 'Fecha cierre', 'Precio final', 'Estado'].map(h => (
+                                <span key={h} className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</span>
                             ))}
                         </div>
 
@@ -191,30 +192,83 @@ export default function SellerDashboard() {
 
                         {!loading && endedPujas.length > 0 && (
                             <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-                                {endedPujas.map((p, idx) => {
+                                {endedPujas.map((p) => {
                                     const col = statusColor(p.status, t);
                                     const price = p.currentPrice ?? p.current_price ?? p.startingPrice ?? p.starting_price ?? 0;
+                                    const winner = p.winner_username || p.winnerUsername || null;
+                                    const endDate = p.end_time ? new Date(p.end_time).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
                                     return (
-                                        <div key={p.id} className="grid grid-cols-12 gap-4 items-center px-5 py-4 hover:bg-white/[0.02] transition-colors">
-                                            <div className="col-span-10 md:col-span-5 flex items-center gap-3 opacity-60">
-                                                <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0" style={{ background: '#1a1a2e', border: '1px solid var(--border)' }}>
-                                                    {p.image_url || p.img ? <img src={p.image_url || p.img} alt={p.title} className="w-full h-full flex items-center justify-center grayscale" onError={e => e.target.style.display = 'none'} /> : <div className="w-full h-full flex items-center justify-center text-gray-700"></div>}
+                                        <div key={p.id} className="hidden md:grid px-5 py-4 hover:bg-white/[0.02] transition-colors items-center"
+                                            style={{ gridTemplateColumns: '3fr 2fr 2fr 1.5fr 1.2fr', gap: '1rem' }}>
+
+                                            {/* Item */}
+                                            <div className="flex items-center gap-3 opacity-70">
+                                                <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0" style={{ background: '#1a1a2e', border: '1px solid var(--border)' }}>
+                                                    {p.image_url || p.img
+                                                        ? <img src={p.image_url || p.img} alt={p.title} className="w-full h-full object-cover grayscale" onError={e => e.target.style.display = 'none'} />
+                                                        : <div className="w-full h-full flex items-center justify-center text-gray-700 text-xs">?</div>}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <p className="text-white font-semibold text-sm truncate line-through">{p.title}</p>
+                                                    <p className="text-white font-semibold text-sm truncate">{p.title}</p>
                                                     <p className="text-gray-600 text-xs">#{p.id}</p>
                                                 </div>
                                             </div>
-                                            <div className="hidden md:flex col-span-2 items-center opacity-70">
-                                                <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ color: col.text, background: col.bg }}>{col.label}</span>
+
+                                            {/* Winner */}
+                                            <div className="flex items-center gap-1.5">
+                                                {winner ? (
+                                                    <>
+                                                        <span className="text-amber-400 text-sm">🏆</span>
+                                                        <span className="text-white text-sm font-semibold truncate">{winner}</span>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-gray-600 text-sm italic">Sin ganador</span>
+                                                )}
                                             </div>
-                                            <div className="hidden md:block col-span-2 opacity-70">
+
+                                            {/* Date */}
+                                            <div>
+                                                <span className="text-gray-400 text-sm">{endDate}</span>
+                                            </div>
+
+                                            {/* Final price */}
+                                            <div>
                                                 <p className="text-gray-400 font-bold text-sm">${Number(price).toLocaleString()}</p>
                                             </div>
-                                            <div className="col-span-2 md:col-span-3 flex justify-end gap-2">
-                                                <button disabled className="bg-gray-800 text-gray-500 text-xs py-2 px-3 rounded cursor-not-allowed">
-                                                    {t('dashboard.btnClosed')}
-                                                </button>
+
+                                            {/* Status badge */}
+                                            <div>
+                                                <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ color: col.text, background: col.bg }}>{col.label}</span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                                {/* Mobile view — card style */}
+                                {endedPujas.map((p) => {
+                                    const col = statusColor(p.status, t);
+                                    const price = p.currentPrice ?? p.current_price ?? p.startingPrice ?? p.starting_price ?? 0;
+                                    const winner = p.winner_username || p.winnerUsername || null;
+                                    const endDate = p.end_time ? new Date(p.end_time).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+                                    return (
+                                        <div key={`m-${p.id}`} className="md:hidden flex items-center gap-3 px-4 py-4" style={{ borderColor: 'var(--border)' }}>
+                                            <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 opacity-60" style={{ background: '#1a1a2e', border: '1px solid var(--border)' }}>
+                                                {p.image_url || p.img
+                                                    ? <img src={p.image_url || p.img} alt={p.title} className="w-full h-full object-cover grayscale" onError={e => e.target.style.display = 'none'} />
+                                                    : <div className="w-full h-full" />}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-white font-semibold text-sm truncate">{p.title}</p>
+                                                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                    {winner
+                                                        ? <span className="text-amber-400 text-xs">🏆 {winner}</span>
+                                                        : <span className="text-gray-600 text-xs italic">Sin ganador</span>}
+                                                    <span className="text-gray-600 text-xs">· {endDate}</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                                <p className="text-gray-400 font-bold text-sm">${Number(price).toLocaleString()}</p>
+                                                <span className="text-xs font-bold px-2 py-0.5 rounded-full mt-1 inline-block" style={{ color: col.text, background: col.bg }}>{col.label}</span>
                                             </div>
                                         </div>
                                     );
