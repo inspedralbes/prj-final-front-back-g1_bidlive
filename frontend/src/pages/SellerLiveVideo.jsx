@@ -8,6 +8,9 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
 const ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  { urls: 'stun:stun4.l.google.com:19302' },
 ];
 
 // ── Seller camera/photo preview component ────────────────────────────────────────
@@ -292,7 +295,7 @@ export default function SellerLiveVideo() {
       streamRef.current.getTracks().forEach(track => pc.addTrack(track, streamRef.current));
     }
 
-    // Prioritize H.264 and VP8 video codecs for mobile compatibility
+    // Prioritize H.264 and VP8 video codecs for mobile compatibility, with Constrained Baseline at the absolute top
     try {
       const videoTransceiver = pc.getTransceivers().find(t => t.sender.track?.kind === 'video');
       if (videoTransceiver && RTCRtpSender.getCapabilities) {
@@ -303,9 +306,18 @@ export default function SellerLiveVideo() {
             const mimeB = b.mimeType.toLowerCase();
             const isAH264 = mimeA === 'video/h264';
             const isBH264 = mimeB === 'video/h264';
+
+            // Filter for H.264 Constrained Baseline profile (profile-level-id=42e0 or 4200)
+            const fmtpA = a.sdpFmtpLine || '';
+            const fmtpB = b.sdpFmtpLine || '';
+            const isABaseline = isAH264 && (fmtpA.includes('profile-level-id=42e0') || fmtpA.includes('profile-level-id=4200'));
+            const isBBaseline = isBH264 && (fmtpB.includes('profile-level-id=42e0') || fmtpB.includes('profile-level-id=4200'));
+
             const isAVP8 = mimeA === 'video/vp8';
             const isBVP8 = mimeB === 'video/vp8';
 
+            if (isABaseline && !isBBaseline) return -1;
+            if (!isABaseline && isBBaseline) return 1;
             if (isAH264 && !isBH264) return -1;
             if (!isAH264 && isBH264) return 1;
             if (isAVP8 && !isBVP8) return -1;
@@ -313,7 +325,7 @@ export default function SellerLiveVideo() {
             return 0;
           });
           videoTransceiver.setCodecPreferences(sortedCodecs);
-          console.log('[Seller] Prioritized H.264 and VP8 codecs for viewer', viewerSessionId);
+          console.log('[Seller] Prioritized H.264 Constrained Baseline Profile codecs for viewer', viewerSessionId);
         }
       }
     } catch (cErr) {
@@ -324,7 +336,12 @@ export default function SellerLiveVideo() {
       if (e.candidate) sendSignal('ICE_CANDIDATE', { candidate: e.candidate, targetId: viewerSessionId });
     };
 
+    pc.oniceconnectionstatechange = () => {
+      console.log(`[Seller] ICE connection state for viewer[${viewerSessionId}]:`, pc.iceConnectionState);
+    };
+
     pc.onconnectionstatechange = () => {
+      console.log(`[Seller] Connection state for viewer[${viewerSessionId}]:`, pc.connectionState);
       if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) {
         peersRef.current.delete(viewerSessionId);
       }
