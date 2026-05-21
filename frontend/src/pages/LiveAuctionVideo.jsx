@@ -83,15 +83,7 @@ export default function LiveAuctionVideo() {
     useEffect(() => {
         if (!auctionEnded) return;
         setShowEndedPopup(true);
-        let remaining = 5;
-        setCountdown(remaining);
-        const interval = setInterval(() => {
-            remaining -= 1;
-            setCountdown(remaining);
-            if (remaining <= 0) { clearInterval(interval); navigate('/'); }
-        }, 1000);
-        return () => clearInterval(interval);
-    }, [auctionEnded, navigate]);
+    }, [auctionEnded]);
 
     // Current bid from BID_PLACED messages
     const latestBidMsg = messages

@@ -177,7 +177,7 @@ export default function SellerLiveVideo() {
   const username = user?.username || user?.email || 'Anonymous';
 
   // One shared WS connection for the seller
-  const { status, messages, viewerCount, sendMessage, sendSignal, setSignalHandler, serverTimeOffset } =
+  const { status, messages, viewerCount, sendMessage, sendSignal, setSignalHandler, serverTimeOffset, auctionEnded, endData } =
     useWebSocket(id, username, 'seller', user?.id);
 
   const localRef = useRef(null);
@@ -322,7 +322,6 @@ export default function SellerLiveVideo() {
           streamRef.current?.getTracks().forEach(t => t.stop());
           peersRef.current.forEach(({ pc }) => pc.close());
           peersRef.current.clear();
-          setTimeout(() => navigate('/seller'), 1500);
         }
       } catch (err) {
         console.error('[Seller] signal handler error:', err);
@@ -352,6 +351,16 @@ export default function SellerLiveVideo() {
         setIsStreaming(true);
         sendSignal('SELLER_LIVE', {});
         console.log('[Seller] SELLER_LIVE sent');
+
+        // Renegotiate with viewers who joined before we had the camera stream
+        peersRef.current.forEach(({ pc }, viewerSessionId) => {
+          stream.getTracks().forEach(track => {
+            const senders = pc.getSenders();
+            const hasTrack = senders.some(s => s.track && s.track.kind === track.kind);
+            if (!hasTrack) pc.addTrack(track, stream);
+          });
+          sendOfferToViewer(viewerSessionId);
+        });
       }
 
       // Update auction status in DB
@@ -367,29 +376,7 @@ export default function SellerLiveVideo() {
     }
   };
 
-  // ── Declare winner and close stream ────────────────────────────────────────
-  const declareWinner = async () => {
-    if (!window.confirm('\u00bfSeguro que quieres cerrar la subasta y dar el premio al ganador?')) return;
-    setIsDeclaring(true);
-    try {
-      const res = await fetch(`${API_URL}/auction/pujas/${id}/end`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' },
-      });
-      if (res.ok) {
-        sendSignal('END_AUCTION', { finalPrice: latestBid, winnerUsername: latestBidder });
-        setIsEnding(true);
-        streamRef.current?.getTracks().forEach(t => t.stop());
-        setTimeout(() => navigate('/seller'), 2000);
-      } else {
-        alert('Error al cerrar la subasta');
-      }
-    } catch (e) {
-      alert('Error de red');
-    } finally {
-      setIsDeclaring(false);
-    }
-  };
+
 
   // ── Cleanup on unmount ───────────────────────────────────────────────────
   useEffect(() => {
@@ -432,6 +419,59 @@ export default function SellerLiveVideo() {
           </button>
         </div>
       </header>
+
+      {/* ── Auction Ended Popup ──────────────────────────────────────── */}
+      {auctionEnded && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(20px)' }}>
+          {endData?.winnerId && (
+            <div style={{ position: 'absolute', top: '20%', left: '50%', transform: 'translateX(-50%)', width: '600px', height: '400px', background: 'radial-gradient(circle, rgba(245,158,11,0.15) 0%, transparent 70%)', pointerEvents: 'none' }} />
+          )}
+
+          <div className="flex flex-col items-center gap-6 rounded-3xl p-10 text-center max-w-md w-full mx-4 relative"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(245,158,11,0.25)',
+              boxShadow: '0 32px 80px rgba(0,0,0,0.7), 0 0 60px rgba(245,158,11,0.08)',
+              backdropFilter: 'blur(24px)',
+            }}
+          >
+            {endData?.winnerId ? (
+              <>
+                <div style={{ width: '96px', height: '96px', borderRadius: '50%', background: 'rgba(245,158,11,0.12)', border: '2px solid rgba(245,158,11,0.4)', boxShadow: '0 0 40px rgba(245,158,11,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px' }}>
+                  🏆
+                </div>
+                <div>
+                  <p className="text-amber-400 font-bold text-sm uppercase tracking-widest mb-2">Subasta Finalizada</p>
+                  <h2 className="text-white font-black text-4xl mb-1" style={{ letterSpacing: '-0.5px' }}>
+                    ¡Tenemos Ganador!
+                  </h2>
+                  <div className="mt-4 px-6 py-3 rounded-2xl" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                    <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">Ganador</p>
+                    <p className="text-amber-400 font-black text-2xl">{endData?.winnerUsername || 'Usuario'}</p>
+                    <p className="text-white font-bold text-lg mt-1">{endData?.finalPrice}€</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(107,114,128,0.15)', border: '1.5px solid rgba(107,114,128,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '36px' }}>
+                  ⏱
+                </div>
+                <div>
+                  <h2 className="text-white font-black text-3xl mb-2">Subasta Desierta</h2>
+                  <p className="text-gray-400 text-sm leading-relaxed">El tiempo ha finalizado sin recibir ninguna puja.</p>
+                </div>
+              </>
+            )}
+
+            <button onClick={() => navigate('/seller')} className="w-full py-3.5 rounded-2xl font-bold text-sm mt-2"
+              style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', color: '#ffffff' }}>
+              Volver al Dashboard
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main */}
       <main className="flex-1 flex flex-col md:grid overflow-hidden md:grid-cols-[1fr_380px]">
