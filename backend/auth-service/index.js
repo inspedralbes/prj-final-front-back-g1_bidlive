@@ -133,8 +133,16 @@ app.post("/forgot-password", async (req, res) => {
         }
 
         const token = await PasswordReset.create(user.id);
-        const APP_URL = process.env.APP_URL || 'http://localhost:5173';
+
+        // Derive the frontend URL from:
+        // 1. APP_URL env var (explicit production override)
+        // 2. Origin header sent by the browser (works for both dev + prod automatically)
+        // 3. Referer header (fallback if Origin is absent)
+        // Never falls back to localhost in production.
+        const origin = req.headers.origin || (req.headers.referer ? new URL(req.headers.referer).origin : null);
+        const APP_URL = process.env.APP_URL || origin || 'http://localhost:5173';
         const resetUrl = `${APP_URL}/reset-password?token=${token}`;
+        console.log(`[Auth] Password reset URL: ${resetUrl}`);
 
         // Send via auction-service email proxy (which has nodemailer)
         const AUCTION_URL = process.env.AUCTION_SERVICE_URL || 'http://auction-service:3001';
@@ -165,6 +173,7 @@ app.post("/forgot-password", async (req, res) => {
 });
 
 // Step 2: User submits new password with the token
+
 app.post("/reset-password", async (req, res) => {
     try {
         const { token, password } = req.body;
