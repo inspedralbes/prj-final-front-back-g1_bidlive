@@ -171,15 +171,23 @@ const pujaController = {
     endPuja: async (req, res) => {
         try {
             const { id } = req.params;
-            const { winnerId, finalPrice } = req.body;
             
             const puja = await Puja.findById(id);
             if (!puja) {
                 return res.status(404).json({ message: 'Puja not found' });
             }
 
+            // Read winner directly from DB — do NOT trust frontend-submitted winnerId
+            const winnerId = puja.last_bidder_id || null;
+            const finalPrice = puja.current_price || puja.starting_price;
+
+            // Idempotent: if already ended, return success
+            if (puja.status === 'ended') {
+                return res.json({ message: 'Already ended', id, status: 'ended', winnerId, finalPrice });
+            }
+
             // Update status, winner and payment status
-            await Puja.endWithWinner(id, winnerId || null, finalPrice || puja.current_price);
+            await Puja.endWithWinner(id, winnerId, finalPrice);
             console.log(`[Auction] Puja ${id} ended. Winner: ${winnerId}, Price: ${finalPrice}`);
 
             // Update seller reputation and send notifications ONLY if there is a winner

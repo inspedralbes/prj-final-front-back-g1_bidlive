@@ -228,7 +228,7 @@ export default function SellerLiveVideo() {
     return () => clearInterval(iv);
   }, [endTime]);
 
-  // Update end_time when NEW_END_TIME arrives via WS
+  // Update end_time when NEW_END_TIME arrives via WS (join sync + anti-snipe extension)
   React.useEffect(() => {
     const last = [...messages].reverse().find(m => m.type === 'NEW_END_TIME');
     if (last?.payload?.endTime) setEndTime(new Date(last.payload.endTime));

@@ -161,6 +161,21 @@ wss.on("connection", (ws) => {
                     } catch (histErr) {
                         console.error(`[BiddingDB] Failed to stream chat history for room ${auctionId}:`, histErr.message);
                     }
+
+                    // Send current end_time so all clients have the same synchronized timer
+                    try {
+                        const AUCTION_SERVICE_URL = process.env.AUCTION_SERVICE_URL || 'http://auction-service:3001';
+                        const auctionRes = await fetch(`${AUCTION_SERVICE_URL}/pujas/${auctionId}`);
+                        if (auctionRes.ok) {
+                            const auctionData = await auctionRes.json();
+                            if (auctionData.end_time) {
+                                sendJson(ws, { type: 'NEW_END_TIME', payload: { endTime: auctionData.end_time } });
+                                console.log(`[Room ${auctionId}] Sent end_time ${auctionData.end_time} to [${ws.sessionId}]`);
+                            }
+                        }
+                    } catch (etErr) {
+                        console.error(`[BiddingDB] Failed to send end_time to [${ws.sessionId}]:`, etErr.message);
+                    }
                     break;
                 }
 
