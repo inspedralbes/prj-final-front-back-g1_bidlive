@@ -209,9 +209,10 @@ export default function VideoPlayer({
       // Request the highest available resolution from the webcam
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          width: { ideal: 1280, max: 1280 },
-          height: { ideal: 720, max: 720 },
-          frameRate: { ideal: 30, max: 30 },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+          facingMode: "user"
         },
         audio: true,
       });
@@ -248,44 +249,8 @@ export default function VideoPlayer({
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     pcRef.current = pc;
 
-    // Explicitly add transceivers to signal that we want to receive audio and video
-    try {
-      const audioTransceiver = pc.addTransceiver('audio', { direction: 'recvonly' });
-      const videoTransceiver = pc.addTransceiver('video', { direction: 'recvonly' });
-      console.log('[Viewer] Explicit recvonly transceivers added to RTCPeerConnection');
-
-      if (videoTransceiver && RTCRtpReceiver.getCapabilities) {
-        const capabilities = RTCRtpReceiver.getCapabilities('video');
-        if (capabilities && capabilities.codecs) {
-          const sortedCodecs = [...capabilities.codecs].sort((a, b) => {
-            const mimeA = a.mimeType.toLowerCase();
-            const mimeB = b.mimeType.toLowerCase();
-            const isAH264 = mimeA === 'video/h264';
-            const isBH264 = mimeB === 'video/h264';
-
-            const fmtpA = (a.sdpFmtpLine || '').toLowerCase();
-            const fmtpB = (b.sdpFmtpLine || '').toLowerCase();
-            const isABaseline = isAH264 && (fmtpA.includes('profile-level-id=42e0') || fmtpA.includes('profile-level-id=4200'));
-            const isBBaseline = isBH264 && (fmtpB.includes('profile-level-id=42e0') || fmtpB.includes('profile-level-id=4200'));
-
-            const isAVP8 = mimeA === 'video/vp8';
-            const isBVP8 = mimeB === 'video/vp8';
-
-            if (isABaseline && !isBBaseline) return -1;
-            if (!isABaseline && isBBaseline) return 1;
-            if (isAH264 && !isBH264) return -1;
-            if (!isAH264 && isBH264) return 1;
-            if (isAVP8 && !isBVP8) return -1;
-            if (!isAVP8 && isBVP8) return 1;
-            return 0;
-          });
-          videoTransceiver.setCodecPreferences(sortedCodecs);
-          console.log('[Viewer] Prioritized Constrained Baseline and VP8 codecs on receiver transceiver');
-        }
-      }
-    } catch (tErr) {
-      console.warn('[Viewer] Failed to add/configure transceivers:', tErr);
-    }
+    // We let the incoming OFFER from the Seller automatically create the transceivers.
+    // This prevents track order mismatches between Desktop and Mobile.
 
     pc.ontrack = (e) => {
       console.log('[Viewer] ontrack fired:', e.track.kind);
@@ -339,7 +304,7 @@ export default function VideoPlayer({
       if (remoteDescSetRef.current) { clearInterval(retryTimerRef.current); return; }
       sendSignal('REQUEST_OFFER', {});
       console.log('[Viewer] REQUEST_OFFER retry...');
-    }, 4000);
+    }, 10000);
   }, [sendSignal]);
 
   // ── Register signal handler ────────────────────────────────────────────────
