@@ -1,4 +1,4 @@
-# 🔨 BidLive — Plataforma de Subastas en Tiempo Real
+# 🔨 BidLive — Plataforma de Subastas en Tiempo Real,
 
 > Compra, vende y puja por artículos únicos en directo. La emoción de la subasta, en tiempo real.
 
