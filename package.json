@@ -1,0 +1,10 @@
+{
+  "name": "bidlife-root",
+  "version": "1.0.0",
+  "scripts": {
+    "spec:lint": "spectral lint openspec/specs/*.yaml",
+    "spec:mock:auth": "prism mock openspec/specs/auth-spec.yaml -p 4000",
+    "spec:mock:auction": "prism mock openspec/specs/auction-spec.yaml -p 4001",
+    "frontend:gen": "npm run api:generate --prefix frontend"
+  }
+}

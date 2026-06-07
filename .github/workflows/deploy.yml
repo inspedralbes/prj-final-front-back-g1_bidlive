@@ -1,0 +1,73 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy via SSH
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            set -e
+
+            # 1. Ir al directorio del proyecto
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            # 2. Actualizar el codigo
+            git fetch origin main
+            git reset --hard origin/main
+            git pull origin main
+
+            # 3. Escribir .env.production sin espacios extra (evita bugs de parseo)
+            printf 'DB_ROOT_PASSWORD=%s\n' '${{ secrets.DB_ROOT_PASSWORD }}' > .env.production
+            printf 'DB_DATABASE=%s\n'      '${{ secrets.DB_DATABASE }}'      >> .env.production
+            printf 'DB_USER=%s\n'          '${{ secrets.DB_USER }}'          >> .env.production
+            printf 'DB_PASSWORD=%s\n'      '${{ secrets.DB_PASSWORD }}'      >> .env.production
+            printf 'PORT_FRONTEND=%s\n'    '3010'                            >> .env.production
+            printf 'PORT_GATEWAY=%s\n'     '8080'                            >> .env.production
+            printf 'PORT_AUTH_SERVICE=%s\n'    '3000'                        >> .env.production
+            printf 'PORT_AUCTION_SERVICE=%s\n' '3001'                        >> .env.production
+            printf 'PORT_BIDDING_SERVICE=%s\n' '3002'                        >> .env.production
+            printf 'PORT_CHAT_SERVICE=%s\n'    '3004'                        >> .env.production
+            printf 'JWT_SECRET=%s\n'           '${{ secrets.JWT_SECRET }}'   >> .env.production
+            printf 'VITE_API_URL=%s\n'     '${{ secrets.VITE_API_URL }}'     >> .env.production
+            printf 'VITE_WS_URL=%s\n'      '${{ secrets.VITE_WS_URL }}'      >> .env.production
+            printf 'VITE_SIGNALING_URL=%s\n' '${{ secrets.VITE_SIGNALING_URL }}' >> .env.production
+            printf 'VITE_GOOGLE_CLIENT_ID=%s\n' '${{ secrets.VITE_GOOGLE_CLIENT_ID }}' >> .env.production
+            printf 'GOOGLE_CLIENT_ID=%s\n' '${{ secrets.GOOGLE_CLIENT_ID }}' >> .env.production
+            printf 'STRIPE_SECRET_KEY=%s\n' '${{ secrets.STRIPE_SECRET_KEY }}' >> .env.production
+            printf 'STRIPE_WEBHOOK_SECRET=%s\n' '${{ secrets.STRIPE_WEBHOOK_SECRET }}' >> .env.production
+            printf 'STRIPE_WEBHOOK_SECRET_AUCTION=%s\n' '${{ secrets.STRIPE_WEBHOOK_SECRET_AUCTION }}' >> .env.production
+            printf 'FRONTEND_URL=%s\n'     '${{ secrets.FRONTEND_URL }}'     >> .env.production
+            printf 'BACKEND_URL=%s\n'      '${{ secrets.BACKEND_URL }}'      >> .env.production
+            printf 'SMTP_HOST=%s\n'        '${{ secrets.SMTP_HOST }}'        >> .env.production
+            printf 'SMTP_PORT=%s\n'        '${{ secrets.SMTP_PORT }}'        >> .env.production
+            printf 'SMTP_USER=%s\n'        '${{ secrets.SMTP_USER }}'        >> .env.production
+            printf 'SMTP_PASS=%s\n'        '${{ secrets.SMTP_PASS }}'        >> .env.production
+            printf 'EMAIL_FROM=%s\n'       '${{ secrets.EMAIL_FROM }}'       >> .env.production
+
+            # 4. Reconstruir y levantar los contenedores en produccion
+            docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+
+            # 5. Recargar config de Nginx en el gateway (necesario cuando solo cambia el conf montado)
+            docker exec $(docker ps -qf "name=gateway") nginx -s reload || true
+
+            # 6. Limpiar imagenes antiguas para liberar espacio
+            docker image prune -f
+
+            echo "✅ Deploy completado con exito"
+
